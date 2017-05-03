@@ -14,7 +14,7 @@ class Data():
         parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
 
         for file in glob(os.path.join(folder, pattern)):
-            with open(file, 'r') as f:
+            with open(file, 'r', encoding='utf-8') as f:
                 xml = etree.fromstring(f.read().encode('utf-8'), parser)
                 yield xml
 
