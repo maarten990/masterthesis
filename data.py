@@ -1,9 +1,11 @@
 import os.path
-from lxml import etree
-from glob import glob
 import re
-import numpy as np
+from glob import glob
 
+import numpy as np
+from lxml import etree
+
+from keras.preprocessing.sequence import pad_sequences
 
 class Data():
     def __init__(self, folder, pattern='*.xml'):
@@ -37,12 +39,17 @@ class Data():
                 X.append(featurizer(window, nodes))
                 y.append(self.__get_label(window[round(n / 2)]))
 
-        return np.array(X, dtype='float32'), np.array(y)
-
-
-def tf_idf_featurizer(nodes, all_nodes):
-    pass
+        return X, np.array(y)
 
 
 def metadata_featurizer(nodes, _):
     return [node.attrib[key] for node in nodes for key in sorted(node.attrib) if key != 'is-speech']
+
+
+def char_featurizer(nodes, _):
+    out = []
+    for node in nodes:
+        if node.text:
+            out.extend([ord(c) for c in node.text])
+
+    return out
