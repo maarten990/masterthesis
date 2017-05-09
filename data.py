@@ -1,11 +1,10 @@
 import os.path
-import re
 from glob import glob
+from math import floor
 
 import numpy as np
 from lxml import etree
 
-from keras.preprocessing.sequence import pad_sequences
 
 class Data():
     def __init__(self, folder, pattern='*.xml'):
@@ -37,7 +36,7 @@ class Data():
             nodes = xml.xpath('//text')
             for window in zip(*(nodes[i:] for i in range(n))):
                 X.append(featurizer(window, nodes))
-                y.append(self.__get_label(window[round(n / 2)]))
+                y.append(self.__get_label(window[floor(n / 2)]))
 
         return X, np.array(y)
 
