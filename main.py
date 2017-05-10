@@ -1,7 +1,8 @@
 import argparse
+from collections import namedtuple
 
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 
 from data import Data, char_featurizer, metadata_featurizer
@@ -14,6 +15,10 @@ from keras.models import Sequential, load_model
 from sklearn.pipeline import make_pipeline
 from keras.preprocessing.sequence import pad_sequences
 from keras.wrappers.scikit_learn import KerasClassifier
+
+from tabulate import tabulate
+
+Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 
 
 def create_cnn(timesteps, n):
@@ -84,23 +89,17 @@ def create_model(k, epochs, dropout):
     return make_pipeline(model)
 
 
-def save_pipeline(model, data, path):
-    if 'kerasclassifier' in model.named_steps:
-        nnet = model.named_steps['kerasclassifier'].model
+def save_pipeline(clf, data, path):
+        nnet = clf.model
         nnet.save('nnet.h5')
-        model.named_steps['kerasclassifier'].model = None
-        joblib.dump((model, data), path)
-        model.named_steps['kerasclassifier'].model = nnet
-
-    else:
-        joblib.dump((model, data), path)
+        clf.model = None
+        joblib.dump((clf, data), path)
+        clf.model = nnet
 
 
-def load_pipeline(path, keras=False):
+def load_pipeline(path):
     model, data = joblib.load(path)
-
-    if keras:
-        model.named_steps['kerasclassifier'].model = load_model('nnet.h5')
+    model.model = load_model('nnet.h5')
 
     return model, data
 
@@ -118,6 +117,8 @@ def get_args():
                         help='the dropout ratio (between 0 and 1)')
     parser.add_argument('--network', '-n', choices=['nn', 'rnn', 'cnn'],
                         default='nn', help='the type of neural network to use')
+    parser.add_argument('--load_from_disk', '-l', action='store_true',
+                        help='load previously trained model from disk')
 
     return parser.parse_args()
 
@@ -137,9 +138,7 @@ def downsample(X, y):
     return X_out[permutation, :], y_out[permutation]
 
 
-def main():
-    args = get_args()
-
+def get_model_and_data(args):
     data = Data(args.folder, args.pattern)
 
     if args.network == 'nn':
@@ -157,17 +156,21 @@ def main():
     if args.network == 'cnn':
         X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size)
-    X_train, y_train = downsample(X_train, y_train)
+    split = Split(*train_test_split(X, y, test_size=args.test_size))
+    X_train, y_train = downsample(split.X_train, split.y_train)
+    X_test, y_test = downsample(split.X_test, split.y_test)
 
-    if args.network != 'nn':
+    if args.network == 'rnn':
         X_train = X_train[1:5000, :]
         y_train = y_train[1:5000]
         X_test = X_test[1:1000, :]
         y_test = y_test[1:1000]
 
-    print('{} training samples, {} testing samples'.format(X_train.shape[0], X_test.shape[0]))
-    print('Number of features: {}'.format(X_train.shape[1]))
+    split = Split(X_train, X_test, y_train, y_test)
+
+    print('{} training samples, {} testing samples'.format(
+        split.X_train.shape[0], split.X_test.shape[0]))
+    print('Number of features: {}'.format(split.X_train.shape[1]))
 
     if args.network == 'nn':
         clf = KerasClassifier(create_neuralnet, k=X.shape[1], dropout=args.dropout,
@@ -179,13 +182,32 @@ def main():
         clf = KerasClassifier(create_cnn, timesteps=X.shape[1], n=X.shape[2],
                               epochs=args.epochs, batch_size=32)
 
-    clf.fit(X_train, y_train)
+    return clf, split
 
-    predictions = clf.predict(X_test)
+
+
+def main():
+    args = get_args()
+
+    if args.load_from_disk:
+        clf, split = load_pipeline('model.pkl')
+    else:
+        clf, split = get_model_and_data(args)
+        clf.fit(split.X_train, split.y_train)
+
+    predictions = clf.predict(split.X_test)
+
+    table = []
+    table.append(['Accuracy', accuracy_score(split.y_test, predictions)])
+    table.append(['fi', f1_score(split.y_test, predictions)])
+    table.append(['Speech recall', recall_score(split.y_test, predictions)])
+    table.append(['Speech precision', precision_score(split.y_test, predictions)])
+
     print()
-    print('Accuracy: ', accuracy_score(y_test, predictions))
-    print('Speech recall: ', recall_score(y_test, predictions))
-    print('Speech precision: ', precision_score(y_test, predictions))
+    print(tabulate(table))
+
+    if not args.load_from_disk:
+        save_pipeline(clf, split, 'model.pkl')
 
 
 if __name__ == '__main__':
