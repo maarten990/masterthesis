@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score
@@ -7,13 +6,37 @@ from sklearn.model_selection import train_test_split
 
 from data import Data, char_featurizer, metadata_featurizer
 from sklearn.externals import joblib
-from keras.layers import Activation, Dense, Dropout, Embedding
+from keras.layers import Activation, Dense, Dropout, Embedding, Flatten
+from keras.layers import Conv1D, MaxPool1D
 from keras.layers.recurrent import LSTM
 from keras.layers.wrappers import Bidirectional
 from keras.models import Sequential, load_model
 from sklearn.pipeline import make_pipeline
 from keras.preprocessing.sequence import pad_sequences
 from keras.wrappers.scikit_learn import KerasClassifier
+
+
+def create_cnn(timesteps, n):
+    model = Sequential([
+        Conv1D(32, 3, activation='relu', input_shape=(timesteps, n)),
+        Conv1D(32, 3, activation='relu'),
+        MaxPool1D(2),
+        Dropout(0.25),
+
+        Conv1D(32, 3, activation='relu'),
+        Conv1D(32, 3, activation='relu'),
+        MaxPool1D(2),
+        Dropout(0.25),
+
+        Flatten(),
+        Dense(1),
+        Activation('sigmoid')
+    ])
+
+    model.compile(optimizer='rmsprop', loss='binary_crossentropy',
+                  metrics=['accuracy'])
+
+    return model
 
 
 def create_rnn(timesteps, n):
@@ -93,8 +116,8 @@ def get_args():
                         help='number of epochs to train for')
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='the dropout ratio (between 0 and 1)')
-    parser.add_argument('--features', '-f', choices=['meta', 'char'],
-                        default='meta', help='the features to use')
+    parser.add_argument('--network', '-n', choices=['nn', 'rnn', 'cnn'],
+                        default='nn', help='the type of neural network to use')
 
     return parser.parse_args()
 
@@ -119,23 +142,25 @@ def main():
 
     data = Data(args.folder, args.pattern)
 
-    if args.features == 'meta':
+    if args.network == 'nn':
         featurizer = metadata_featurizer
     else:
         featurizer = char_featurizer
 
     X, y = data.sliding_window(2, featurizer)
 
-    if args.features == 'char':
-        X = pad_sequences(X)
-        # X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-    else:
+    if args.network == 'nn':
         X = np.array(X)
+    else:
+        X = pad_sequences(X)
+
+    if args.network == 'cnn':
+        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=args.test_size)
     X_train, y_train = downsample(X_train, y_train)
 
-    if args.features == 'char':
+    if args.network != 'nn':
         X_train = X_train[1:5000, :]
         y_train = y_train[1:5000]
         X_test = X_test[1:1000, :]
@@ -144,11 +169,14 @@ def main():
     print('{} training samples, {} testing samples'.format(X_train.shape[0], X_test.shape[0]))
     print('Number of features: {}'.format(X_train.shape[1]))
 
-    if args.features == 'meta':
+    if args.network == 'nn':
         clf = KerasClassifier(create_neuralnet, k=X.shape[1], dropout=args.dropout,
                               epochs=args.epochs, batch_size=32)
-    else:
+    elif args.network == 'rnn':
         clf = KerasClassifier(create_rnn, timesteps=X.shape[1], n=np.amax(X)+1,
+                              epochs=args.epochs, batch_size=32)
+    else:
+        clf = KerasClassifier(create_cnn, timesteps=X.shape[1], n=X.shape[2],
                               epochs=args.epochs, batch_size=32)
 
     clf.fit(X_train, y_train)
