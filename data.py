@@ -1,4 +1,5 @@
 import os.path
+import pickle
 from glob import glob
 from math import floor
 
@@ -28,6 +29,12 @@ class Data():
         Return a sliding window representation over the documents with the
         given feature transformation.
         """
+        pkl_path = f'pickle/sliding_{n}_{featurizer.__name__}.pkl'
+
+        # try to load from disk
+        if os.path.exists(pkl_path):
+            with open(pkl_path, 'rb') as f:
+                return pickle.load(f)
 
         X = []
         y = []
@@ -37,6 +44,10 @@ class Data():
             for window in zip(*(nodes[i:] for i in range(n))):
                 X.append(featurizer(window, nodes))
                 y.append(self.__get_label(window[floor(n / 2)]))
+
+        # save to disk before returning
+        with open(pkl_path, 'wb') as f:
+            pickle.dump((X, np.array(y)), f)
 
         return X, np.array(y)
 
