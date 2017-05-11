@@ -185,7 +185,6 @@ def get_model_and_data(args):
     return clf, split
 
 
-
 def main():
     args = get_args()
 
@@ -199,7 +198,7 @@ def main():
 
     table = []
     table.append(['Accuracy', accuracy_score(split.y_test, predictions)])
-    table.append(['fi', f1_score(split.y_test, predictions)])
+    table.append(['f1', f1_score(split.y_test, predictions)])
     table.append(['Speech recall', recall_score(split.y_test, predictions)])
     table.append(['Speech precision', precision_score(split.y_test, predictions)])
 
