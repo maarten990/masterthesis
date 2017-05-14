@@ -1,5 +1,7 @@
 import os.path
 import pickle
+import random
+import re
 from glob import glob
 from math import floor
 
@@ -50,6 +52,41 @@ class Data():
             pickle.dump((X, np.array(y)), f)
 
         return X, np.array(y)
+
+    def speaker_timeseries(self, n_samples, timesteps):
+        speakers = ['John Doe', 'Tim Johnson', 'Richard von der Hinterlanden',
+                    'Macaroni Sklepi', 'Dick Butt', 'Bart Bertolli']
+        formats = ['Prasident {}:', 'Prasidentin {}:',
+                   '{}, Bundesminister fur Dingen:',
+                   '{}, Bundesminister fur Landbau:',
+                   '{} (CDU/CSU):',
+                   '{} (Die Linke)']
+
+        input = []
+        output = []
+        for _ in range(n_samples):
+            fmt = random.choice(formats)
+            name = random.choice(speakers)
+
+            sample = fmt.format(name)
+            padding = re.match(f'(.*){name}(.*)', sample)
+            label = (''.join(['0' for _ in padding.groups()[0]]) + name +
+                     ''.join(['0' for _ in padding.groups()[1]]))
+
+            input.append('0' * (timesteps - 1) + sample)
+            output.append(label)
+
+        # do a sliding window over the inputs
+        X = []
+        y = []
+        for seq, label in zip(input, output):
+            for i in range(0, len(seq) - timesteps):
+                X.append(seq[i:(i + timesteps)])
+                y.append(label[i])
+
+        # convert the text to numpy arrays
+        return (np.array([[ord(ch) for ch in seq] for seq in X]),
+                np.array([ord(ch) for ch in y]))
 
 
 def metadata_featurizer(nodes, _):

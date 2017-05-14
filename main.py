@@ -1,107 +1,16 @@
 import argparse
-from collections import namedtuple
 
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 
 from data import Data, char_featurizer, metadata_featurizer
-from sklearn.externals import joblib
-from keras.layers import Activation, Dense, Dropout, Embedding, Flatten
-from keras.layers import Conv1D, MaxPool1D
-from keras.layers.recurrent import LSTM
-from keras.layers.wrappers import Bidirectional
-from keras.models import Sequential, load_model
-from sklearn.pipeline import make_pipeline
 from keras.preprocessing.sequence import pad_sequences
 from keras.wrappers.scikit_learn import KerasClassifier
 
 from tabulate import tabulate
-
-Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
-
-
-def create_cnn(timesteps, n):
-    model = Sequential([
-        Conv1D(32, 3, activation='relu', input_shape=(timesteps, n)),
-        Conv1D(32, 3, activation='relu'),
-        MaxPool1D(2),
-        Dropout(0.25),
-
-        Conv1D(32, 3, activation='relu'),
-        Conv1D(32, 3, activation='relu'),
-        MaxPool1D(2),
-        Dropout(0.25),
-
-        Flatten(),
-        Dense(1),
-        Activation('sigmoid')
-    ])
-
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy',
-                  metrics=['accuracy'])
-
-    return model
-
-
-def create_rnn(timesteps, n):
-    model = Sequential([
-        Embedding(input_dim=n, input_length=timesteps, output_dim=64,
-                  mask_zero=True),
-        Bidirectional(LSTM(64, return_sequences=True)),
-        Dropout(0.5),
-        Bidirectional(LSTM(64, return_sequences=False)),
-        Dropout(0.5),
-        Dense(1),
-        Activation('sigmoid')
-    ])
-
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy',
-                  metrics=['accuracy'])
-
-    return model
-
-
-def create_neuralnet(k, dropout):
-    """ Create a simple feedforward Keras neural net with k inputs """
-    model = Sequential([
-        Dense(100, input_dim=k, activation='relu'),
-        Dropout(dropout),
-        Dense(25, activation='relu'),
-        Dropout(dropout),
-        Dense(1, activation='sigmoid')
-    ])
-
-    model.compile(optimizer='rmsprop', loss='binary_crossentropy',
-                  metrics=['accuracy'])
-    return model
-
-
-def create_model(k, epochs, dropout):
-    """
-    Return an sklearn pipeline.
-    k: the number of features to select
-    """
-
-    model = KerasClassifier(create_neuralnet, k=k, dropout=dropout,
-                            epochs=epochs, batch_size=32)
-
-    return make_pipeline(model)
-
-
-def save_pipeline(clf, data, path):
-        nnet = clf.model
-        nnet.save('nnet.h5')
-        clf.model = None
-        joblib.dump((clf, data), path)
-        clf.model = nnet
-
-
-def load_pipeline(path):
-    model, data = joblib.load(path)
-    model.model = load_model('nnet.h5')
-
-    return model, data
+from models import (create_cnn, create_neuralnet, create_rnn, load_pipeline,
+                    save_pipeline, Split)
 
 
 def get_args():
@@ -206,7 +115,7 @@ def main():
     print(tabulate(table))
 
     if not args.load_from_disk:
-        save_pipeline(clf, split, 'model.pkl')
+        save_pipeline(clf, split, f'predict_{args.network}')
 
 
 if __name__ == '__main__':
