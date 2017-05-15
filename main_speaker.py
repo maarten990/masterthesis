@@ -16,6 +16,7 @@ from models import (create_cnn, create_rnn, load_pipeline,
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('folder', help='folder containing the training data')
+    parser.add_argument('parsed_folder', help='folder containing the parsed data')
     parser.add_argument('-t', '--test_size', type=float, default=0.25,
                         help='ratio of testing date')
     parser.add_argument('-p', '--pattern', default='*.xml',
@@ -35,9 +36,9 @@ def get_args():
 
 
 def get_model_and_data(args):
-    data = Data(args.folder, args.pattern)
+    data = Data(args.folder, args.parsed_folder, args.pattern)
 
-    X, y = data.speaker_timeseries(1000, args.steps)
+    X, y = data.speaker_timeseries(500, args.steps)
     y = to_categorical(y)
 
     split = Split(*train_test_split(X, y, test_size=args.test_size))
@@ -95,6 +96,9 @@ def main():
 
     print()
     print(tabulate(table))
+
+    import IPython
+    IPython.embed()
 
 
 if __name__ == '__main__':

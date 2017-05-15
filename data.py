@@ -1,6 +1,5 @@
 import os.path
 import pickle
-import random
 import re
 from glob import glob
 from math import floor
@@ -8,10 +7,14 @@ from math import floor
 import numpy as np
 from lxml import etree
 
+XMLNS = {'pm': 'http://www.politicalmashup.nl',
+         'dc': 'http://purl.org/dc/elements/1.1'}
+
 
 class Data():
-    def __init__(self, folder, pattern='*.xml'):
-        self.files = list(self.__load_from_disk(folder, pattern))
+    def __init__(self, raw_folder, parsed_folder, pattern='*.xml'):
+        self.raw = list(self.__load_from_disk(raw_folder, pattern))
+        self.parsed = list(self.__load_from_disk(parsed_folder, pattern))
 
     def __load_from_disk(self, folder, pattern):
         """ Load each xml file for the given folder as an etree. """
@@ -41,7 +44,7 @@ class Data():
         X = []
         y = []
 
-        for xml in self.files:
+        for xml in self.raw:
             nodes = xml.xpath('//text')
             for window in zip(*(nodes[i:] for i in range(n))):
                 X.append(featurizer(window, nodes))
@@ -54,27 +57,36 @@ class Data():
         return X, np.array(y)
 
     def speaker_timeseries(self, n_samples, timesteps):
-        speakers = ['John Doe', 'Tim Johnson', 'Richard von der Hinterlanden',
-                    'Macaroni Sklepi', 'Dick Butt', 'Bart Bertolli']
-        formats = ['Prasident {}:', 'Prasidentin {}:',
-                   '{}, Bundesminister fur Dingen:',
-                   '{}, Bundesminister fur Landbau:',
-                   '{} (CDU/CSU):',
-                   '{} (Die Linke)']
-
         input = []
         output = []
-        for _ in range(n_samples):
-            fmt = random.choice(formats)
-            name = random.choice(speakers)
 
-            sample = fmt.format(name)
-            padding = re.match(f'(.*){name}(.*)', sample)
-            label = (''.join(['0' for _ in padding.groups()[0]]) + name +
-                     ''.join(['0' for _ in padding.groups()[1]]))
+        for xml in self.parsed:
+            for speech in xml.xpath('//pm:speech', namespaces=XMLNS):
+                name = speech.xpath('./@pm:speaker', namespaces=XMLNS)[0]
+                function = speech.xpath('./@pm:function', namespaces=XMLNS)[0]
 
-            input.append('0' * (timesteps - 1) + sample)
-            output.append(label)
+                if function == 'De Duister':
+                    party = speech.xpath('./@pm:party', namespaces=XMLNS)[0]
+                    sample = f'{name} ({party})'
+                elif 'sident' in function:
+                    sample = f'{function} {name}'
+                elif 'inister' in function:
+                    sample = f'{name}, {function}'
+                else:
+                    continue
+
+                padding = re.match(f'(.*){name}(.*)', sample)
+                if not padding:
+                    continue
+
+                label = (''.join(['0' for _ in padding.groups()[0]]) + name +
+                         ''.join(['0' for _ in padding.groups()[1]]))
+
+                if label in output:
+                    continue
+                else:
+                    input.append('0' * (timesteps - 1) + sample)
+                    output.append(label)
 
         # do a sliding window over the inputs
         X = []
