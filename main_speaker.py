@@ -38,8 +38,9 @@ def get_args():
 def get_model_and_data(args):
     data = Data(args.folder, args.parsed_folder, args.pattern)
 
-    X, y = data.speaker_timeseries(500, args.steps)
-    y = to_categorical(y)
+    X, y, char_to_idx, idx_to_char = data.speaker_timeseries(500, args.steps)
+    print(X.shape)
+    print(y.shape)
 
     split = Split(*train_test_split(X, y, test_size=args.test_size))
 
@@ -47,26 +48,28 @@ def get_model_and_data(args):
         split.X_train.shape[0], split.X_test.shape[0]))
     print('Number of features: {}'.format(split.X_train.shape[1]))
 
-    if args.network == 'rnn':
-        clf = KerasClassifier(create_rnn, timesteps=X.shape[1], n=np.amax(X) + 1,
-                              n_outputs=y.shape[1], activation='softmax',
-                              epochs=args.epochs, batch_size=32)
-    else:
-        clf = KerasClassifier(create_cnn, timesteps=X.shape[1], n=np.amax(X) + 1,
-                              n_outputs=y.shape[1], activation='softmax',
-                              epochs=args.epochs, batch_size=32)
+    fn = create_rnn if args.network == 'rnn' else create_cnn
+    clf = KerasClassifier(fn, timesteps=X.shape[1], n=X.shape[2],
+                          n_outputs=y.shape[1], activation='softmax',
+                          epochs=args.epochs, batch_size=32)
 
-    return clf, split
+    return clf, split, char_to_idx, idx_to_char
 
 
-def extract_speaker(model, sentence, timesteps):
+def extract_speaker(model, sentence, timesteps, char_to_idx, idx_to_char):
     seq = '0' * (timesteps - 1) + sentence
+
     X = []
     for i in range(0, len(seq) - timesteps):
-        X.append(seq[i:(i + timesteps)])
+            X.append(seq[i:(i + timesteps)])
 
-    X = np.array([[ord(ch) for ch in seq] for seq in X])
-    out = ''.join(chr(i) for i in model.predict(X))
+    X_in = np.zeros((len(X), timesteps, len(char_to_idx)))
+
+    for i in range(X_in.shape[0]):
+        for j in range(X_in.shape[1]):
+            X_in[i, j, char_to_idx[X[i][j]]] = 1
+
+    out = ''.join(idx_to_char[i] for i in model.predict(X_in))
 
     return out.replace('0', '')
 
@@ -76,17 +79,18 @@ def main():
     name = f'speaker_{args.network}'
 
     if args.load_from_disk:
-        clf, split = load_pipeline(name)
+        clf, split, char_to_idx, idx_to_char = load_pipeline(name)
     else:
-        clf, split = get_model_and_data(args)
+        clf, split, char_to_idx, idx_to_char = get_model_and_data(args)
         clf.fit(split.X_train, split.y_train)
 
     if not args.load_from_disk:
-        save_pipeline(clf, split, name)
+        save_pipeline(clf, split, name, char_to_idx, idx_to_char)
 
     tests = ['Macaroni Sklepi, Bundesminister fur Winkels',
              'Marimba Wokkels (Die Linke)']
-    print('\n'.join([extract_speaker(clf, t, args.steps) for t in tests]))
+    print('\n'.join([extract_speaker(clf, t, args.steps, char_to_idx, idx_to_char)
+                     for t in tests]))
 
     predictions = clf.predict(split.X_test)
 
