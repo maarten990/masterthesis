@@ -1,12 +1,11 @@
 import os.path
 import pickle
-import re
 from glob import glob
 from math import floor
 
+import nltk
 import numpy as np
 from lxml import etree
-from keras.utils import to_categorical
 
 XMLNS = {'pm': 'http://www.politicalmashup.nl',
          'dc': 'http://purl.org/dc/elements/1.1'}
@@ -57,7 +56,7 @@ class Data():
 
         return X, np.array(y)
 
-    def speaker_timeseries(self, n_samples, timesteps):
+    def speaker_timeseries(self):
         input = []
         output = []
 
@@ -76,44 +75,17 @@ class Data():
                 else:
                     continue
 
-                padding = re.match(f'(.*){name}(.*)', sample)
-                if not padding:
-                    continue
+                input.append(nltk.tokenize.word_tokenize(sample) + ['<END>'])
+                output.append(['<GO>']
+                              + [input[-1].index(w) for w in nltk.tokenize.word_tokenize(name)]
+                              + ['<END>'])
 
-                label = (name +
-                         ''.join(['0' for _ in padding.groups()[0]]) +
-                         ''.join(['0' for _ in padding.groups()[1]]))
+        all_words = set([word for sample in input for word in sample])
+        print(all_words)
+        word_to_idx = {w: i for i, w in enumerate(all_words)}
+        idx_to_word = {i: w for i, w in enumerate(all_words)}
 
-                if label in output:
-                    continue
-                else:
-                    input.append('0' * (timesteps - 1) + sample)
-                    output.append(label)
-
-        # create a mapping dictionary for the chars
-        chars = set(''.join(seq for seq in input))
-        char_to_idx = {ch: i for i, ch in enumerate(chars)}
-        idx_to_char = {i: ch for i, ch in enumerate(chars)}
-
-        # do a sliding window over the inputs
-        X = []
-        y = []
-        for seq, label in zip(input, output):
-            for i in range(0, len(seq) - timesteps):
-                X.append(seq[i:(i + timesteps)])
-                y.append(label[i])
-
-        X_out = np.zeros((len(X), timesteps, len(chars)))
-        y_out = np.zeros((len(y), len(chars)))
-
-        for i in range(X_out.shape[0]):
-            for j in range(X_out.shape[1]):
-                X_out[i, j, char_to_idx[X[i][j]]] = 1
-
-        for i in range(y_out.shape[0]):
-                y_out[i, char_to_idx[y[i]]] = 1
-
-        return X_out, y_out, char_to_idx, idx_to_char
+        return X_out, Y_out, word_to_idx, idx_to_word
 
 
 def metadata_featurizer(nodes, _):
