@@ -75,15 +75,23 @@ class Data():
                 else:
                     continue
 
-                input.append(nltk.tokenize.word_tokenize(sample) + ['<END>'])
-                output.append(['<GO>']
+                tokens = nltk.tokenize.word_tokenize(sample) + ['<END>']
+                input.append(tokens)
+
+                output.append([-1]
                               + [input[-1].index(w) for w in nltk.tokenize.word_tokenize(name)]
-                              + ['<END>'])
+                              + [-2])
 
         all_words = set([word for sample in input for word in sample])
-        print(all_words)
         word_to_idx = {w: i for i, w in enumerate(all_words)}
         idx_to_word = {i: w for i, w in enumerate(all_words)}
+
+        X = [[word_to_idx[w] for w in sample]
+             for sample in input]
+        Y = output
+
+        X_out = pad_lists(X)
+        Y_out = pad_lists(Y)
 
         return X_out, Y_out, word_to_idx, idx_to_word
 
@@ -97,5 +105,15 @@ def char_featurizer(nodes, _):
     for node in nodes:
         if node.text:
             out.extend([ord(c) for c in node.text])
+
+    return out
+
+
+def pad_lists(lists):
+    max_width = max(map(len, lists))
+    out = np.zeros((len(lists), max_width))
+
+    for i, l in enumerate(lists):
+        out[i, :] = np.pad(l, (0, max_width - len(l)), 'constant')
 
     return out
