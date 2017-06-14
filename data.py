@@ -34,7 +34,7 @@ class Data():
         Return a sliding window representation over the documents with the
         given feature transformation.
         """
-        pkl_path = f'pickle/sliding_{n}_{featurizer.__name__}.pkl'
+        pkl_path = 'pickle/sliding_{}_{}.pkl'.format(n, featurizer.__name__)
 
         # try to load from disk
         if os.path.exists(pkl_path):
@@ -67,11 +67,11 @@ class Data():
 
                 if function == 'De Duister':
                     party = speech.xpath('./@pm:party', namespaces=XMLNS)[0]
-                    sample = f'{name} ({party})'
+                    sample = '{} ({})'.format(name, party)
                 elif 'sident' in function:
-                    sample = f'{function} {name}'
+                    sample = '{} {}'.format(function, name)
                 elif 'inister' in function:
-                    sample = f'{name}, {function}'
+                    sample = '{}, {}'.format(name, function)
                 else:
                     continue
 
@@ -109,11 +109,22 @@ def char_featurizer(nodes, _):
     return out
 
 
-def pad_lists(lists):
-    max_width = max(map(len, lists))
+def pad_lists(lists, max_width=None):
+    if not max_width:
+        max_width = max(map(len, lists))
+
     out = np.zeros((len(lists), max_width))
 
     for i, l in enumerate(lists):
         out[i, :] = np.pad(l, (0, max_width - len(l)), 'constant')
 
     return out
+
+
+def sentences_to_input(sentences, char_to_idx, max_length):
+    X = [nltk.tokenize.word_tokenize(sent) + ['<END>']
+         for sent in sentences]
+    
+    X = [[char_to_idx[w] if w in char_to_idx else -3 for w in sent] for sent in X]
+
+    return pad_lists(X, max_length)
