@@ -81,16 +81,15 @@ class Data():
                 else:
                     continue
 
-                tokens = nltk.tokenize.word_tokenize(sample) + ['<END>']
-                input.append(tokens)
+                tokens = nltk.tokenize.word_tokenize(sample)
+                name_tokens = nltk.tokenize.word_tokenize(name)
 
-                output.append([-1]
-                              + [input[-1].index(w) for w in nltk.tokenize.word_tokenize(name)]
-                              + [-2])
+                input.append(tokens)
+                output.append([1 if token in name_tokens else 0 for token in tokens])
 
         all_words = set([word for sample in input for word in sample])
-        word_to_idx = {w: i for i, w in enumerate(all_words)}
-        idx_to_word = {i: w for i, w in enumerate(all_words)}
+        word_to_idx = {w: i+1 for i, w in enumerate(all_words)}
+        idx_to_word = {i+1: w for i, w in enumerate(all_words)}
 
         X = [[word_to_idx[w] for w in sample]
              for sample in input]

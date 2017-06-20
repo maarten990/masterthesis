@@ -2,7 +2,11 @@ import argparse
 from collections import namedtuple
 
 import numpy as np
-import tensorflow as tf
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from tabulate import tabulate
+from torch.autograd import Variable
 from sklearn.model_selection import train_test_split
 
 from data import Data, sentences_to_input
@@ -10,41 +14,117 @@ from data import Data, sentences_to_input
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 
 
-def build_recurrent_model(seq_length_in, seq_length_out, input_dim, num_hidden):
-    X = tf.placeholder(tf.float32, shape=[None, seq_length_in, input_dim])
-    labels = tf.placeholder(tf.float32, shape=[None, seq_length_out])
+class Encoder(nn.Module):
+    def __init__(self, input_size, embed_size, hidden_size, num_layers):
+        super().__init__()
 
-    # encode
-    X_list = tf.unstack(X, axis=1)
-    encoder = tf.contrib.rnn.LSTMCell(num_hidden, use_peepholes=False)
-    states, h = tf.contrib.rnn.static_rnn(encoder, X_list,
-                                          dtype=tf.float32)
-    # attention weights
-    # the i'th row is the weights for the i'th output
-    attn_matrix = tf.Variable(tf.random_normal([seq_length_out, seq_length_in], stddev=0.1))
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
 
-    # decode
-    decoder = tf.contrib.rnn.LSTMCell(1, use_peepholes=False)
-    W_out = tf.Variable(tf.random_normal([1, 1], stddev=0.1))
+        self.embedding = nn.Embedding(input_size, embed_size)
+        self.rnn = nn.GRU(embed_size, hidden_size, num_layers, batch_first=True)
 
-    last_pred = tf.constant(np.array([[-1]]), dtype=tf.float32)
-    predictions = []
-    for i in range(seq_length_out):
-        attn_weights = tf.nn.softmax(attn_matrix[i, :])
-        weighted_state = attn_weights[0] * states[0]
-        for j in range(1, len(states)):
-            weighted_state += attn_weights[j] * states[j]
+    def forward(self, inputs):
+        "Perform a full pass of the encoder over the entire input."
+        hidden = self.init_hidden(inputs.size()[0])
+        hidden = torch.unsqueeze(hidden, 0).repeat(self.num_layers, 1, 1)
 
-        out, _ = decoder(last_pred, (weighted_state, weighted_state))
-        pred = tf.matmul(out, W_out)
-        last_pred = pred
-        predictions.append(pred)
+        embedded = self.embedding(inputs)
+        output, hidden = self.rnn(embedded, hidden)
 
-    # calculate the loss
-    pred_matrix = tf.stack(predictions, axis=1)
-    loss = tf.reduce_sum(tf.squared_difference(labels, pred_matrix)) / 32
+        return output, hidden
 
-    return X, labels, pred_matrix, loss
+    def init_hidden(self, batch_size):
+        "Initialize a zero hidden state with the appropriate dimensions."
+        hidden = Variable(torch.zeros(1, self.hidden_size))
+        hidden = hidden.repeat(batch_size, 1)
+        return hidden
+
+    
+class NameClassifier(nn.Module):
+    def __init__(self, input_size, seq_length, embed_size, encoder_hidden, num_layers=1):
+        super().__init__()
+
+        self.encoder = Encoder(input_size, embed_size, encoder_hidden, num_layers)
+
+        n_classif_hidden = int((encoder_hidden + seq_length) / 2)
+        self.out_hidden = nn.Linear(encoder_hidden, n_classif_hidden)
+        self.out_classif = nn.Linear(n_classif_hidden, seq_length)
+
+    def forward(self, input, force_teacher=False):
+        # first encode the input sequence
+        _, context_vector = self.encoder(input)
+        context_vector = context_vector.squeeze()
+
+        # use it to classify wether each input word is part of the name
+        h = self.out_hidden(context_vector)
+        h = F.relu(h)
+        out = self.out_classif(h)
+        out = F.sigmoid(out)
+
+        return out
+
+
+def get_data(args):
+    data = Data(args.folder, args.parsed_folder, args.pattern)
+
+    X, y, char_to_idx, idx_to_char = data.speaker_timeseries()
+    print(X.shape)
+
+    split = Split(*train_test_split(X, y, test_size=args.test_size))
+
+    print('{} training samples, {} testing samples'.format(
+        split.X_train.shape[0], split.X_test.shape[0]))
+    print('Number of features: {}'.format(split.X_train.shape[1]))
+
+    return split, char_to_idx, idx_to_char
+
+
+def train(model, X_train, y_train, epochs=100, batch_size=32):
+    optimizer = torch.optim.Adam(model.parameters())
+
+    for epoch in range(epochs):
+        epoch_loss = Variable(torch.zeros(1)).float()
+
+        for i in range(0, X_train.shape[0], batch_size):
+            X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
+            y = Variable(torch.from_numpy(y_train[i:i+32, :])).float()
+
+            y_pred = model(X)
+
+            # calculate the loss as the binary cross entropy between the
+            # flattened versions of the arrays
+            loss = F.binary_cross_entropy(y_pred.view(-1), y.view(-1))
+            epoch_loss += loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        print(f'Epoch {epoch}: loss {epoch_loss.data[0]:.3f}')
+
+
+def test(model, X_test, y_test, idx_to_char):
+    predictions = model(Variable(torch.from_numpy(X_test)).long())
+
+    rows = []
+    for i in range(X_test.shape[0]):
+        full_string = X_test[i, :]
+        true = y_test[i, :]
+        pred = predictions.data.numpy()[i, :]
+
+        true_words = full_string[true > 0.5]
+        pred_words = full_string[pred > 0.5]
+
+        full_input = ' '.join([idx_to_char[idx] for idx in full_string if idx != 0])
+        true_sent = ' '.join([idx_to_char[idx] for idx in true_words])
+        pred_sent = ' '.join([idx_to_char[idx] for idx in pred_words])
+
+        row = [full_input, true_sent, pred_sent]
+        rows.append(row)
+
+    print(tabulate(rows, headers=['Input', 'true', 'predicted']))
 
 
 def get_args():
@@ -57,61 +137,22 @@ def get_args():
                         help='pattern to match in the training folder')
     parser.add_argument('-e', '--epochs', type=int, default=5,
                         help='number of epochs to train for')
-    parser.add_argument('--load_from_disk', '-l', action='store_true',
-                        help='load previously trained model from disk')
 
     return parser.parse_args()
-
-
-def get_data(args):
-    data = Data(args.folder, args.parsed_folder, args.pattern)
-
-    X, y, char_to_idx, idx_to_char = data.speaker_timeseries()
-    X = np.reshape(X, (X.shape[0], X.shape[1], 1))
-
-    split = Split(*train_test_split(X, y, test_size=args.test_size))
-
-    print('{} training samples, {} testing samples'.format(
-        split.X_train.shape[0], split.X_test.shape[0]))
-    print('Number of features: {}'.format(split.X_train.shape[1]))
-
-    return split, char_to_idx, idx_to_char
 
 
 def main():
     args = get_args()
 
     split, char_to_idx, idx_to_char = get_data(args)
-    X, y, output, loss = build_recurrent_model(split.X_train.shape[1], split.y_train.shape[1],
-                                               1, 64)
-
-    optimizer = tf.train.AdamOptimizer()
-    train = optimizer.minimize(loss)
-    init_vars = tf.global_variables_initializer()
-
-    with tf.Session() as sess:
-        sess.run(init_vars)
-
-        for epoch in range(args.epochs):
-            epoch_loss = 0
-            for i in range(0, split.X_train.shape[0], 32):
-                l = sess.run(loss, {X: split.X_train[i:i + 32, :, :],
-                                    y: split.y_train[i:i + 32, :,]})
-                sess.run(train, {X: split.X_train[i:i + 32, :, :],
-                                 y: split.y_train[i:i + 32, :,]})
-
-                epoch_loss += l
-
-            print('Epoch {}: loss {:.2f}'.format(
-                epoch, epoch_loss / split.X_train.shape[0]))
-
-        tests = ['Macaroni Sklepi-Winkels, Bundesminister fur Winkels',
-                'Dr. Marimba Wokkels (Die Linke)']
-        
-        X_test = sentences_to_input(tests, char_to_idx, split.X_train.shape[1])
-        X_test = np.reshape(y, (y.shape[0], y.shape[1], 1))
-        y_pred = sess.run(output, {X: X_test})
-        print(y_pred)
+    model = NameClassifier(input_size=len(char_to_idx) + 1, # offset by 1 because 0 is not included
+                           seq_length=split.X_train.shape[1],
+                           embed_size=128,
+                           encoder_hidden=128,
+                           num_layers=1)
+    
+    train(model, split.X_train, split.y_train)
+    test(model, split.X_test, split.y_test, idx_to_char, epochs=args.epochs)
 
 
 if __name__ == '__main__':
