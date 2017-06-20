@@ -59,13 +59,19 @@ class Data():
     def speaker_timeseries(self):
         input = []
         output = []
+        seen_names = set()
 
         for xml in self.parsed:
             for speech in xml.xpath('//pm:speech', namespaces=XMLNS):
                 name = speech.xpath('./@pm:speaker', namespaces=XMLNS)[0]
                 function = speech.xpath('./@pm:function', namespaces=XMLNS)[0]
 
-                if function == 'De Duister':
+                if name in seen_names:
+                    continue
+                else:
+                    seen_names.add(name)
+
+                if function == 'De Duitser':
                     party = speech.xpath('./@pm:party', namespaces=XMLNS)[0]
                     sample = '{} ({})'.format(name, party)
                 elif 'sident' in function:
