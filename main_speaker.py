@@ -150,8 +150,8 @@ def main():
                            encoder_hidden=128,
                            num_layers=1)
     
-    train(model, split.X_train, split.y_train)
-    test(model, split.X_test, split.y_test, idx_to_char, epochs=args.epochs)
+    train(model, split.X_train, split.y_train, epochs=args.epochs)
+    test(model, split.X_test, split.y_test, idx_to_char)
 
 
 if __name__ == '__main__':
