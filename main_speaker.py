@@ -28,7 +28,6 @@ class Encoder(nn.Module):
     def forward(self, inputs):
         "Perform a full pass of the encoder over the entire input."
         hidden = self.init_hidden(inputs.size()[0])
-        hidden = torch.unsqueeze(hidden, 0).repeat(self.num_layers, 1, 1)
 
         embedded = self.embedding(inputs)
         output, hidden = self.rnn(embedded, hidden)
@@ -38,7 +37,7 @@ class Encoder(nn.Module):
     def init_hidden(self, batch_size):
         "Initialize a zero hidden state with the appropriate dimensions."
         hidden = Variable(torch.zeros(1, self.hidden_size))
-        hidden = hidden.repeat(batch_size, 1)
+        hidden = hidden.repeat(self.num_layers, batch_size, 1)
         return hidden
 
     
@@ -53,11 +52,11 @@ class NameClassifier(nn.Module):
         self.out_classif = nn.Linear(n_classif_hidden, seq_length)
 
     def forward(self, input, force_teacher=False):
-        # first encode the input sequence
+        # first encode the input sequence and get the output of the final layer
         _, context_vector = self.encoder(input)
-        context_vector = context_vector.squeeze()
+        context_vector = context_vector[-1, :, :]
 
-        # use it to classify wether each input word is part of the name
+        # use it to classify whether each input word is part of the name
         h = self.out_hidden(context_vector)
         h = F.relu(h)
         out = self.out_classif(h)
