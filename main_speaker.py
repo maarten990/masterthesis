@@ -23,21 +23,22 @@ class Encoder(nn.Module):
         self.num_layers = num_layers
 
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.GRU(embed_size, hidden_size, num_layers, batch_first=True)
+        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, batch_first=True)
 
     def forward(self, inputs):
         "Perform a full pass of the encoder over the entire input."
         hidden = self.init_hidden(inputs.size()[0])
+        cell = self.init_hidden(inputs.size()[0])
 
         embedded = self.embedding(inputs)
-        output, hidden = self.rnn(embedded, hidden)
+        _, (hidden, _) = self.rnn(embedded, (hidden, cell))
 
-        return output, hidden
+        return hidden
 
     def init_hidden(self, batch_size):
         "Initialize a zero hidden state with the appropriate dimensions."
         hidden = Variable(torch.zeros(1, self.hidden_size))
-        hidden = hidden.repeat(self.num_layers, batch_size, 1)
+        hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
         return hidden
 
     
@@ -47,14 +48,14 @@ class NameClassifier(nn.Module):
 
         self.encoder = Encoder(input_size, embed_size, encoder_hidden, num_layers)
 
-        n_classif_hidden = int((encoder_hidden + seq_length) / 2)
-        self.out_hidden = nn.Linear(encoder_hidden, n_classif_hidden)
+        n_classif_hidden = int(((2 * encoder_hidden) + seq_length) / 2)
+        self.out_hidden = nn.Linear(2 * encoder_hidden, n_classif_hidden)
         self.out_classif = nn.Linear(n_classif_hidden, seq_length)
 
     def forward(self, input, force_teacher=False):
         # first encode the input sequence and get the output of the final layer
-        _, context_vector = self.encoder(input)
-        context_vector = context_vector[-1, :, :]
+        hidden_enc = self.encoder(input)
+        context_vector = torch.cat((hidden_enc[-2, :, :], hidden_enc[-1, :, :]), 1)
 
         # use it to classify whether each input word is part of the name
         h = self.out_hidden(context_vector)
