@@ -9,7 +9,7 @@ from tabulate import tabulate
 from torch.autograd import Variable
 from sklearn.model_selection import train_test_split
 
-from data import Data, sentences_to_input
+from data import sentences_to_input, speaker_timeseries
 
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 
@@ -67,9 +67,7 @@ class NameClassifier(nn.Module):
 
 
 def get_data(args):
-    data = Data(args.folder, args.parsed_folder, args.pattern)
-
-    X, y, char_to_idx, idx_to_char = data.speaker_timeseries()
+    X, y, char_to_idx, idx_to_char = speaker_timeseries(args.parsed_folder, args.pattern)
     print(X.shape)
 
     split = Split(*train_test_split(X, y, test_size=args.test_size))
@@ -118,8 +116,8 @@ def test(model, X_test, y_test, idx_to_char):
         pred_words = full_string[pred > 0.5]
 
         full_input = ' '.join([idx_to_char[idx] for idx in full_string if idx != 0])
-        true_sent = ' '.join([idx_to_char[idx] for idx in true_words])
-        pred_sent = ' '.join([idx_to_char[idx] for idx in pred_words])
+        true_sent = ' '.join([idx_to_char[idx] for idx in true_words if idx != 0])
+        pred_sent = ' '.join([idx_to_char[idx] for idx in pred_words if idx != 0])
 
         row = [full_input, true_sent, pred_sent]
         rows.append(row)
@@ -148,7 +146,7 @@ def main():
     model = NameClassifier(input_size=len(char_to_idx) + 1, # offset by 1 because 0 is not included
                            seq_length=split.X_train.shape[1],
                            embed_size=128,
-                           encoder_hidden=128,
+                           encoder_hidden=64,
                            num_layers=1)
     
     train(model, split.X_train, split.y_train, epochs=args.epochs)
