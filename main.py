@@ -1,16 +1,54 @@
 import argparse
+from collections import namedtuple
 
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 
-from data import Data, char_featurizer, metadata_featurizer
+from data import sliding_window
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.autograd import Variable
 from keras.preprocessing.sequence import pad_sequences
-from keras.wrappers.scikit_learn import KerasClassifier
 
 from tabulate import tabulate
-from models import (create_cnn, create_neuralnet, create_rnn, load_pipeline,
-                    save_pipeline, Split)
+
+Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
+
+
+class LSTMClassifier(nn.Module):
+    def __init__(self, input_size, embed_size, hidden_size, num_layers):
+        super().__init__()
+
+        self.input_size = input_size
+        self.hidden_size = hidden_size
+        self.num_layers = num_layers
+
+        self.embedding = nn.Embedding(input_size, embed_size)
+        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, batch_first=True)
+        self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
+        self.clf_out = nn.Linear(hidden_size, 1)
+
+    def forward(self, inputs):
+        "Perform a full pass of the encoder over the entire input."
+        hidden = self.init_hidden(inputs.size()[0])
+        cell = self.init_hidden(inputs.size()[0])
+
+        embedded = self.embedding(inputs)
+        outputs, _ = self.rnn(embedded, (hidden, cell))
+
+        averaged = torch.mean(outputs, dim=1).squeeze()
+        h = F.sigmoid(self.clf_h(averaged))
+        out = F.sigmoid(self.clf_out(h))
+
+        return out
+
+    def init_hidden(self, batch_size):
+        "Initialize a zero hidden state with the appropriate dimensions."
+        hidden = Variable(torch.zeros(1, self.hidden_size))
+        hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
+        return hidden
 
 
 def get_args():
@@ -32,78 +70,54 @@ def get_args():
     return parser.parse_args()
 
 
-def downsample(X, y):
-    "Downsample to balance the labels."
-    n_positive = X[y == 1].shape[0]
-    pos_X = X[y == 0][:n_positive, :]
-    pos_y = y[y == 0][:n_positive]
-    neg_X = X[y == 1]
-    neg_y = y[y == 1]
-
-    X_out = np.concatenate((pos_X, neg_X), axis=0)
-    y_out = np.concatenate((pos_y, neg_y), axis=0)
-    permutation = np.random.permutation(len(y_out))
-
-    return X_out[permutation, :], y_out[permutation]
-
-
-def get_model_and_data(args):
-    data = Data(args.folder, args.pattern)
-
-    if args.network == 'nn':
-        featurizer = metadata_featurizer
-    else:
-        featurizer = char_featurizer
-
-    X, y = data.sliding_window(2, featurizer)
-
-    if args.network == 'nn':
-        X = np.array(X)
-    else:
-        X = pad_sequences(X)
-
-    if args.network == 'cnn':
-        X = np.reshape(X, (X.shape[0], X.shape[1], 1))
+def get_data(args):
+    X, y, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
+    X = pad_sequences(X)
 
     split = Split(*train_test_split(X, y, test_size=args.test_size))
-    X_train, y_train = downsample(split.X_train, split.y_train)
-    X_test, y_test = downsample(split.X_test, split.y_test)
-
-    if args.network == 'rnn':
-        X_train = X_train[1:5000, :]
-        y_train = y_train[1:5000]
-        X_test = X_test[1:1000, :]
-        y_test = y_test[1:1000]
-
-    split = Split(X_train, X_test, y_train, y_test)
 
     print('{} training samples, {} testing samples'.format(
         split.X_train.shape[0], split.X_test.shape[0]))
     print('Number of features: {}'.format(split.X_train.shape[1]))
 
-    if args.network == 'nn':
-        clf = KerasClassifier(create_neuralnet, k=X.shape[1], dropout=args.dropout,
-                              epochs=args.epochs, batch_size=32)
-    elif args.network == 'rnn':
-        clf = KerasClassifier(create_rnn, timesteps=X.shape[1], n=np.amax(X)+1,
-                              epochs=args.epochs, batch_size=32)
-    else:
-        clf = KerasClassifier(create_cnn, timesteps=X.shape[1], n=X.shape[2],
-                              epochs=args.epochs, batch_size=32)
+    return split, vocab
 
-    return clf, split
+
+def train(model, X_train, y_train, epochs=100, batch_size=32):
+    optimizer = torch.optim.Adam(model.parameters())
+
+    for epoch in range(epochs):
+        epoch_loss = Variable(torch.zeros(1)).float()
+
+        for i in range(0, X_train.shape[0], batch_size):
+            X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
+            y = Variable(torch.from_numpy(y_train[i:i+32])).float()
+
+            y_pred = model(X)
+            loss = F.binary_cross_entropy(y_pred, y)
+            epoch_loss += loss
+
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+        print(f'Epoch {epoch}: loss {epoch_loss.data[0]:.3f}')
+
 
 
 def main():
     args = get_args()
 
-    if args.load_from_disk:
-        clf, split = load_pipeline('model.pkl')
-    else:
-        clf, split = get_model_and_data(args)
-        clf.fit(split.X_train, split.y_train)
+    split, vocab = get_data(args)
+    print(split.X_train.shape)
+    model = LSTMClassifier(len(vocab.token_to_idx), 128, 32, 1)
 
-    predictions = clf.predict(split.X_test)
+    train(model, split.X_train, split.y_train, args.epochs)
+
+    predictions = model(Variable(torch.from_numpy(split.X_test)).long())
+    predictions = predictions.data.numpy()
+    predictions = np.where(predictions > 0.5, 1, 0)
+    print()
 
     table = []
     table.append(['Accuracy', accuracy_score(split.y_test, predictions)])
@@ -113,9 +127,6 @@ def main():
 
     print()
     print(tabulate(table))
-
-    if not args.load_from_disk:
-        save_pipeline(clf, split, f'predict_{args.network}')
 
 
 if __name__ == '__main__':

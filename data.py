@@ -79,6 +79,8 @@ def sliding_window(raw_folder, pattern, n, prune_ratio):
     given feature transformation.
     """
     vocab = create_dictionary(raw_folder, pattern)
+    Xs = []
+    ys = []
 
     for xml in load_from_disk(raw_folder, pattern):
         nodes = xml.xpath('//text')
@@ -91,12 +93,13 @@ def sliding_window(raw_folder, pattern, n, prune_ratio):
                 continue
 
             # random pruning for negative labels
-            if y == 0 and random.random() < prune_ratio:
+            if y == 0 and random.random() > prune_ratio:
                 continue
 
-            X = np.array([vocab.token_to_idx[token] for token in tokens])
-            yield X, y
+            Xs.append([vocab.token_to_idx[token] for token in tokens])
+            ys.append(y)
 
+    return Xs, np.array(ys), vocab
 
 def speaker_timeseries(parsed_folder, pattern):
     input = []
