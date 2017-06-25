@@ -29,18 +29,23 @@ class LSTMClassifier(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, batch_first=True)
+
+        # the output size of the rnn is 2 * hidden_size because it's bidirectional
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
         self.clf_out = nn.Linear(hidden_size, 1)
 
     def forward(self, inputs):
-        "Perform a full pass of the encoder over the entire input."
+        # initialize the lstm hidden states
         hidden = self.init_hidden(inputs.size()[0])
         cell = self.init_hidden(inputs.size()[0])
 
+        # run the LSTM over the full input sequence and take the average over
+        # all the outputs
         embedded = self.dropout(self.embedding(inputs))
         outputs, _ = self.rnn(embedded, (hidden, cell))
-
         averaged = torch.mean(outputs, dim=1).squeeze()
+
+        # sigmoid classification with 1 hidden layer in between
         hiddenlayer = self.dropout(F.sigmoid(self.clf_h(averaged)))
         out = F.sigmoid(self.clf_out(hiddenlayer))
 
