@@ -1,4 +1,5 @@
 import argparse
+import os.path
 from collections import namedtuple
 
 import numpy as np
@@ -15,7 +16,7 @@ from keras.preprocessing.sequence import pad_sequences
 from tabulate import tabulate
 
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
-
+PKL_PATH = 'pickle/recog_speech.pkl'
 
 class LSTMClassifier(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
@@ -75,7 +76,7 @@ def get_data(args):
     X, y, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
     X = pad_sequences(X)
 
-    split = Split(*train_test_split(X, y, test_size=args.test_size))
+    split = Split(*train_test_split(X, y, test_size=args.test_size, random_state=12))
 
     print('{} training samples, {} testing samples'.format(
         split.X_train.shape[0], split.X_test.shape[0]))
@@ -112,10 +113,13 @@ def main():
 
     split, vocab = get_data(args)
     print(split.X_train.shape)
-    model = LSTMClassifier(len(vocab.token_to_idx), 128, 32, 1)
+    model = LSTMClassifier(len(vocab.token_to_idx), 128, 32, 1, args.dropout)
+    if os.path.exists(PKL_PATH):
+        model.load_state_dict(torch.load(PKL_PATH))
 
     train(model, split.X_train, split.y_train, args.epochs)
     model.train(False)
+    torch.save(model.state_dict(), PKL_PATH)
 
     predictions = model(Variable(torch.from_numpy(split.X_test)).long())
     predictions = predictions.data.numpy()
