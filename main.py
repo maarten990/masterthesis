@@ -120,14 +120,17 @@ def main():
     print(split.X_train.shape)
     model = LSTMClassifier(len(vocab.token_to_idx), 128, 32, 1, args.dropout)
     if os.path.exists(PKL_PATH):
-        model.load_state_dict(torch.load(PKL_PATH))
+        try:
+            model.load_state_dict(torch.load(PKL_PATH))
+        except RuntimeError as e:
+            print(f'Could not load previous model: {e}')
 
     train(model, split.X_train, split.y_train, args.epochs)
     model.train(False)
     torch.save(model.state_dict(), PKL_PATH)
 
     predictions = model(Variable(torch.from_numpy(split.X_test)).long())
-    predictions = predictions.data.numpy()
+    predictions = predictions.squeeze().data.numpy()
     predictions = np.where(predictions > 0.5, 1, 0)
     print()
 
@@ -139,6 +142,16 @@ def main():
 
     print()
     print(tabulate(table))
+
+    # print the positive classifications
+    if False:
+        print()
+        print('Speeches:')
+        positives = split.X_test[split.y_test > 0.5, :]
+        for i in range(positives.shape[0]):
+            indices = positives[i, :]
+            line = ' '.join(vocab.idx_to_token[idx] for idx in indices if idx in vocab.idx_to_token)
+            print(line)
 
 
 if __name__ == '__main__':
