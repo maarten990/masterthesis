@@ -18,13 +18,14 @@ Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 
 
 class LSTMClassifier(nn.Module):
-    def __init__(self, input_size, embed_size, hidden_size, num_layers):
+    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
         super().__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
+        self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, batch_first=True)
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
@@ -35,12 +36,12 @@ class LSTMClassifier(nn.Module):
         hidden = self.init_hidden(inputs.size()[0])
         cell = self.init_hidden(inputs.size()[0])
 
-        embedded = self.embedding(inputs)
+        embedded = self.dropout(self.embedding(inputs))
         outputs, _ = self.rnn(embedded, (hidden, cell))
 
         averaged = torch.mean(outputs, dim=1).squeeze()
-        h = F.sigmoid(self.clf_h(averaged))
-        out = F.sigmoid(self.clf_out(h))
+        hiddenlayer = self.dropout(F.sigmoid(self.clf_h(averaged)))
+        out = F.sigmoid(self.clf_out(hiddenlayer))
 
         return out
 
@@ -84,6 +85,7 @@ def get_data(args):
 
 
 def train(model, X_train, y_train, epochs=100, batch_size=32):
+    model.train()
     optimizer = torch.optim.Adam(model.parameters())
 
     for epoch in range(epochs):
@@ -113,6 +115,7 @@ def main():
     model = LSTMClassifier(len(vocab.token_to_idx), 128, 32, 1)
 
     train(model, split.X_train, split.y_train, args.epochs)
+    model.train(False)
 
     predictions = model(Variable(torch.from_numpy(split.X_test)).long())
     predictions = predictions.data.numpy()
