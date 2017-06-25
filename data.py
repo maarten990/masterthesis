@@ -61,11 +61,11 @@ def get_label(node):
 @pickler
 def create_dictionary(raw_folder, pattern):
     all_words = set()
-    for xml in load_from_disk(raw_folder, pattern):
-        for node in xml.xpath('//text'):
-            if node.text:
-                words = set(nltk.tokenize.word_tokenize(node.text))
-                all_words |= words
+    for i, xml in enumerate(load_from_disk(raw_folder, pattern)):
+        print(i)
+        text = ' '.join(xml.xpath('//text//text()')).lower()
+        tokens = nltk.tokenize.word_tokenize(text)
+        all_words |= set(tokens)
 
     word_to_idx = {w: i+1 for i, w in enumerate(all_words)}
     idx_to_word = {i+1: w for i, w in enumerate(all_words)}
@@ -73,7 +73,7 @@ def create_dictionary(raw_folder, pattern):
     return Vocab(word_to_idx, idx_to_word)
     
 
-def sliding_window(raw_folder, pattern, n, prune_ratio):
+def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0):
     """
     Return a sliding window representation over the documents with the
     given feature transformation.
@@ -86,7 +86,7 @@ def sliding_window(raw_folder, pattern, n, prune_ratio):
         nodes = xml.xpath('//text')
         for window in zip(*(nodes[i:] for i in range(n))):
             tokens = token_featurizer(window)
-            y = get_label(window[floor(n / 2)])
+            y = get_label(window[label_pos])
 
             # skip empty lines
             if len(tokens) == 0:
@@ -96,7 +96,7 @@ def sliding_window(raw_folder, pattern, n, prune_ratio):
             if y == 0 and random.random() > prune_ratio:
                 continue
 
-            Xs.append([vocab.token_to_idx[token] for token in tokens])
+            Xs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0 for token in tokens])
             ys.append(y)
 
     return Xs, np.array(ys), vocab
@@ -149,11 +149,11 @@ def speaker_timeseries(parsed_folder, pattern):
 def token_featurizer(nodes):
     out = []
     for node in nodes:
-        if node.text:
-            tokens = nltk.tokenize.word_tokenize(node.text)
-            out.extend(tokens)
+        text = ' '.join(node.xpath('.//text()'))
+        tokens = nltk.tokenize.word_tokenize(text)
+        out.extend(tokens)
 
-    return out
+    return [token.lower() for token in out]
 
 
 def pad_lists(lists, max_width=None):
