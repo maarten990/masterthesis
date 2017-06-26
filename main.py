@@ -1,4 +1,5 @@
 import argparse
+import math
 import os.path
 from collections import namedtuple
 
@@ -17,6 +18,38 @@ from tabulate import tabulate
 
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 PKL_PATH = 'pickle/recog_speech.pkl'
+
+class CNNClassifier(nn.Module):
+    def __init__(self, input_size, seq_len, embed_size, num_filters, dropout):
+        super().__init__()
+
+        self.dropout = nn.Dropout(dropout)
+        self.embedding = nn.Embedding(input_size, embed_size)
+        self.pool = nn.MaxPool1d(2)
+        self.conv1 = nn.Conv1d(embed_size, num_filters, 3)
+
+        c2_size = self.pool(self.conv1(Variable(torch.zeros(32, embed_size, seq_len)))).size()[2]
+        self.conv2 = nn.Conv1d(c2_size, num_filters, 3)
+
+        clf_size = self.pool(self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size()[2] * num_filters
+        self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
+        self.clf_out = nn.Linear(int(clf_size / 2), 1)
+
+    def forward(self, inputs):
+        embedded = self.embedding(inputs)
+
+        # permute from [batch, seq_len, input_size] to [batch, input_size, seq_len]
+        embedded = embedded.permute(0, 2, 1)
+        l1 = self.dropout(self.pool(self.conv1(embedded)))
+        l2 = self.dropout(self.pool(self.conv2(l1.permute(0, 2, 1))))
+
+        batch_size = inputs.size()[0]
+        clf_in = l2.view(batch_size, -1)
+        h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
+        out = F.sigmoid(self.clf_out(h))
+
+        return out
+        
 
 class LSTMClassifier(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
@@ -41,7 +74,7 @@ class LSTMClassifier(nn.Module):
 
         # run the LSTM over the full input sequence and take the average over
         # all the outputs
-        embedded = self.dropout(self.embedding(inputs))
+        embedded = self.embedding(inputs)
         outputs, _ = self.rnn(embedded, (hidden, cell))
         averaged = torch.mean(outputs, dim=1).squeeze()
 
@@ -118,7 +151,9 @@ def main():
 
     split, vocab = get_data(args)
     print(split.X_train.shape)
-    model = LSTMClassifier(len(vocab.token_to_idx), 128, 32, 1, args.dropout)
+    # model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
+    model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1], 256, 16, args.dropout)
+
     if os.path.exists(PKL_PATH):
         try:
             model.load_state_dict(torch.load(PKL_PATH))
