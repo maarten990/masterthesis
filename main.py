@@ -12,7 +12,6 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-from keras.preprocessing.sequence import pad_sequences
 
 from tabulate import tabulate
 
@@ -90,6 +89,13 @@ class LSTMClassifier(nn.Module):
         hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
         return hidden
 
+
+def pad_sequences(X, max_len=None):
+    if not max_len:
+        max_len = max(len(seq) for seq in X)
+
+    padded = [np.pad(seq, (0, max_len - len(seq)), 'constant') for seq in X]
+    return np.array(padded)
 
 def get_args():
     parser = argparse.ArgumentParser()
