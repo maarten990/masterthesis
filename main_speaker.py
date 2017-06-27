@@ -7,6 +7,7 @@ import torch.nn.functional as F
 from tabulate import tabulate
 from torch.autograd import Variable
 from sklearn.model_selection import train_test_split
+from tqdm import trange
 
 from data import speaker_timeseries
 
@@ -68,21 +69,22 @@ class NameClassifier(nn.Module):
 
 def get_data(args):
     X, y, char_to_idx, idx_to_char = speaker_timeseries(args.parsed_folder, args.pattern)
-    print(X.shape)
-
     split = Split(*train_test_split(X, y, test_size=args.test_size))
 
     print('{} training samples, {} testing samples'.format(
         split.X_train.shape[0], split.X_test.shape[0]))
-    print('Number of features: {}'.format(split.X_train.shape[1]))
+    print('Sequence length: {}'.format(split.X_train.shape[1]))
 
     return split, char_to_idx, idx_to_char
 
 
 def train(model, X_train, y_train, epochs=100, batch_size=32):
+    model.train()
     optimizer = torch.optim.Adam(model.parameters())
 
-    for epoch in range(epochs):
+    losses = []
+    t = trange(epochs, desc='Training')
+    for _ in t:
         epoch_loss = Variable(torch.zeros(1)).float()
 
         for i in range(0, X_train.shape[0], batch_size):
@@ -100,10 +102,17 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
             loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}: loss {epoch_loss.data[0]:.3f}')
+        loss = epoch_loss.data[0]
+        losses.append(loss)
+        loss_delta = losses[-1] - losses[-2] if len(losses) > 1 else 0
+        t.set_postfix({'loss': loss,
+                       'Δloss': loss_delta})
+
+    return losses
 
 
 def test(model, X_test, y_test, idx_to_char):
+    model.train(False)
     predictions = model(Variable(torch.from_numpy(X_test)).long())
 
     rows = []

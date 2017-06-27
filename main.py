@@ -13,6 +13,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 from tabulate import tabulate
+from tqdm import trange
 
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 PKL_PATH = 'pickle/recog_speech.pkl'
@@ -134,7 +135,9 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
     model.train()
     optimizer = torch.optim.Adam(model.parameters())
 
-    for epoch in range(epochs):
+    losses = []
+    t = trange(epochs, desc='Training')
+    for _ in t:
         epoch_loss = Variable(torch.zeros(1)).float()
 
         for i in range(0, X_train.shape[0], batch_size):
@@ -149,7 +152,13 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
             loss.backward()
             optimizer.step()
 
-        print(f'Epoch {epoch}: loss {epoch_loss.data[0]:.3f}')
+        loss = epoch_loss.data[0]
+        losses.append(loss)
+        loss_delta = losses[-1] - losses[-2] if len(losses) > 1 else 0
+        t.set_postfix({'loss': loss,
+                       'Δloss': loss_delta})
+
+    return losses
 
 
 def main():
