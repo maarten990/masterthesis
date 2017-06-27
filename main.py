@@ -111,10 +111,8 @@ def get_args():
                         help='number of epochs to train for')
     parser.add_argument('--dropout', type=float, default=0.2,
                         help='the dropout ratio (between 0 and 1)')
-    parser.add_argument('--network', '-n', choices=['nn', 'rnn', 'cnn'],
-                        default='nn', help='the type of neural network to use')
-    parser.add_argument('--load_from_disk', '-l', action='store_true',
-                        help='load previously trained model from disk')
+    parser.add_argument('--network', '-n', choices=['rnn', 'cnn'],
+                        default='rnn', help='the type of neural network to use')
 
     return parser.parse_args()
 
@@ -159,9 +157,12 @@ def main():
 
     split, vocab = get_data(args)
     print(split.X_train.shape)
-    # model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
-    model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1],
-                          256, 16, args.dropout)
+
+    if args.network == 'rnn':
+        model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
+    else:
+        model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1],
+                              128, 16, args.dropout)
 
     if os.path.exists(PKL_PATH):
         try:
