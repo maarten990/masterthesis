@@ -3,7 +3,6 @@ import pickle
 import random
 import re
 from glob import glob
-from math import floor
 
 import nltk
 import numpy as np
@@ -71,7 +70,7 @@ def create_dictionary(raw_folder, pattern):
     idx_to_word = {i+1: w for i, w in enumerate(all_words)}
 
     return Vocab(word_to_idx, idx_to_word)
-    
+
 
 def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0):
     """
@@ -96,10 +95,12 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0):
             if y == 0 and random.random() > prune_ratio:
                 continue
 
-            Xs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0 for token in tokens])
+            Xs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0
+                       for token in tokens])
             ys.append(y)
 
     return Xs, np.array(ys), vocab
+
 
 def speaker_timeseries(parsed_folder, pattern):
     input = []
@@ -137,7 +138,7 @@ def speaker_timeseries(parsed_folder, pattern):
     idx_to_word = {i+1: w for i, w in enumerate(all_words)}
 
     X = [[word_to_idx[w] for w in sample]
-            for sample in input]
+         for sample in input]
     Y = output
 
     X_out = pad_lists(X)
@@ -171,7 +172,7 @@ def pad_lists(lists, max_width=None):
 def sentences_to_input(sentences, char_to_idx, max_length):
     X = [nltk.tokenize.word_tokenize(sent)
          for sent in sentences]
-    
+
     X = [[char_to_idx[w] if w in char_to_idx else -3 for w in sent] for sent in X]
 
     return pad_lists(X, max_length)
