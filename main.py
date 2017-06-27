@@ -1,5 +1,4 @@
 import argparse
-import math
 import os.path
 from collections import namedtuple
 
@@ -18,6 +17,7 @@ from tabulate import tabulate
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 PKL_PATH = 'pickle/recog_speech.pkl'
 
+
 class CNNClassifier(nn.Module):
     def __init__(self, input_size, seq_len, embed_size, num_filters, dropout):
         super().__init__()
@@ -30,7 +30,8 @@ class CNNClassifier(nn.Module):
         c2_size = self.pool(self.conv1(Variable(torch.zeros(32, embed_size, seq_len)))).size()[2]
         self.conv2 = nn.Conv1d(c2_size, num_filters, 3)
 
-        clf_size = self.pool(self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size()[2] * num_filters
+        clf_size = self.pool(
+            self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size()[2] * num_filters
         self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
 
@@ -48,7 +49,7 @@ class CNNClassifier(nn.Module):
         out = F.sigmoid(self.clf_out(h))
 
         return out
-        
+
 
 class LSTMClassifier(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
@@ -60,7 +61,8 @@ class LSTMClassifier(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, batch_first=True)
+        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
+                           bidirectional=True, batch_first=True)
 
         # the output size of the rnn is 2 * hidden_size because it's bidirectional
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
@@ -96,6 +98,7 @@ def pad_sequences(X, max_len=None):
 
     padded = [np.pad(seq, (0, max_len - len(seq)), 'constant') for seq in X]
     return np.array(padded)
+
 
 def get_args():
     parser = argparse.ArgumentParser()
@@ -151,14 +154,14 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
         print(f'Epoch {epoch}: loss {epoch_loss.data[0]:.3f}')
 
 
-
 def main():
     args = get_args()
 
     split, vocab = get_data(args)
     print(split.X_train.shape)
     # model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
-    model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1], 256, 16, args.dropout)
+    model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1],
+                          256, 16, args.dropout)
 
     if os.path.exists(PKL_PATH):
         try:
