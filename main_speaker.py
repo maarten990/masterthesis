@@ -1,7 +1,6 @@
 import argparse
 from collections import namedtuple
 
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -9,7 +8,7 @@ from tabulate import tabulate
 from torch.autograd import Variable
 from sklearn.model_selection import train_test_split
 
-from data import sentences_to_input, speaker_timeseries
+from data import speaker_timeseries
 
 Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 
@@ -23,7 +22,8 @@ class Encoder(nn.Module):
         self.num_layers = num_layers
 
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers, bidirectional=True, batch_first=True)
+        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
+                           bidirectional=True, batch_first=True)
 
     def forward(self, inputs):
         "Perform a full pass of the encoder over the entire input."
@@ -41,7 +41,7 @@ class Encoder(nn.Module):
         hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
         return hidden
 
-    
+
 class NameClassifier(nn.Module):
     def __init__(self, input_size, seq_length, embed_size, encoder_hidden, num_layers=1):
         super().__init__()
@@ -143,12 +143,12 @@ def main():
     args = get_args()
 
     split, char_to_idx, idx_to_char = get_data(args)
-    model = NameClassifier(input_size=len(char_to_idx) + 1, # offset by 1 because 0 is not included
+    model = NameClassifier(input_size=len(char_to_idx) + 1,  # offset by 1 because 0 is not included
                            seq_length=split.X_train.shape[1],
                            embed_size=128,
                            encoder_hidden=64,
                            num_layers=1)
-    
+
     train(model, split.X_train, split.y_train, epochs=args.epochs)
     test(model, split.X_test, split.y_test, idx_to_char)
 
