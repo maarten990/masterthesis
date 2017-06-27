@@ -27,11 +27,11 @@ class CNNClassifier(nn.Module):
         self.pool = nn.MaxPool1d(2)
         self.conv1 = nn.Conv1d(embed_size, num_filters, 3)
 
-        c2_size = self.pool(self.conv1(Variable(torch.zeros(32, embed_size, seq_len)))).size()[2]
+        c2_size = self.pool(self.conv1(Variable(torch.zeros(32, embed_size, seq_len)))).size(2)
         self.conv2 = nn.Conv1d(c2_size, num_filters, 3)
 
         clf_size = self.pool(
-            self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size()[2] * num_filters
+            self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size(2) * num_filters
         self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
 
@@ -43,7 +43,7 @@ class CNNClassifier(nn.Module):
         l1 = self.dropout(self.pool(self.conv1(embedded)))
         l2 = self.dropout(self.pool(self.conv2(l1.permute(0, 2, 1))))
 
-        batch_size = inputs.size()[0]
+        batch_size = inputs.size(0)
         clf_in = l2.view(batch_size, -1)
         h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
         out = F.sigmoid(self.clf_out(h))
@@ -70,8 +70,8 @@ class LSTMClassifier(nn.Module):
 
     def forward(self, inputs):
         # initialize the lstm hidden states
-        hidden = self.init_hidden(inputs.size()[0])
-        cell = self.init_hidden(inputs.size()[0])
+        hidden = self.init_hidden(inputs.size(0))
+        cell = self.init_hidden(inputs.size(0))
 
         # run the LSTM over the full input sequence and take the average over
         # all the outputs
