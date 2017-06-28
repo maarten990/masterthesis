@@ -15,16 +15,18 @@ Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
 
 
 class Encoder(nn.Module):
-    def __init__(self, input_size, embed_size, hidden_size, num_layers):
+    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
         super().__init__()
 
         self.input_size = input_size
         self.hidden_size = hidden_size
         self.num_layers = num_layers
 
+        self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
-                           bidirectional=True, batch_first=True)
+                           bidirectional=True, batch_first=True,
+                           dropout=dropout)
 
     def forward(self, inputs):
         "Perform a full pass of the encoder over the entire input."
@@ -44,10 +46,11 @@ class Encoder(nn.Module):
 
 
 class NameClassifier(nn.Module):
-    def __init__(self, input_size, seq_length, embed_size, encoder_hidden, num_layers=1):
+    def __init__(self, input_size, seq_length, embed_size, encoder_hidden, dropout, num_layers=1):
         super().__init__()
 
-        self.encoder = Encoder(input_size, embed_size, encoder_hidden, num_layers)
+        self.encoder = Encoder(input_size, embed_size, encoder_hidden, num_layers, dropout)
+        self.dropout = nn.Dropout(dropout)
 
         n_classif_hidden = int(((2 * encoder_hidden) + seq_length) / 2)
         self.out_hidden = nn.Linear(2 * encoder_hidden, n_classif_hidden)
@@ -59,8 +62,8 @@ class NameClassifier(nn.Module):
         context_vector = torch.cat((hidden_enc[-2, :, :], hidden_enc[-1, :, :]), 1)
 
         # use it to classify whether each input word is part of the name
-        h = self.out_hidden(context_vector)
-        h = F.relu(h)
+        h = self.dropout(self.out_hidden(context_vector))
+        h = self.dropout(F.relu(h))
         out = self.out_classif(h)
         out = F.sigmoid(out)
 
@@ -144,6 +147,8 @@ def get_args():
                         help='pattern to match in the training folder')
     parser.add_argument('-e', '--epochs', type=int, default=5,
                         help='number of epochs to train for')
+    parser.add_argument('--dropout', type=float, default=0.2,
+                        help='the dropout ratio (between 0 and 1)')
 
     return parser.parse_args()
 
@@ -156,7 +161,8 @@ def main():
                            seq_length=split.X_train.shape[1],
                            embed_size=128,
                            encoder_hidden=64,
-                           num_layers=1)
+                           num_layers=1,
+                           dropout=args.dropout)
 
     train(model, split.X_train, split.y_train, epochs=args.epochs)
     test(model, split.X_test, split.y_test, idx_to_char)
