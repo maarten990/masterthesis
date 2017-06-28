@@ -63,7 +63,8 @@ class LSTMClassifier(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
-                           bidirectional=True, batch_first=True)
+                           bidirectional=True, batch_first=True,
+                           dropout=dropout)
 
         # the output size of the rnn is 2 * hidden_size because it's bidirectional
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
@@ -97,7 +98,14 @@ def pad_sequences(X, max_len=None):
     if not max_len:
         max_len = max(len(seq) for seq in X)
 
-    padded = [np.pad(seq, (0, max_len - len(seq)), 'constant') for seq in X]
+    padded = []
+    for seq in X:
+        diff = max_len - len(seq)
+        if diff > 0:
+            padded.append(np.pad(seq, (0, max_len - len(seq)), 'constant'))
+        else:
+            padded.append(seq[:max_len])
+
     return np.array(padded)
 
 
@@ -108,6 +116,8 @@ def get_args():
                         help='ratio of testing date')
     parser.add_argument('-p', '--pattern', default='*.xml',
                         help='pattern to match in the training folder')
+    parser.add_argument('-tp', '--testpattern', default='*.xml',
+                        help='pattern to match in the training folder for testing data')
     parser.add_argument('-e', '--epochs', type=int, default=5,
                         help='number of epochs to train for')
     parser.add_argument('--dropout', type=float, default=0.2,
@@ -118,15 +128,18 @@ def get_args():
     return parser.parse_args()
 
 
-def get_data(args):
-    X, y, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
-    X = pad_sequences(X)
+def get_data(args, max_len=None):
+    X_train, y_train, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
+    X_train = pad_sequences(X_train, max_len)
+    
+    X_test, y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.01, vocab=vocab)
+    X_test = pad_sequences(X_test, X_train.shape[1])
 
-    split = Split(*train_test_split(X, y, test_size=args.test_size, random_state=12))
+    split = Split(X_train, X_test, y_train, y_test)
 
     print('{} training samples, {} testing samples'.format(
         split.X_train.shape[0], split.X_test.shape[0]))
-    print('Number of features: {}'.format(split.X_train.shape[1]))
+    print('Sequence length: {}'.format(split.X_train.shape[1]))
 
     return split, vocab
 
@@ -164,8 +177,7 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
 def main():
     args = get_args()
 
-    split, vocab = get_data(args)
-    print(split.X_train.shape)
+    split, vocab = get_data(args, 40)
 
     if args.network == 'rnn':
         model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
@@ -176,7 +188,7 @@ def main():
     if os.path.exists(PKL_PATH):
         try:
             model.load_state_dict(torch.load(PKL_PATH))
-        except RuntimeError as e:
+        except (RuntimeError, KeyError) as e:
             print(f'Could not load previous model: {e}')
 
     train(model, split.X_train, split.y_train, args.epochs)

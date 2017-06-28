@@ -72,12 +72,14 @@ def create_dictionary(raw_folder, pattern):
     return Vocab(word_to_idx, idx_to_word)
 
 
-def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0):
+def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
     """
     Return a sliding window representation over the documents with the
     given feature transformation.
     """
-    vocab = create_dictionary(raw_folder, pattern)
+    if not vocab:
+        vocab = create_dictionary(raw_folder, pattern)
+
     Xs = []
     ys = []
 
