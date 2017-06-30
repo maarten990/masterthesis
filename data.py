@@ -134,6 +134,7 @@ def speaker_timeseries(parsed_folder, pattern):
     input = []
     output = []
     seen_names = set()
+    tokenizer = nltk.tokenize.WordPunctTokenizer()
 
     for xml in load_from_disk(parsed_folder, pattern):
         for speech in xml.xpath('//pm:speech', namespaces=XMLNS):
@@ -155,8 +156,8 @@ def speaker_timeseries(parsed_folder, pattern):
             else:
                 continue
 
-            tokens = nltk.tokenize.word_tokenize(sample)
-            name_tokens = nltk.tokenize.word_tokenize(name)
+            tokens = tokenizer.tokenize(sample)
+            name_tokens = tokenizer.tokenize(name)
 
             input.append(tokens)
             output.append([1 if token in name_tokens else 0 for token in tokens])
