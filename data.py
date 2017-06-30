@@ -79,6 +79,8 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None)
     """
     if not vocab:
         vocab = create_dictionary(raw_folder, pattern)
+    
+    tokenizer = nltk.tokenize.WordPunctTokenizer()
 
     Xs = []
     ys = []
@@ -96,7 +98,7 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None)
         for node in nodes:
             boundaries.append(current_idx)
             text = ' '.join(node.xpath('.//text()'))
-            node_tokens = [token.lower() for token in nltk.tokenize.word_tokenize(text)]
+            node_tokens = [token.lower() for token in tokenizer.tokenize(text)]
 
             tokens.extend(node_tokens)
             labels.append(get_label(node))
