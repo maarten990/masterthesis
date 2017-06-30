@@ -86,37 +86,13 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None)
     ys = []
 
     for xml in load_from_disk(raw_folder, pattern):
-        # First get all text nodes.
         nodes = xml.xpath('//text')
-
-        # Then tokenize the entire corpus, while keeping track of the indices that
-        # correspond to the boundaries between the nodes as well as the labels.
-        tokens = []
-        boundaries = []
-        labels = []
-        current_idx = 0
-        for node in nodes:
-            boundaries.append(current_idx)
-            text = ' '.join(node.xpath('.//text()'))
-            node_tokens = [token.lower() for token in tokenizer.tokenize(text)]
-
-            tokens.extend(node_tokens)
-            labels.append(get_label(node))
-            current_idx += len(node_tokens)
-
-        # Finally, iterate over the windows to construct the training data.
-        # Only iterate until the -n'th element to account for the window size.
-        for idx in range(len(boundaries[:-n])):
-            window_tokens = []
-            for offset in range(n):
-                start = boundaries[idx + offset]
-                end = boundaries[idx + offset + 1]
-                window_tokens.extend(tokens[start:end])
-
-            y = labels[idx + label_pos]
+        for window in zip(*(nodes[i:] for i in range(n))):
+            tokens = token_featurizer(window)
+            y = get_label(window[label_pos])
 
             # skip empty lines
-            if len(window_tokens) == 0:
+            if len(tokens) == 0:
                 continue
 
             # random pruning for negative labels
@@ -124,7 +100,7 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None)
                 continue
 
             Xs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0
-                       for token in window_tokens])
+                       for token in tokens])
             ys.append(y)
 
     return Xs, np.array(ys), vocab
