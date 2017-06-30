@@ -1,5 +1,7 @@
 import data
+import random
 import timeit
+import numpy as np
 
 
 def old_sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
@@ -34,7 +36,7 @@ def old_sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=N
 
 
 start = timeit.default_timer()
-X_old, y_old, _ = data.sliding_window('raw_data/', '1800*.xml', 2, 0.1)
+X_old, y_old, _ = old_sliding_window('raw_data/', '1800*.xml', 2, 0.1)
 end_old = timeit.default_timer()
 X, y, _ = data.sliding_window('raw_data/', '1800*.xml', 2, 0.1)
 end = timeit.default_timer()
