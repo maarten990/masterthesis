@@ -88,7 +88,7 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None)
     for xml in load_from_disk(raw_folder, pattern):
         nodes = xml.xpath('//text')
         for window in zip(*(nodes[i:] for i in range(n))):
-            tokens = token_featurizer(window)
+            tokens = token_featurizer(window, tokenizer)
             y = get_label(window[label_pos])
 
             # skip empty lines
@@ -152,11 +152,11 @@ def speaker_timeseries(parsed_folder, pattern):
     return X_out, Y_out, word_to_idx, idx_to_word
 
 
-def token_featurizer(nodes):
+def token_featurizer(nodes, tokenizer):
     out = []
     for node in nodes:
         text = ' '.join(node.xpath('.//text()'))
-        tokens = nltk.tokenize.word_tokenize(text)
+        tokens = tokenizer.tokenize(text)
         out.extend(tokens)
 
     return [token.lower() for token in out]
