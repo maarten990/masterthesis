@@ -59,11 +59,13 @@ def get_label(node):
 
 @pickler
 def create_dictionary(raw_folder, pattern):
+    tokenizer = nltk.tokenize.WordPunctTokenizer()
     all_words = set()
+
     for i, xml in enumerate(load_from_disk(raw_folder, pattern)):
         print(i)
         text = ' '.join(xml.xpath('//text//text()')).lower()
-        tokens = nltk.tokenize.word_tokenize(text)
+        tokens = tokenizer.tokenize(text)
         all_words |= set(tokens)
 
     word_to_idx = {w: i+1 for i, w in enumerate(all_words)}

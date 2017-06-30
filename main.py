@@ -146,7 +146,7 @@ def get_data(args, max_len=None):
 
 def train(model, X_train, y_train, epochs=100, batch_size=32):
     model.train()
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = torch.optim.RMSprop(model.parameters())
 
     losses = []
     t = trange(epochs, desc='Training')
@@ -183,7 +183,7 @@ def main():
         model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
     else:
         model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1],
-                              128, 16, args.dropout)
+                              256, 16, args.dropout)
 
     if os.path.exists(PKL_PATH):
         try:
