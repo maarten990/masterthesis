@@ -57,12 +57,21 @@ def get_label(node):
     return 1 if is_speech == 'true' else 0
 
 
+def get_speaker(node):
+    is_speech = node.attrib['is-speech']
+
+    if is_speech == 'true':
+        return node.attrib['speaker']    
+    else:
+        return ''
+
+
 @pickler
-def create_dictionary(raw_folder, pattern):
+def create_dictionary(folder, pattern):
     tokenizer = nltk.tokenize.WordPunctTokenizer()
     all_words = set()
 
-    for i, xml in enumerate(load_from_disk(raw_folder, pattern)):
+    for i, xml in enumerate(load_from_disk(folder, pattern)):
         print(i)
         text = ' '.join(xml.xpath('//text//text()')).lower()
         tokens = tokenizer.tokenize(text)
@@ -74,24 +83,26 @@ def create_dictionary(raw_folder, pattern):
     return Vocab(word_to_idx, idx_to_word)
 
 
-def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
+def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
     """
     Return a sliding window representation over the documents with the
     given feature transformation.
     """
     if not vocab:
-        vocab = create_dictionary(raw_folder, pattern)
+        vocab = create_dictionary(folder, pattern)
     
     tokenizer = nltk.tokenize.WordPunctTokenizer()
 
-    Xs = []
-    ys = []
+    inputs = []
+    is_speech = []
+    speakers = []
 
-    for xml in load_from_disk(raw_folder, pattern):
+    for xml in load_from_disk(folder, pattern):
         nodes = xml.xpath('//text')
         for window in zip(*(nodes[i:] for i in range(n))):
             tokens = token_featurizer(window, tokenizer)
             y = get_label(window[label_pos])
+            speaker_tokens = tokenizer.tokenize(get_speaker(window[label_pos]))
 
             # skip empty lines
             if len(tokens) == 0:
@@ -101,11 +112,12 @@ def sliding_window(raw_folder, pattern, n, prune_ratio, label_pos=0, vocab=None)
             if y == 0 and random.random() > prune_ratio:
                 continue
 
-            Xs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0
-                       for token in tokens])
-            ys.append(y)
+            inputs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0
+                           for token in tokens])
+            is_speech.append(y)
+            speakers.append([1 if token in speaker_tokens else 0 for token in tokens])
 
-    return Xs, np.array(ys), vocab
+    return inputs, np.array(is_speech), speakers, vocab
 
 
 def speaker_timeseries(parsed_folder, pattern):
@@ -164,16 +176,21 @@ def token_featurizer(nodes, tokenizer):
     return [token.lower() for token in out]
 
 
-def pad_lists(lists, max_width=None):
-    if not max_width:
-        max_width = max(map(len, lists))
+def pad_sequences(X, max_len=None):
+    if not max_len:
+        max_len = max(len(seq) for seq in X)
 
-    out = np.zeros((len(lists), max_width))
+    padded = []
+    for seq in X:
+        diff = max_len - len(seq)
+        if diff > 0:
+            padded.append(np.pad(seq, (0, max_len - len(seq)), 'constant'))
+        else:
+            padded.append(seq[:max_len])
 
-    for i, l in enumerate(lists):
-        out[i, :] = np.pad(l, (0, max_width - len(l)), 'constant')
+    return np.array(padded)
 
-    return out
+
 
 
 def sentences_to_input(sentences, char_to_idx, max_length):

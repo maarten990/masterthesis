@@ -6,7 +6,7 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 
-from data import sliding_window
+from data import sliding_window, pad_sequences
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -15,8 +15,7 @@ from torch.autograd import Variable
 from tabulate import tabulate
 from tqdm import trange
 
-Split = namedtuple('Split', ['X_train', 'X_test', 'y_train', 'y_test'])
-PKL_PATH = 'pickle/recog_speech.pkl'
+Datatuple = namedtuple('Datatuple', ['X', 'y_is_speech', 'Y_speaker'])
 
 
 class CNNClassifier(nn.Module):
@@ -94,26 +93,9 @@ class LSTMClassifier(nn.Module):
         return hidden
 
 
-def pad_sequences(X, max_len=None):
-    if not max_len:
-        max_len = max(len(seq) for seq in X)
-
-    padded = []
-    for seq in X:
-        diff = max_len - len(seq)
-        if diff > 0:
-            padded.append(np.pad(seq, (0, max_len - len(seq)), 'constant'))
-        else:
-            padded.append(seq[:max_len])
-
-    return np.array(padded)
-
-
 def get_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('folder', help='folder containing the training data')
-    parser.add_argument('-t', '--test_size', type=float, default=0.25,
-                        help='ratio of testing date')
     parser.add_argument('-p', '--pattern', default='*.xml',
                         help='pattern to match in the training folder')
     parser.add_argument('-tp', '--testpattern', default='*.xml',
@@ -129,19 +111,19 @@ def get_args():
 
 
 def get_data(args, max_len=None):
-    X_train, y_train, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
+    X_train, y_is_speech, Y_speaker, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
     X_train = pad_sequences(X_train, max_len)
+    Y_speaker = pad_sequences(Y_speaker, max_len)
     
-    X_test, y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.01, vocab=vocab)
+    X_test, y_test, Y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.01, vocab=vocab)
     X_test = pad_sequences(X_test, X_train.shape[1])
-
-    split = Split(X_train, X_test, y_train, y_test)
+    Y_test = pad_sequences(Y_test, Y_speaker.shape[1])
 
     print('{} training samples, {} testing samples'.format(
-        split.X_train.shape[0], split.X_test.shape[0]))
-    print('Sequence length: {}'.format(split.X_train.shape[1]))
+        X_train.shape[0], X_test.shape[0]))
+    print('Sequence length: {}'.format(X_train.shape[1]))
 
-    return split, vocab
+    return Datatuple(X_train, y_is_speech, Y_speaker), Datatuple(X_test, y_test, Y_test), vocab
 
 
 def train(model, X_train, y_train, epochs=100, batch_size=32):
@@ -171,40 +153,45 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
         t.set_postfix({'loss': loss,
                        'Δloss': loss_delta})
 
+    model.train(False)
     return losses
 
 
 def main():
     args = get_args()
 
-    split, vocab = get_data(args, 40)
+    train_data, test_data, vocab = get_data(args, 40)
 
     if args.network == 'rnn':
-        model = LSTMClassifier(len(vocab.token_to_idx) + 1, 128, 32, 1, args.dropout)
+        clf_model = LSTMClassifier(input_size=len(vocab.token_to_idx) + 1,
+                                       embed_size=128, hidden_size=32,
+                                       num_layers=1, dropout=args.dropout)
     else:
-        model = CNNClassifier(len(vocab.token_to_idx) + 1, split.X_train.shape[1],
-                              256, 16, args.dropout)
+        clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
+                                      seq_len=train_data.X.shape[1],
+                                      embed_size=128, num_filters=16,
+                                      dropout=args.dropout)
 
-    if os.path.exists(PKL_PATH):
+    clf_path = f'pickle/clf_{args.network}.pkl'
+    if os.path.exists(clf_path):
         try:
-            model.load_state_dict(torch.load(PKL_PATH))
+            clf_model.load_state_dict(torch.load(clf_path))
         except (RuntimeError, KeyError) as e:
             print(f'Could not load previous model: {e}')
 
-    train(model, split.X_train, split.y_train, args.epochs)
-    model.train(False)
-    torch.save(model.state_dict(), PKL_PATH)
+    train(clf_model, train_data.X, train_data.y_is_speech, args.epochs)
+    torch.save(clf_model.state_dict(), clf_path)
 
-    predictions = model(Variable(torch.from_numpy(split.X_test)).long())
+    predictions = clf_model(Variable(torch.from_numpy(test_data.X)).long())
     predictions = predictions.squeeze().data.numpy()
     predictions = np.where(predictions > 0.5, 1, 0)
     print()
 
     table = []
-    table.append(['Accuracy', accuracy_score(split.y_test, predictions)])
-    table.append(['f1', f1_score(split.y_test, predictions)])
-    table.append(['Speech recall', recall_score(split.y_test, predictions)])
-    table.append(['Speech precision', precision_score(split.y_test, predictions)])
+    table.append(['Accuracy', accuracy_score(test_data.y_is_speech, predictions)])
+    table.append(['f1', f1_score(test_data.y_is_speech, predictions)])
+    table.append(['Speech recall', recall_score(test_data.y_is_speech, predictions)])
+    table.append(['Speech precision', precision_score(test_data.y_is_speech, predictions)])
 
     print()
     print(tabulate(table))
@@ -213,7 +200,7 @@ def main():
     if False:
         print()
         print('Speeches:')
-        positives = split.X_test[split.y_test > 0.5, :]
+        positives = test_data.X[predictions > 0.5, :]
         for i in range(positives.shape[0]):
             indices = positives[i, :]
             line = ' '.join(vocab.idx_to_token[idx] for idx in indices if idx in vocab.idx_to_token)
