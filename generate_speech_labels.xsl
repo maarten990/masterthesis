@@ -18,10 +18,16 @@
     </xsl:template>
 
     <xsl:template match="text">
+        <xsl:variable name="speech" select=".[b] and pm:isa-speech-or-stage-direction(./b[1])"/>
         <xsl:copy>
             <xsl:attribute name="is-speech">
-                <xsl:value-of select=".[b] and pm:isa-speech-or-stage-direction(./b[1])"/>
+                <xsl:value-of select="$speech"/>
             </xsl:attribute>
+            <xsl:if test="$speech">
+                <xsl:attribute name="speaker">
+                    <xsl:value-of select="pm:speaker-in-speech(.)"/>
+                </xsl:attribute>
+            </xsl:if>
             <xsl:apply-templates select="@* | node()"/>
         </xsl:copy>
     </xsl:template>
@@ -166,5 +172,39 @@
     <xsl:function name="pm:remove-whitespace" as="xs:string">
         <xsl:param name="s" as="xs:string"/>
         <xsl:copy-of select="replace($s, '\s+', '')"/>
+    </xsl:function>
+
+    <xsl:function name="pm:speaker-in-speech" as="xs:string">
+        <xsl:param name="speech"/>
+        <xsl:variable name="full-text" select="string-join(pm:collect-until-match($speech, ':'), ' ')"/>
+        
+        <xsl:choose>
+            <!-- Case of 'Präsident John Johnson:' -->
+            <xsl:when test="matches($full-text, '[Pp]räsident')">
+                  <xsl:variable name="elements" select="subsequence(tokenize($full-text, ' '), 2)"/>
+                <xsl:variable name="name" select="string-join($elements, ' ')"/>
+                
+                <!-- filter any trailing punctuation or whitespace before returning the name -->
+                <xsl:copy-of select="normalize-space(replace($name, '[,:]+$', ''))"/>
+            </xsl:when>
+            
+            <!-- Case of 'John Johnson, Bundesminister für blah blah' -->
+            <xsl:when test="contains($full-text, ',')">
+                <xsl:copy-of select="normalize-space(replace(string($full-text), '^([^,]+),.*$', '$1'))"/>
+            </xsl:when>
+            
+            <!-- Case of 'John Johnson (optional placename) (Partyname):' -->
+            <xsl:when test="contains($full-text, '(')">
+                <xsl:variable name="name" select="replace($full-text, '([^(]*)\(.*', '$1')"/>
+                
+                <!-- filter any trailing punctuation or whitespace before returning the name -->
+                <xsl:copy-of select="normalize-space(replace($name, '[,:]+$', ''))"/>
+            </xsl:when>
+            
+            <!-- This shouldn't happen -->
+            <xsl:otherwise>
+                <xsl:copy-of select="string-join(('Could not parse name: ', $full-text), '')"/>
+            </xsl:otherwise>
+        </xsl:choose>
     </xsl:function>
 </xsl:stylesheet>
