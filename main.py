@@ -6,91 +6,24 @@ import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from sklearn.model_selection import train_test_split
 
-from data import sliding_window, pad_sequences
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
 from tabulate import tabulate
 from tqdm import trange
+from data import sliding_window, pad_sequences
+from models import LSTMClassifier, CNNClassifier, NameClassifier
 
-Datatuple = namedtuple('Datatuple', ['X', 'y_is_speech', 'Y_speaker'])
-
-
-class CNNClassifier(nn.Module):
-    def __init__(self, input_size, seq_len, embed_size, num_filters, dropout):
-        super().__init__()
-
-        self.dropout = nn.Dropout(dropout)
-        self.embedding = nn.Embedding(input_size, embed_size)
-        self.pool = nn.MaxPool1d(2)
-        self.conv1 = nn.Conv1d(embed_size, num_filters, 3)
-
-        c2_size = self.pool(self.conv1(Variable(torch.zeros(32, embed_size, seq_len)))).size(2)
-        self.conv2 = nn.Conv1d(c2_size, num_filters, 3)
-
-        clf_size = self.pool(
-            self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size(2) * num_filters
-        self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
-        self.clf_out = nn.Linear(int(clf_size / 2), 1)
-
-    def forward(self, inputs):
-        embedded = self.embedding(inputs)
-
-        # permute from [batch, seq_len, input_size] to [batch, input_size, seq_len]
-        embedded = embedded.permute(0, 2, 1)
-        l1 = self.dropout(self.pool(self.conv1(embedded)))
-        l2 = self.dropout(self.pool(self.conv2(l1.permute(0, 2, 1))))
-
-        batch_size = inputs.size(0)
-        clf_in = l2.view(batch_size, -1)
-        h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
-        out = F.sigmoid(self.clf_out(h))
-
-        return out
+Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
 
 
-class LSTMClassifier(nn.Module):
-    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
-        super().__init__()
-
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        self.dropout = nn.Dropout(dropout)
-        self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
-                           bidirectional=True, batch_first=True,
-                           dropout=dropout)
-
-        # the output size of the rnn is 2 * hidden_size because it's bidirectional
-        self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
-        self.clf_out = nn.Linear(hidden_size, 1)
-
-    def forward(self, inputs):
-        # initialize the lstm hidden states
-        hidden = self.init_hidden(inputs.size(0))
-        cell = self.init_hidden(inputs.size(0))
-
-        # run the LSTM over the full input sequence and take the average over
-        # all the outputs
-        embedded = self.embedding(inputs)
-        outputs, _ = self.rnn(embedded, (hidden, cell))
-        averaged = torch.mean(outputs, dim=1).squeeze()
-
-        # sigmoid classification with 1 hidden layer in between
-        hiddenlayer = self.dropout(F.sigmoid(self.clf_h(averaged)))
-        out = F.sigmoid(self.clf_out(hiddenlayer))
-
-        return out
-
-    def init_hidden(self, batch_size):
-        "Initialize a zero hidden state with the appropriate dimensions."
-        hidden = Variable(torch.zeros(1, self.hidden_size))
-        hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
-        return hidden
+def load_model_params(model, filename):
+    if os.path.exists(filename):
+        try:
+            model.load_state_dict(torch.load(filename))
+        except (RuntimeError, KeyError) as e:
+            print(f'Could not load previous model: {e}')
 
 
 def get_args():
@@ -102,7 +35,7 @@ def get_args():
                         help='pattern to match in the training folder for testing data')
     parser.add_argument('-e', '--epochs', type=int, default=5,
                         help='number of epochs to train for')
-    parser.add_argument('--dropout', type=float, default=0.2,
+    parser.add_argument('-d', '--dropout', type=float, default=0.2,
                         help='the dropout ratio (between 0 and 1)')
     parser.add_argument('--network', '-n', choices=['rnn', 'cnn'],
                         default='rnn', help='the type of neural network to use')
@@ -114,21 +47,30 @@ def get_data(args, max_len=None):
     X_train, y_is_speech, Y_speaker, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
     X_train = pad_sequences(X_train, max_len)
     Y_speaker = pad_sequences(Y_speaker, max_len)
-    
+
     X_test, y_test, Y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.01, vocab=vocab)
     X_test = pad_sequences(X_test, X_train.shape[1])
     Y_test = pad_sequences(Y_test, Y_speaker.shape[1])
 
-    print('{} training samples, {} testing samples'.format(
+    # filter the speaker extraction data to only positive samples
+    X_train_spkr = X_train[y_is_speech == 1, :]
+    Y_speaker = Y_speaker[y_is_speech == 1, :]
+    X_test_spkr = X_test[y_test == 1, :]
+    Y_test = Y_test[y_test == 1, :]
+
+    print('Speech classifier: {} training samples, {} testing samples'.format(
         X_train.shape[0], X_test.shape[0]))
+    print('Speaker extraction: {} training samples, {} testing samples'.format(
+        X_train_spkr.shape[0], X_test_spkr.shape[0]))
     print('Sequence length: {}'.format(X_train.shape[1]))
 
-    return Datatuple(X_train, y_is_speech, Y_speaker), Datatuple(X_test, y_test, Y_test), vocab
+    return (Datatuple(X_train, X_train_spkr, y_is_speech, Y_speaker),
+            Datatuple(X_test, X_test_spkr, y_test, Y_test), vocab)
 
 
 def train(model, X_train, y_train, epochs=100, batch_size=32):
     model.train()
-    optimizer = torch.optim.RMSprop(model.parameters())
+    optimizer = torch.optim.Adam(model.parameters())
 
     losses = []
     t = trange(epochs, desc='Training')
@@ -140,7 +82,7 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
             y = Variable(torch.from_numpy(y_train[i:i+32])).float()
 
             y_pred = model(X)
-            loss = F.binary_cross_entropy(y_pred, y)
+            loss = model.loss(y_pred, y)
             epoch_loss += loss
 
             optimizer.zero_grad()
@@ -157,6 +99,55 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
     return losses
 
 
+def evaluate_clf(model, X, y, print_pos=False):
+    predictions = model(Variable(torch.from_numpy(X)).long())
+    predictions = predictions.squeeze().data.numpy()
+    predictions = np.where(predictions > 0.5, 1, 0)
+    print()
+
+    table = []
+    table.append(['Accuracy', accuracy_score(y, predictions)])
+    table.append(['f1', f1_score(y, predictions)])
+    table.append(['Speech recall', recall_score(y, predictions)])
+    table.append(['Speech precision', precision_score(y, predictions)])
+
+    print()
+    print(tabulate(table))
+
+    # print the positive classifications
+    if print_pos:
+        print()
+        print('Speeches:')
+        positives = X[predictions > 0.5, :]
+        for i in range(positives.shape[0]):
+            indices = positives[i, :]
+            line = ' '.join(vocab.idx_to_token[idx] for idx in indices if idx in vocab.idx_to_token)
+            print(line)
+
+
+def evaluate_spkr(model, X, y, idx_to_token):
+    model.train(False)
+    predictions = model(Variable(torch.from_numpy(X)).long())
+
+    rows = []
+    for i in range(X.shape[0]):
+        full_string = X[i, :]
+        true = y[i, :]
+        pred = predictions.data.numpy()[i, :]
+
+        true_words = full_string[true > 0.5]
+        pred_words = full_string[pred > 0.5]
+
+        full_input = ' '.join([idx_to_token[idx] for idx in full_string if idx != 0])
+        true_sent = ' '.join([idx_to_token[idx] for idx in true_words if idx != 0])
+        pred_sent = ' '.join([idx_to_token[idx] for idx in pred_words if idx != 0])
+
+        row = [full_input, true_sent, pred_sent]
+        rows.append(row)
+
+    print(tabulate(rows, headers=['Input', 'true', 'predicted']))
+
+
 def main():
     args = get_args()
 
@@ -164,47 +155,34 @@ def main():
 
     if args.network == 'rnn':
         clf_model = LSTMClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                       embed_size=128, hidden_size=32,
-                                       num_layers=1, dropout=args.dropout)
+                                   embed_size=128, hidden_size=32,
+                                   num_layers=1, dropout=args.dropout)
     else:
         clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                      seq_len=train_data.X.shape[1],
-                                      embed_size=128, num_filters=16,
-                                      dropout=args.dropout)
+                                  seq_len=train_data.X_is_speech.shape[1],
+                                  embed_size=128, num_filters=16,
+                                  dropout=args.dropout)
+
+    spkr_model = NameClassifier(input_size=len(vocab.token_to_idx) + 1,  # offset by 1 because 0 is not included
+                                seq_length=train_data.X_speaker.shape[1],
+                                embed_size=128,
+                                encoder_hidden=64,
+                                num_layers=1,
+                                dropout=args.dropout)
 
     clf_path = f'pickle/clf_{args.network}.pkl'
-    if os.path.exists(clf_path):
-        try:
-            clf_model.load_state_dict(torch.load(clf_path))
-        except (RuntimeError, KeyError) as e:
-            print(f'Could not load previous model: {e}')
+    spkr_path = f'pickle/spkr.pkl'
+    load_model_params(clf_model, clf_path)
+    load_model_params(spkr_model, spkr_path)
 
-    train(clf_model, train_data.X, train_data.y_is_speech, args.epochs)
+    train(clf_model, train_data.X_is_speech, train_data.y_is_speech, args.epochs)
     torch.save(clf_model.state_dict(), clf_path)
+    evaluate_clf(clf_model, test_data.X_is_speech, test_data.y_is_speech)
 
-    predictions = clf_model(Variable(torch.from_numpy(test_data.X)).long())
-    predictions = predictions.squeeze().data.numpy()
-    predictions = np.where(predictions > 0.5, 1, 0)
-    print()
-
-    table = []
-    table.append(['Accuracy', accuracy_score(test_data.y_is_speech, predictions)])
-    table.append(['f1', f1_score(test_data.y_is_speech, predictions)])
-    table.append(['Speech recall', recall_score(test_data.y_is_speech, predictions)])
-    table.append(['Speech precision', precision_score(test_data.y_is_speech, predictions)])
-
-    print()
-    print(tabulate(table))
-
-    # print the positive classifications
-    if False:
-        print()
-        print('Speeches:')
-        positives = test_data.X[predictions > 0.5, :]
-        for i in range(positives.shape[0]):
-            indices = positives[i, :]
-            line = ' '.join(vocab.idx_to_token[idx] for idx in indices if idx in vocab.idx_to_token)
-            print(line)
+    train(spkr_model, train_data.X_speaker, train_data.Y_speaker, args.epochs)
+    torch.save(spkr_model.state_dict(), spkr_path)
+    # commented out because of the amount of output
+    # evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
 
 
 if __name__ == '__main__':
