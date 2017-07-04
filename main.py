@@ -130,6 +130,7 @@ def evaluate_spkr(model, X, y, idx_to_token):
     predictions = model(Variable(torch.from_numpy(X)).long())
 
     rows = []
+    correct = 0
     for i in range(X.shape[0]):
         full_string = X[i, :]
         true = y[i, :]
@@ -138,14 +139,11 @@ def evaluate_spkr(model, X, y, idx_to_token):
         true_words = full_string[true > 0.5]
         pred_words = full_string[pred > 0.5]
 
-        full_input = ' '.join([idx_to_token[idx] for idx in full_string if idx != 0])
-        true_sent = ' '.join([idx_to_token[idx] for idx in true_words if idx != 0])
-        pred_sent = ' '.join([idx_to_token[idx] for idx in pred_words if idx != 0])
+        if np.all(true_words == pred_words):
+            correct += 1
 
-        row = [full_input, true_sent, pred_sent]
-        rows.append(row)
-
-    print(tabulate(rows, headers=['Input', 'true', 'predicted']))
+    print()
+    print(f'Speaker accuracy: {correct / X.shape[0]}')
 
 
 def main():
@@ -181,8 +179,7 @@ def main():
 
     train(spkr_model, train_data.X_speaker, train_data.Y_speaker, args.epochs)
     torch.save(spkr_model.state_dict(), spkr_path)
-    # commented out because of the amount of output
-    # evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
+    evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
 
 
 if __name__ == '__main__':
