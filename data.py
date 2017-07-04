@@ -102,7 +102,9 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
         for window in zip(*(nodes[i:] for i in range(n))):
             tokens = token_featurizer(window, tokenizer)
             y = get_label(window[label_pos])
-            speaker_tokens = tokenizer.tokenize(get_speaker(window[label_pos]))
+
+            # lowercase as the tokens will also be lowercased
+            speaker_tokens = tokenizer.tokenize(get_speaker(window[label_pos]).lower())
 
             # skip empty lines
             if len(tokens) == 0:
@@ -169,11 +171,11 @@ def speaker_timeseries(parsed_folder, pattern):
 def token_featurizer(nodes, tokenizer):
     out = []
     for node in nodes:
-        text = ' '.join(node.xpath('.//text()'))
+        text = ' '.join(node.xpath('.//text()')).lower()
         tokens = tokenizer.tokenize(text)
         out.extend(tokens)
 
-    return [token.lower() for token in out]
+    return out
 
 
 def pad_sequences(X, max_len=None):
