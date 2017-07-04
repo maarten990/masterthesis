@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<pdf2xml producer="poppler" version="0.48.0">
+   <page number="1"
+         position="absolute"
+         top="0"
+         left="0"
+         height="1288"
+         width="918">
+      <fontspec id="0" size="16" family="Times" color="#000000"/>
+      <fontspec id="1" size="39" family="Times" color="#000000"/>
+      <fontspec id="2" size="21" family="Times" color="#000000"/>
+      <fontspec id="3" size="12" family="Times" color="#000000"/>
+      <fontspec id="4" size="12" family="Times" color="#000000"/>
+      <fontspec id="5" size="12" family="Symbol" color="#000000"/>
+      <fontspec id="6" size="12" family="Times" color="#ffffff"/>
+      <text is-speech="false"
+            top="321"
+            left="323"
+            width="273"
+            height="17"
+            font="3">
+         <b>text 1</b>
+      </text>
+      <text is-speech="false"
+            top="387"
+            left="403"
+            width="111"
+            height="17"
+            font="4">text 2</text>
+      <text is-speech="true"
+            speaker="Speaker"
+            top="435"
+            left="125"
+            width="265"
+            height="16"
+            font="3">
+         <b>Speaker: text 3</b>
+      </text>
+      <text is-speech="false"
+            top="454"
+            left="125"
+            width="255"
+            height="17"
+            font="4">text 4</text>
+   </page>
+   <outline>
+      <item page="1">1. Sitzung</item>
+      <outline>
+         <item page="1">Inhaltsverzeichnis</item>
+         <outline>
+            <item page="3">TOP 1: Eröffnung der Sitzung durch den Alterspräsidenten </item>
+            <item page="6">TOP 2: Wahl des Präsidenten und Feststellung der Beschlussfähigkeit</item>
+            <item page="8">TOP 3: Amtsübernahme durch den Präsidenten </item>
+            <item page="11">TOP 4: Beschlussfassung über Geschäftsordnungen und Richtlinien</item>
+            <item page="11">Festlegung der Zahl der Stellvertreterinnen/Stellvertreter des Präsidenten </item>
+            <item page="15">Wahl der Stellvertreterinnen/Stellvertreter des Präsidenten</item>
+            <item page="17">Nationalhymne</item>
+            <item page="19">Anlagen</item>
+         </outline>
+      </outline>
+   </outline>
+</pdf2xml>
