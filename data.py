@@ -7,6 +7,7 @@ from glob import glob
 import nltk
 import numpy as np
 from lxml import etree
+from tqdm import tqdm
 
 XMLNS = {'pm': 'http://www.politicalmashup.nl',
          'dc': 'http://purl.org/dc/elements/1.1'}
@@ -71,8 +72,7 @@ def create_dictionary(folder, pattern):
     tokenizer = nltk.tokenize.WordPunctTokenizer()
     all_words = set()
 
-    for i, xml in enumerate(load_from_disk(folder, pattern)):
-        print(i)
+    for xml in tqdm(load_from_disk(folder, pattern), desc='Creating dictionary'):
         text = ' '.join(xml.xpath('//text//text()')).lower()
         tokens = tokenizer.tokenize(text)
         all_words |= set(tokens)
