@@ -4,10 +4,8 @@ from collections import namedtuple
 
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from sklearn.model_selection import train_test_split
 
 import torch
-import torch.nn.functional as F
 from torch.autograd import Variable
 
 from tabulate import tabulate
@@ -99,7 +97,7 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
     return losses
 
 
-def evaluate_clf(model, X, y, print_pos=False):
+def evaluate_clf(model, X, y, print_pos=False, vocab=None):
     predictions = model(Variable(torch.from_numpy(X)).long())
     predictions = predictions.squeeze().data.numpy()
     predictions = np.where(predictions > 0.5, 1, 0)
@@ -121,7 +119,8 @@ def evaluate_clf(model, X, y, print_pos=False):
         positives = X[predictions > 0.5, :]
         for i in range(positives.shape[0]):
             indices = positives[i, :]
-            line = ' '.join(vocab.idx_to_token[idx] for idx in indices if idx in vocab.idx_to_token)
+            line = ' '.join(vocab.idx_to_token[idx] for idx in indices
+                            if idx in vocab.idx_to_token)
             print(line)
 
 
@@ -129,7 +128,6 @@ def evaluate_spkr(model, X, y, idx_to_token):
     model.train(False)
     predictions = model(Variable(torch.from_numpy(X)).long())
 
-    rows = []
     correct = 0
     for i in range(X.shape[0]):
         full_string = X[i, :]
