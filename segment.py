@@ -2,8 +2,11 @@ import argparse
 from data import create_dictionary, sliding_window, pad_sequences
 from train import load_model
 
+import numpy as np
 from tabulate import tabulate
 import torch
+from sklearn.metrics import precision_score
+from sklearn.metrics import recall_score
 from torch.autograd import Variable
 
 
@@ -28,18 +31,6 @@ def get_args():
     return parser.parse_args()
 
 
-def zip_longest(a, b, repl=None):
-    # ensure that a is larger than b
-    if len(b) > len(a):
-        a, b = b, a
-
-    for i in range(len(a)):
-        elem_a = a[i]
-        elem_b = b[i] if i < len(b) else repl
-
-        yield elem_a, elem_b
-
-
 def main():
     args = get_args()
     X, speeches, speakers, vocab = get_data(args, 40)
@@ -56,6 +47,12 @@ def main():
 
     pred_speakers = spkr_model(Variable(torch.from_numpy(X[pred_is_speech > 0.9, :]).long()))
     pred_speakers = pred_speakers.data.numpy()
+
+    pred_speeches_binary = np.where(pred_is_speech > 0.9, 1, 0)
+    print('---')
+    print(f'Precision: {precision_score(speeches, pred_speeches_binary)}')
+    print(f'Recall: {recall_score(speeches, pred_speeches_binary)}')
+    print('---')
 
     # print all the predicted speeches
     speech_table = []
