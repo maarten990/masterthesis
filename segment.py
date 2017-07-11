@@ -1,10 +1,7 @@
 import argparse
-import sys
 from data import create_dictionary, sliding_window, pad_sequences
-from models import LSTMClassifier, CNNClassifier, NameClassifier
-from train import load_model_params
+from train import load_model
 
-import numpy as np
 from tabulate import tabulate
 import torch
 from torch.autograd import Variable
@@ -45,29 +42,12 @@ def zip_longest(a, b, repl=None):
 
 def main():
     args = get_args()
-    X, speeches, speakers, vocab = get_data(args, 40)    
-
-    if args.network == 'rnn':
-        clf_model = LSTMClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                   embed_size=128, hidden_size=32,
-                                   num_layers=1, dropout=0)
-    else:
-        clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                  seq_len=40,
-                                  embed_size=128, num_filters=16,
-                                  dropout=0)
-
-    spkr_model = NameClassifier(input_size=len(vocab.token_to_idx) + 1,  # offset by 1 because 0 is not included
-                                seq_length=40,
-                                embed_size=128,
-                                encoder_hidden=64,
-                                num_layers=1,
-                                dropout=0)
+    X, speeches, speakers, vocab = get_data(args, 40)
 
     clf_path = f'pickle/clf_{args.network}.pkl'
     spkr_path = f'pickle/spkr.pkl'
-    load_model_params(clf_model, clf_path)
-    load_model_params(spkr_model, spkr_path)
+    clf_model = load_model(clf_path)
+    spkr_model = load_model(spkr_path)
 
     # classify the speeches and get the speakers for the positive classifications
     pred_is_speech = clf_model(Variable(torch.from_numpy(X).long()))

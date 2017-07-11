@@ -3,7 +3,7 @@ import os.path
 from collections import namedtuple
 
 import numpy as np
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score
 
 import torch
 from torch.autograd import Variable
@@ -16,12 +16,11 @@ from models import LSTMClassifier, CNNClassifier, NameClassifier
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
 
 
-def load_model_params(model, filename):
+def load_model(filename):
     if os.path.exists(filename):
-        try:
-            model.load_state_dict(torch.load(filename))
-        except (RuntimeError, KeyError) as e:
-            print(f'Could not load previous model: {e}')
+        return torch.load(filename)
+    else:
+        return None
 
 
 def get_args():
@@ -42,11 +41,11 @@ def get_args():
 
 
 def get_data(args, max_len=None):
-    X_train, y_is_speech, Y_speaker, vocab = sliding_window(args.folder, args.pattern, 2, 0.01)
+    X_train, y_is_speech, Y_speaker, vocab = sliding_window(args.folder, args.pattern, 2, 0.1)
     X_train = pad_sequences(X_train, max_len)
     Y_speaker = pad_sequences(Y_speaker, max_len)
 
-    X_test, y_test, Y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.01, vocab=vocab)
+    X_test, y_test, Y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.1, vocab=vocab)
     X_test = pad_sequences(X_test, X_train.shape[1])
     Y_test = pad_sequences(Y_test, Y_speaker.shape[1])
 
@@ -104,13 +103,14 @@ def evaluate_clf(model, X, y, print_pos=False, vocab=None):
     print()
 
     table = []
-    table.append(['Accuracy', accuracy_score(y, predictions)])
     table.append(['f1', f1_score(y, predictions)])
     table.append(['Speech recall', recall_score(y, predictions)])
     table.append(['Speech precision', precision_score(y, predictions)])
 
     print()
     print(tabulate(table))
+    print('Number of positive predictions:', len(predictions[predictions > 0.5]))
+    print('Number of positive samples:', len(y[y > 0.5]))
 
     # print the positive classifications
     if print_pos:
@@ -149,34 +149,36 @@ def main():
 
     train_data, test_data, vocab = get_data(args, 40)
 
-    if args.network == 'rnn':
-        clf_model = LSTMClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                   embed_size=128, hidden_size=32,
-                                   num_layers=1, dropout=args.dropout)
-    else:
-        clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                  seq_len=train_data.X_is_speech.shape[1],
-                                  embed_size=128, num_filters=16,
-                                  dropout=args.dropout)
-
-    spkr_model = NameClassifier(input_size=len(vocab.token_to_idx) + 1,  # offset by 1 because 0 is not included
-                                seq_length=train_data.X_speaker.shape[1],
-                                embed_size=128,
-                                encoder_hidden=64,
-                                num_layers=1,
-                                dropout=args.dropout)
-
     clf_path = f'pickle/clf_{args.network}.pkl'
     spkr_path = f'pickle/spkr.pkl'
-    load_model_params(clf_model, clf_path)
-    load_model_params(spkr_model, spkr_path)
+    clf_model = load_model(clf_path)
+    spkr_model = load_model(spkr_path)
+
+    if clf_model is None:
+        if args.network == 'rnn':
+            clf_model = LSTMClassifier(input_size=len(vocab.token_to_idx) + 1,
+                                       embed_size=128, hidden_size=32,
+                                       num_layers=1, dropout=args.dropout)
+        else:
+            clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
+                                      seq_len=train_data.X_is_speech.shape[1],
+                                      embed_size=128, num_filters=16,
+                                      dropout=args.dropout)
+
+    if spkr_model is None:
+        spkr_model = NameClassifier(input_size=len(vocab.token_to_idx) + 1,
+                                    seq_length=train_data.X_speaker.shape[1],
+                                    embed_size=128,
+                                    encoder_hidden=64,
+                                    num_layers=1,
+                                    dropout=args.dropout)
 
     train(clf_model, train_data.X_is_speech, train_data.y_is_speech, args.epochs)
-    torch.save(clf_model.state_dict(), clf_path)
+    torch.save(clf_model, clf_path)
     evaluate_clf(clf_model, test_data.X_is_speech, test_data.y_is_speech)
 
-    train(spkr_model, train_data.X_speaker, train_data.Y_speaker, args.epochs)
-    torch.save(spkr_model.state_dict(), spkr_path)
+    train(spkr_model, train_data.X_speaker, train_data.Y_speaker, int(args.epochs / 2))
+    torch.save(spkr_model, spkr_path)
     evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
 
 
