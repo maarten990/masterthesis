@@ -37,8 +37,10 @@ def main():
 
     clf_path = f'pickle/clf_{args.network}.pkl'
     spkr_path = f'pickle/spkr.pkl'
-    clf_model = load_model(clf_path)
-    spkr_model = load_model(spkr_path)
+    clf_model, _ = load_model(clf_path)
+    spkr_model, _ = load_model(spkr_path)
+    clf_model.eval()
+    spkr_model.eval()
 
     # classify the speeches and get the speakers for the positive classifications
     pred_is_speech = clf_model(Variable(torch.from_numpy(X).long()))

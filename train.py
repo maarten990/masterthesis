@@ -20,7 +20,7 @@ def load_model(filename):
     if os.path.exists(filename):
         return torch.load(filename)
     else:
-        return None
+        return (None, None)
 
 
 def get_args():
@@ -65,9 +65,11 @@ def get_data(args, max_len=None):
             Datatuple(X_test, X_test_spkr, y_test, Y_test), vocab)
 
 
-def train(model, X_train, y_train, epochs=100, batch_size=32):
+def train(model, X_train, y_train, epochs=100, batch_size=32, optimizer=None):
     model.train()
-    optimizer = torch.optim.Adam(model.parameters())
+
+    if not optimizer:
+        optimizer = torch.optim.Adam(model.parameters())
 
     losses = []
     t = trange(epochs, desc='Training')
@@ -92,11 +94,12 @@ def train(model, X_train, y_train, epochs=100, batch_size=32):
         t.set_postfix({'loss': loss,
                        'Δloss': loss_delta})
 
-    model.train(False)
-    return losses
+    model.eval()
+    return losses, optimizer
 
 
 def evaluate_clf(model, X, y, print_pos=False, vocab=None):
+    model.eval()
     predictions = model(Variable(torch.from_numpy(X)).long())
     predictions = predictions.squeeze().data.numpy()
     predictions = np.where(predictions > 0.5, 1, 0)
@@ -125,7 +128,7 @@ def evaluate_clf(model, X, y, print_pos=False, vocab=None):
 
 
 def evaluate_spkr(model, X, y, idx_to_token):
-    model.train(False)
+    model.eval()
     predictions = model(Variable(torch.from_numpy(X)).long())
 
     correct = 0
@@ -151,8 +154,8 @@ def main():
 
     clf_path = f'pickle/clf_{args.network}.pkl'
     spkr_path = f'pickle/spkr.pkl'
-    clf_model = load_model(clf_path)
-    spkr_model = load_model(spkr_path)
+    clf_model, clf_optim = load_model(clf_path)
+    spkr_model, spkr_optim = load_model(spkr_path)
 
     if clf_model is None:
         if args.network == 'rnn':
@@ -173,12 +176,14 @@ def main():
                                     num_layers=1,
                                     dropout=args.dropout)
 
-    train(clf_model, train_data.X_is_speech, train_data.y_is_speech, args.epochs)
-    torch.save(clf_model, clf_path)
+    _, clf_optim = train(clf_model, train_data.X_is_speech, train_data.y_is_speech,
+                         args.epochs, optimizer=clf_optim)
+    torch.save((clf_model, clf_optim), clf_path)
     evaluate_clf(clf_model, test_data.X_is_speech, test_data.y_is_speech)
 
-    train(spkr_model, train_data.X_speaker, train_data.Y_speaker, int(args.epochs / 2))
-    torch.save(spkr_model, spkr_path)
+    _, spkr_optim = train(spkr_model, train_data.X_speaker, train_data.Y_speaker,
+                          int(args.epochs / 2), optimizer=spkr_optim)
+    torch.save((spkr_model, spkr_optim), spkr_path)
     evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
 
 
