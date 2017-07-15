@@ -1,0 +1,25 @@
+\section{Introduction}
+The Political Mashup
+project\footnote{http://search.politicalmashup.nl/about.html} aims to digitize
+the world's political proceedings in order to make them easily accessible and
+searchable. Unfortunately, the published documents are often primarily intended
+to be human-readable, without the embedded semantic structure required to
+properly index this data in a digital way. This semantic information is
+currently recovered using rule-based methods. Since the data gets transcribed by
+a human typist, compiled to a PDF, and then goes back into an imperfect PDF
+decompiler, there is a lot of room for minor variations in the output even
+though the layout of the document itself is consistent. Dealing with this in a
+rule-based system entails using either broad rules that lead to a larger
+probability of false positives, or a large amount of narrow rules which can
+quickly lead to a spaghetti-like mess of special cases and is very fragile to
+unseen issues.
+
+There is a current effort to digitize German parliamentary proceedings, which
+feature the interesting quirk that the occurrence of specific issues seems to be
+clustered around certain time periods. As a result, it is relatively easy to
+create a system which handles documents from a certain election very well, but
+generalizes badly the further away you get from that period. This is the
+principal motivation for this thesis: I propose that a classifier trained on a
+portion of the data will generalize to the rest of the dataset in a robust
+manner, eliminating the need to track down the minor bugs that would trip up a
+rule-based system.

@@ -1,0 +1,30 @@
+\documentclass[a4paper]{article} 
+
+\usepackage{geometry}
+\usepackage[english]{babel}
+\usepackage{amsmath}
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage{placeins}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\usepackage{import}
+
+\usepackage[
+    backend=biber,
+    natbib=true,
+    style=numeric,
+    maxcitenames=1,
+]{biblatex}
+\addbibresource{library.bib} 
+
+
+\begin{document}
+
+\import{.}{title-page-ai.tex}
+\import{.}{introduction.tex}
+\import{.}{problemstatement.tex}
+\import{.}{approach.tex}
+
+\printbibliography
+\end{document}
