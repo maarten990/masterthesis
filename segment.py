@@ -11,8 +11,8 @@ from torch.autograd import Variable
 
 
 def get_data(args, max_len=None):
-    vocab = create_dictionary('./training_data', args.pattern)
-    X_train, y_is_speech, Y_speaker, _ = sliding_window('./training_data', args.file,
+    vocab = create_dictionary('training_data', args.pattern)
+    X_train, y_is_speech, Y_speaker, _ = sliding_window('training_data', args.file,
                                                         2, 1, vocab=vocab)
     X_train = pad_sequences(X_train, max_len)
     Y_speaker = pad_sequences(Y_speaker, max_len)
@@ -45,12 +45,12 @@ def main():
     # classify the speeches and get the speakers for the positive classifications
     pred_is_speech = clf_model(Variable(torch.from_numpy(X).long()))
     pred_is_speech = pred_is_speech.squeeze().data.numpy()
-    pred_speeches = X[pred_is_speech > 0.9, :]
+    pred_speeches = X[pred_is_speech > 0.5, :]
 
-    pred_speakers = spkr_model(Variable(torch.from_numpy(X[pred_is_speech > 0.9, :]).long()))
+    pred_speakers = spkr_model(Variable(torch.from_numpy(X[pred_is_speech > 0.5, :]).long()))
     pred_speakers = pred_speakers.data.numpy()
 
-    pred_speeches_binary = np.where(pred_is_speech > 0.9, 1, 0)
+    pred_speeches_binary = np.where(pred_is_speech > 0.5, 1, 0)
     print('---')
     print(f'Precision: {precision_score(speeches, pred_speeches_binary)}')
     print(f'Recall: {recall_score(speeches, pred_speeches_binary)}')
