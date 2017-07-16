@@ -4,22 +4,22 @@ The thesis will focus on parliamentary proceedings from the German
 back to 1949, and have used essentially the same document layout and conventions
 since the start. These PDF files can be converted to an XML representation which
 retains much of the PDF makeup, or to unstructured plaintext which only
-preserves newlines. Figure \ref{fig:example} shows an excerpt from an arbitrary
+preserves newlines. Figure~\ref{fig:example} shows an excerpt from an arbitrary
 source PDF file, along with the two possible representations.
 
 \begin{figure}[htbp]
   \centering
   \begin{subfigure}[b]{0.4\textwidth} 
     \centering
-    \includegraphics[width=\textwidth]{source.png}
+    \includegraphics[width=\textwidth]{figures/source.png}
     \caption{The source PDF}
   \end{subfigure}
   \begin{subfigure}[b]{0.59\textwidth}
 	\centering
-    \includegraphics[width=\textwidth]{plain.png}
+    \includegraphics[width=\textwidth]{figures/plain.png}
     \caption{Plaintext}
     \vspace{2ex}
-    \includegraphics[width=\textwidth]{xml.png}
+    \includegraphics[width=\textwidth]{figures/xml.png}
     \caption{XML}
   \end{subfigure}
   \caption{The different data representations}
@@ -28,7 +28,7 @@ source PDF file, along with the two possible representations.
 
 The documents are composed of a sequence of topics, each topic having a title
 and containing a series of speeches. Each of these speeches has a speaker, who
-in turn have either a party or a role (e.g. minister or president). The task is
+in turn have either a party or a role (e.g.\ minister or president). The task is
 to parse this information, or as much of it as feasible, from the documents. The
 start of each document features a table of contents, outlining the topics and
 the speeches within them by page number. For some reason, speeches by the
