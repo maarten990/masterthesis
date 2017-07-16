@@ -3,13 +3,12 @@ import os.path
 from collections import namedtuple
 
 import numpy as np
-from sklearn.metrics import precision_score, recall_score, f1_score
-
 import torch
-from torch.autograd import Variable
-
+from sklearn.metrics import precision_score, recall_score, f1_score
 from tabulate import tabulate
+from torch.autograd import Variable
 from tqdm import trange
+
 from data import sliding_window, pad_sequences
 from models import LSTMClassifier, CNNClassifier, NameClassifier
 
@@ -21,6 +20,16 @@ def load_model(filename):
         return torch.load(filename)
     else:
         return (None, None)
+
+
+def write_losses(losses, basename):
+    batch, epoch = losses
+
+    with open('batch_' + basename, 'w') as f:
+        f.write('\n'.join([str(l) for l in batch]))
+
+    with open('epoch_' + basename, 'w') as f:
+        f.write('\n'.join([str(l) for l in epoch]))
 
 
 def get_args():
@@ -71,7 +80,8 @@ def train(model, X_train, y_train, epochs=100, batch_size=32, optimizer=None):
     if not optimizer:
         optimizer = torch.optim.Adam(model.parameters())
 
-    losses = []
+    batch_losses = []
+    epoch_losses = []
     t = trange(epochs, desc='Training')
     for _ in t:
         epoch_loss = Variable(torch.zeros(1)).float()
@@ -83,19 +93,20 @@ def train(model, X_train, y_train, epochs=100, batch_size=32, optimizer=None):
             y_pred = model(X)
             loss = model.loss(y_pred, y)
             epoch_loss += loss
+            batch_losses.append(loss.data[0])
 
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
         loss = epoch_loss.data[0]
-        losses.append(loss)
-        loss_delta = losses[-1] - losses[-2] if len(losses) > 1 else 0
+        epoch_losses.append(loss)
+        loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
         t.set_postfix({'loss': loss,
                        'Δloss': loss_delta})
 
     model.eval()
-    return losses, optimizer
+    return (batch_losses, epoch_losses), optimizer
 
 
 def evaluate_clf(model, X, y, print_pos=False, vocab=None):
@@ -176,15 +187,17 @@ def main():
                                     num_layers=1,
                                     dropout=args.dropout)
 
-    _, clf_optim = train(clf_model, train_data.X_is_speech, train_data.y_is_speech,
+    clf_losses, clf_optim = train(clf_model, train_data.X_is_speech, train_data.y_is_speech,
                          args.epochs, optimizer=clf_optim)
     torch.save((clf_model, clf_optim), clf_path)
     evaluate_clf(clf_model, test_data.X_is_speech, test_data.y_is_speech)
+    write_losses(clf_losses, 'clf_losses.txt')
 
-    _, spkr_optim = train(spkr_model, train_data.X_speaker, train_data.Y_speaker,
+    spkr_losses, spkr_optim = train(spkr_model, train_data.X_speaker, train_data.Y_speaker,
                           int(args.epochs / 2), optimizer=spkr_optim)
     torch.save((spkr_model, spkr_optim), spkr_path)
     evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
+    write_losses(spkr_losses, 'spkr_losses.txt')
 
 
 if __name__ == '__main__':
