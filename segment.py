@@ -1,4 +1,5 @@
 import argparse
+import os.path
 from data import create_dictionary, sliding_window, pad_sequences
 from train import load_model
 
@@ -12,8 +13,10 @@ from torch.autograd import Variable
 
 def get_data(args, max_len=None):
     vocab = create_dictionary('training_data', args.pattern)
-    X_train, y_is_speech, Y_speaker, _ = sliding_window('training_data', args.file,
-                                                        2, 1, vocab=vocab)
+
+    folder, fname = os.path.split(args.file)
+    X_train, y_is_speech, Y_speaker, _ = sliding_window(folder, fname, 2, 1,
+                                                        vocab=vocab)
     X_train = pad_sequences(X_train, max_len)
     Y_speaker = pad_sequences(Y_speaker, max_len)
 
