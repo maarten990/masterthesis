@@ -1,5 +1,6 @@
-from .. import data
+import random
 import numpy as np
+from .. import data
 
 
 def test_create_dictionary():
@@ -43,3 +44,35 @@ def test_sliding_window():
             assert speaker[0] == 1 and np.all(speaker[1:] == 0)
         else:
             assert np.all(speaker == 0)
+
+
+def test_pad_sequences():
+    # Length: count
+    # 1: 2
+    # 3: 5
+    # 5: 3
+    X = [[0] for _ in range(2)] + [[0, 0, 0] for _ in range(5)] \
+        + [[0, 0, 0, 0, 0] for _ in range(3)]
+
+    random.shuffle(X)
+
+    # labels are the lengths of the sequences
+    y = [len(seq) for seq in X]
+
+    sizes = [3, -1]
+    buckets, labels = data.pad_sequences(X, y, sizes)
+    assert len(buckets) == len(sizes)
+    assert len(buckets) == len(labels)
+    assert buckets[0].shape == (7, sizes[0])
+    assert buckets[1].shape == (3, 5)
+    for bucket, label in zip(buckets, labels):
+        assert np.all(label <= (bucket.shape[1]))
+
+    sizes = [2, 4]
+    buckets, labels = data.pad_sequences(X, y, sizes)
+    assert len(buckets) == len(sizes)
+    assert len(buckets) == len(labels)
+    assert buckets[0].shape == (2, sizes[0])
+    assert buckets[1].shape == (8, sizes[1])
+    for bucket, label in zip(buckets, labels):
+        assert np.all(label <= (bucket.shape[1]))

@@ -62,7 +62,7 @@ def get_speaker(node):
     is_speech = node.attrib['is-speech']
 
     if is_speech == 'true':
-        return node.attrib['speaker']    
+        return node.attrib['speaker']
     else:
         return ''
 
@@ -90,7 +90,7 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
     """
     if not vocab:
         vocab = create_dictionary(folder, pattern)
-    
+
     tokenizer = nltk.tokenize.WordPunctTokenizer()
 
     inputs = []
@@ -122,52 +122,6 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
     return inputs, np.array(is_speech), speakers, vocab
 
 
-def speaker_timeseries(parsed_folder, pattern):
-    input = []
-    output = []
-    seen_names = set()
-    tokenizer = nltk.tokenize.WordPunctTokenizer()
-
-    for xml in load_from_disk(parsed_folder, pattern):
-        for speech in xml.xpath('//pm:speech', namespaces=XMLNS):
-            name = speech.xpath('./@pm:speaker', namespaces=XMLNS)[0]
-            function = speech.xpath('./@pm:function', namespaces=XMLNS)[0]
-
-            if name in seen_names:
-                continue
-            else:
-                seen_names.add(name)
-
-            if function == 'De Duitser':
-                party = speech.xpath('./@pm:party', namespaces=XMLNS)[0]
-                sample = '{} ({})'.format(name, party)
-            elif 'sident' in function:
-                sample = '{} {}'.format(function, name)
-            elif 'inister' in function:
-                sample = '{}, {}'.format(name, function)
-            else:
-                continue
-
-            tokens = tokenizer.tokenize(sample)
-            name_tokens = tokenizer.tokenize(name)
-
-            input.append(tokens)
-            output.append([1 if token in name_tokens else 0 for token in tokens])
-
-    all_words = set([word for sample in input for word in sample])
-    word_to_idx = {w: i+1 for i, w in enumerate(all_words)}
-    idx_to_word = {i+1: w for i, w in enumerate(all_words)}
-
-    X = [[word_to_idx[w] for w in sample]
-         for sample in input]
-    Y = output
-
-    X_out = pad_lists(X)
-    Y_out = pad_lists(Y)
-
-    return X_out, Y_out, word_to_idx, idx_to_word
-
-
 def token_featurizer(nodes, tokenizer):
     out = []
     for node in nodes:
@@ -178,27 +132,40 @@ def token_featurizer(nodes, tokenizer):
     return out
 
 
-def pad_sequences(X, max_len=None):
-    if not max_len:
-        max_len = max(len(seq) for seq in X)
+def pad_sequences(X, y, bucket_sizes):
+    """
+    Pad the list of variable-length sequences X to arrays with widths
+    corresponding to the specified buckets.
+    If the last bucket is -1, it will be set to the largest occurring sequence
+    length.
 
-    padded = []
-    for seq in X:
-        diff = max_len - len(seq)
-        if diff > 0:
-            padded.append(np.pad(seq, (0, max_len - len(seq)), 'constant'))
+    Returns a list of n arrays, n being the number of buckets.
+    """
+    if bucket_sizes[-1] == -1:
+        bucket_sizes[-1] = max(len(seq) for seq in X)
+
+    buckets = [[] for _ in bucket_sizes]
+    labels = [[] for _ in bucket_sizes]
+    for seq, label in zip(X, y):
+        for bucket_size, bucket, label_bucket in zip(bucket_sizes, buckets, labels):
+            if len(seq) <= bucket_size:
+                diff = bucket_size - len(seq)
+                bucket.append(np.pad(seq, (0, diff), 'constant'))
+
+                if type(label) == list:
+                    label_bucket.append(np.pad(label, (0, diff), 'constant'))
+                else:
+                    label_bucket.append(label)
+
+                break
         else:
-            padded.append(seq[:max_len])
+            # If the for-loop didn't break, the sequence will need to be
+            # truncated into the largest bucket.
+            buckets[-1].append(seq[:bucket_sizes[-1]])
+            if type(label) == list:
+                labels[-1].append(label[:bucket_sizes[-1]])
+            else:
+                labels[-1].append(label)
 
-    return np.array(padded)
-
-
-
-
-def sentences_to_input(sentences, char_to_idx, max_length):
-    X = [nltk.tokenize.word_tokenize(sent)
-         for sent in sentences]
-
-    X = [[char_to_idx[w] if w in char_to_idx else -3 for w in sent] for sent in X]
-
-    return pad_lists(X, max_length)
+    return ([np.array(bucket) for bucket in buckets],
+            [np.array(label_bucket) for label_bucket in labels])

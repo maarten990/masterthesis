@@ -49,32 +49,34 @@ def get_args():
     return parser.parse_args()
 
 
-def get_data(args, max_len=None):
-    X_train, y_is_speech, Y_speaker, vocab = sliding_window(args.folder, args.pattern, 2, 0.1)
-    X_train = pad_sequences(X_train, max_len)
-    Y_speaker = pad_sequences(Y_speaker, max_len)
+def get_data(args, buckets=[-1], spkr_pad=-1):
+    X, y_is_speech, Y, vocab = sliding_window(args.folder, args.pattern, 2, 0.1)
+    Xb, yb = pad_sequences(X, y_is_speech, buckets)
+    X, Y = pad_sequences(X, Y, [spkr_pad])
 
-    X_test, y_test, Y_test, _ = sliding_window(args.folder, args.testpattern, 2, 0.1, vocab=vocab)
-    X_test = pad_sequences(X_test, X_train.shape[1])
-    Y_test = pad_sequences(Y_test, Y_speaker.shape[1])
+    Xt, yt, Yt, _ = sliding_window(args.folder, args.testpattern, 2, 0.1, vocab=vocab)
+    Xtb, ytb = pad_sequences(Xt, yt, buckets)
+    Xt, Yt = pad_sequences(Xt, Yt, [spkr_pad])
 
-    # filter the speaker extraction data to only positive samples
-    X_train_spkr = X_train[y_is_speech == 1, :]
-    Y_speaker = Y_speaker[y_is_speech == 1, :]
-    X_test_spkr = X_test[y_test == 1, :]
-    Y_test = Y_test[y_test == 1, :]
+    # filter the spkr extraction data to only positive samples
+    X_spkr = [b[y == 1, :] for b, y in zip(X, [y_is_speech])]
+    Y = [b[y == 1, :] for b, y in zip(Y, [y_is_speech])]
+    Xt_spkr = [b[y == 1, :] for b, y in zip(Xt, [yt])]
+    Yt = [b[y == 1, :] for b, y in zip(Yt, [yt])]
 
-    print('Speech classifier: {} training samples, {} testing samples'.format(
-        X_train.shape[0], X_test.shape[0]))
-    print('Speaker extraction: {} training samples, {} testing samples'.format(
-        X_train_spkr.shape[0], X_test_spkr.shape[0]))
-    print('Sequence length: {}'.format(X_train.shape[1]))
+    for i, X in enumerate(Xb):
+        print('Speech classifier bucket {}: {} training samples, {} testing samples, sequence length {}'.format(
+            i, X.shape[0], Xtb[i].shape[0], X.shape[1]))
 
-    return (Datatuple(X_train, X_train_spkr, y_is_speech, Y_speaker),
-            Datatuple(X_test, X_test_spkr, y_test, Y_test), vocab)
+    for i, X in enumerate(X_spkr):
+        print('Speaker extraction bucket {}: {} training samples, {} testing samples, sequence length {}'.format(
+            i, X.shape[0], Xt_spkr[i].shape[0], X.shape[1]))
+
+    return (Datatuple(Xb, X_spkr, yb, Y),
+            Datatuple(Xtb, Xt_spkr, ytb, Yt), vocab)
 
 
-def train(model, X_train, y_train, epochs=100, batch_size=32, optimizer=None):
+def train(model, X_buckets, y_buckets, epochs=100, batch_size=32, optimizer=None):
     model.train()
 
     if not optimizer:
@@ -86,18 +88,19 @@ def train(model, X_train, y_train, epochs=100, batch_size=32, optimizer=None):
     for _ in t:
         epoch_loss = Variable(torch.zeros(1)).float()
 
-        for i in range(0, X_train.shape[0], batch_size):
-            X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
-            y = Variable(torch.from_numpy(y_train[i:i+32])).float()
+        for X_train, y_train in zip(X_buckets, y_buckets):
+            for i in range(0, X_train.shape[0], batch_size):
+                X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
+                y = Variable(torch.from_numpy(y_train[i:i+32])).float()
 
-            y_pred = model(X)
-            loss = model.loss(y_pred, y)
-            epoch_loss += loss
-            batch_losses.append(loss.data[0])
+                y_pred = model(X)
+                loss = model.loss(y_pred, y)
+                epoch_loss += loss
+                batch_losses.append(loss.data[0])
 
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+                optimizer.zero_grad()
+                loss.backward()
+                optimizer.step()
 
         loss = epoch_loss.data[0]
         epoch_losses.append(loss)
@@ -109,33 +112,31 @@ def train(model, X_train, y_train, epochs=100, batch_size=32, optimizer=None):
     return (batch_losses, epoch_losses), optimizer
 
 
-def evaluate_clf(model, X, y, print_pos=False, vocab=None):
+def evaluate_clf(model, Xb, yb):
+    """
+    Evaluate the trained model.
+    Xb, yb: bucketed lists of training and test data
+    """
     model.eval()
-    predictions = model(Variable(torch.from_numpy(X)).long())
-    predictions = predictions.squeeze().data.numpy()
-    predictions = np.where(predictions > 0.5, 1, 0)
-    print()
+    predictions = []
+    true = []
+
+    for X, y in zip(Xb, yb):
+        pred = model(Variable(torch.from_numpy(X)).long())
+        pred = pred.squeeze().data.numpy()
+        pred = np.where(pred > 0.5, 1, 0)
+        predictions.extend(pred)
+        true.extend(y)
 
     table = []
-    table.append(['f1', f1_score(y, predictions)])
-    table.append(['Speech recall', recall_score(y, predictions)])
-    table.append(['Speech precision', precision_score(y, predictions)])
+    table.append(['f1', f1_score(true, predictions)])
+    table.append(['Speech recall', recall_score(true, predictions)])
+    table.append(['Speech precision', precision_score(true, predictions)])
 
     print()
     print(tabulate(table))
     print('Number of positive predictions:', len(predictions[predictions > 0.5]))
     print('Number of positive samples:', len(y[y > 0.5]))
-
-    # print the positive classifications
-    if print_pos:
-        print()
-        print('Speeches:')
-        positives = X[predictions > 0.5, :]
-        for i in range(positives.shape[0]):
-            indices = positives[i, :]
-            line = ' '.join(vocab.idx_to_token[idx] for idx in indices
-                            if idx in vocab.idx_to_token)
-            print(line)
 
 
 def evaluate_spkr(model, X, y, idx_to_token):
@@ -161,7 +162,12 @@ def evaluate_spkr(model, X, y, idx_to_token):
 def main():
     args = get_args()
 
-    train_data, test_data, vocab = get_data(args, 40)
+    if args.network == 'rnn':
+        buckets = [5, 10, 15, 25, 40, -1]
+    else:
+        buckets = [40]
+
+    train_data, test_data, vocab = get_data(args, buckets, spkr_pad=40)
 
     clf_path = f'pickle/clf_{args.network}.pkl'
     spkr_path = f'pickle/spkr.pkl'
@@ -175,26 +181,26 @@ def main():
                                        num_layers=1, dropout=args.dropout)
         else:
             clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                      seq_len=train_data.X_is_speech.shape[1],
+                                      seq_len=train_data.X_is_speech[0].shape[1],
                                       embed_size=128, num_filters=16,
                                       dropout=args.dropout)
 
     if spkr_model is None:
         spkr_model = NameClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                    seq_length=train_data.X_speaker.shape[1],
+                                    seq_length=train_data.X_speaker[0].shape[1],
                                     embed_size=128,
                                     encoder_hidden=64,
                                     num_layers=1,
                                     dropout=args.dropout)
 
     clf_losses, clf_optim = train(clf_model, train_data.X_is_speech, train_data.y_is_speech,
-                         args.epochs, optimizer=clf_optim)
+                                  args.epochs, optimizer=clf_optim)
     torch.save((clf_model, clf_optim), clf_path)
     evaluate_clf(clf_model, test_data.X_is_speech, test_data.y_is_speech)
     write_losses(clf_losses, 'clf_losses.txt')
 
     spkr_losses, spkr_optim = train(spkr_model, train_data.X_speaker, train_data.Y_speaker,
-                          int(args.epochs / 2), optimizer=spkr_optim)
+                                    int(args.epochs / 2), optimizer=spkr_optim)
     torch.save((spkr_model, spkr_optim), spkr_path)
     evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
     write_losses(spkr_losses, 'spkr_losses.txt')
