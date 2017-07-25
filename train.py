@@ -135,25 +135,25 @@ def evaluate_clf(model, Xb, yb):
 
     print()
     print(tabulate(table))
-    print('Number of positive predictions:', len(predictions[predictions > 0.5]))
-    print('Number of positive samples:', len(y[y > 0.5]))
 
 
-def evaluate_spkr(model, X, y, idx_to_token):
+def evaluate_spkr(model, Xb, yb, idx_to_token):
     model.eval()
-    predictions = model(Variable(torch.from_numpy(X)).long())
 
     correct = 0
-    for i in range(X.shape[0]):
-        full_string = X[i, :]
-        true = y[i, :]
-        pred = predictions.data.numpy()[i, :]
+    for X, y in zip(Xb, yb):
+        predictions = model(Variable(torch.from_numpy(X)).long())
 
-        true_words = full_string[true > 0.5]
-        pred_words = full_string[pred > 0.5]
+        for i in range(X.shape[0]):
+            full_string = X[i, :]
+            true = y[i, :]
+            pred = predictions.data.numpy()[i, :]
 
-        if np.all(true_words == pred_words):
-            correct += 1
+            true_words = full_string[true > 0.5]
+            pred_words = full_string[pred > 0.5]
+
+            if np.all(true_words == pred_words):
+                correct += 1
 
     print()
     print(f'Speaker accuracy: {correct / X.shape[0]}')
@@ -200,7 +200,7 @@ def main():
     write_losses(clf_losses, 'clf_losses.txt')
 
     spkr_losses, spkr_optim = train(spkr_model, train_data.X_speaker, train_data.Y_speaker,
-                                    int(args.epochs / 2), optimizer=spkr_optim)
+                                    args.epochs, optimizer=spkr_optim)
     torch.save((spkr_model, spkr_optim), spkr_path)
     evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
     write_losses(spkr_losses, 'spkr_losses.txt')

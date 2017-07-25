@@ -74,5 +74,3 @@ def test_pad_sequences():
     assert len(buckets) == len(labels)
     assert buckets[0].shape == (2, sizes[0])
     assert buckets[1].shape == (8, sizes[1])
-    for bucket, label in zip(buckets, labels):
-        assert np.all(label <= (bucket.shape[1]))
