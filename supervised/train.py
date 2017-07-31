@@ -162,7 +162,7 @@ def train(model, optimizer, X_buckets, y_buckets, epochs=100, batch_size=32):
                 y_pred = model(X)
                 loss = model.loss(y_pred, y)
                 epoch_loss += loss
-                batch_losses.append(loss.data[0])
+                batch_losses.append(loss)
 
                 optimizer.zero_grad()
                 loss.backward()
