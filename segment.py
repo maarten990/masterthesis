@@ -11,16 +11,16 @@ from sklearn.metrics import recall_score
 from torch.autograd import Variable
 
 
-def get_data(args, max_len=None):
-    vocab = create_dictionary('training_data', args.pattern)
+def get_data(args, buckets):
+    vocab = create_dictionary('.\\training_data', args.pattern)
 
     folder, fname = os.path.split(args.file)
     X_train, y_is_speech, Y_speaker, _ = sliding_window(folder, fname, 2, 1,
                                                         vocab=vocab)
-    X_train = pad_sequences(X_train, max_len)
-    Y_speaker = pad_sequences(Y_speaker, max_len)
+    Xb, yb = pad_sequences(X_train, y_is_speech, buckets)
+    _, Yb = pad_sequences(X_train, Y_speaker, buckets)
 
-    return X_train, y_is_speech, Y_speaker, vocab
+    return Xb, yb, Yb, vocab
 
 
 def get_args():
@@ -36,7 +36,13 @@ def get_args():
 
 def main():
     args = get_args()
-    X, speeches, speakers, vocab = get_data(args, 40)
+    buckets = [40]
+    Xb, yb, Yb, vocab = get_data(args, buckets)
+
+    # unbucket
+    X = Xb[0]
+    speeches = yb[0]
+    speakers = Yb[0]
 
     clf_path = f'pickle/clf_{args.network}.pkl'
     spkr_path = f'pickle/spkr.pkl'
