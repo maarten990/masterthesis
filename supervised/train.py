@@ -149,30 +149,27 @@ def train(model, optimizer, X_buckets, y_buckets, epochs=100, batch_size=32):
     epoch_losses = []
     t = trange(epochs, desc='Training')
     for _ in t:
-        epoch_loss = Variable(torch.zeros(1)).float().cuda()
+        epoch_loss = torch.zeros(1).float()
 
         for X_train, y_train in zip(X_buckets, y_buckets):
-            X_train = Variable(torch.from_numpy(X_train)).long().cuda()
-            y_train = Variable(torch.from_numpy(y_train)).float().cuda()
-
-            for i in range(0, X_train.size(0), batch_size):
-                X = X_train[i:i+32, :]
-                y = y_train[i:i+32]
+            for i in range(0, X_train.shape[0], batch_size):
+                X = Variable(torch.from_numpy(X_train[i:i+32, :])).long().cuda()
+                y = Variable(torch.from_numpy(y_train[i:i+32])).float().cuda()
 
                 y_pred = model(X)
                 loss = model.loss(y_pred, y)
-                epoch_loss += loss
-                batch_losses.append(loss)
-
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
 
-        loss = epoch_loss.data[0]
+                batch_losses.append(loss.data.cpu())
+                epoch_loss += batch_losses[-1]
+
+        loss = epoch_loss
         epoch_losses.append(loss)
-        loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
-        t.set_postfix({'loss': loss,
-                       'Δloss': loss_delta})
+        loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else [0]
+        t.set_postfix({'loss': loss[0],
+                       'Δloss': loss_delta[0]})
 
     model.eval()
     return (batch_losses, epoch_losses), optimizer
@@ -183,13 +180,14 @@ def evaluate_clf(model, Xb, yb):
     Evaluate the trained model.
     Xb, yb: bucketed lists of training and test data
     """
-    model.eval()
+    model = model.eval().cuda()
     predictions = []
     true = []
 
     for X, y in zip(Xb, yb):
-        pred = model(Variable(torch.from_numpy(X)).long().cuda())
-        pred = pred.squeeze().data.numpy()
+        Xvar = Variable(torch.from_numpy(X)).long().cuda()
+        pred = model(Xvar)
+        pred = pred.cpu().squeeze().data.numpy()
         pred = np.where(pred > 0.5, 1, 0)
         predictions.extend(pred)
         true.extend(y)
@@ -205,15 +203,17 @@ def evaluate_clf(model, Xb, yb):
 
 def evaluate_spkr(model, Xb, yb, idx_to_token):
     model.eval()
+    model.cuda()
 
     correct = 0
     for X, y in zip(Xb, yb):
-        predictions = model(Variable(torch.from_numpy(X)).long())
+        Xvar = Variable(torch.from_numpy(X)).long().cuda()
+        predictions = model(Xvar)
 
         for i in range(X.shape[0]):
             full_string = X[i, :]
             true = y[i, :]
-            pred = predictions.data.numpy()[i, :]
+            pred = predictions.cpu().data.numpy()[i, :]
 
             true_words = full_string[true > 0.5]
             pred_words = full_string[pred > 0.5]
