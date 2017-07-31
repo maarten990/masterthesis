@@ -143,17 +143,21 @@ def get_speaker_data(folder, trainpattern, testpattern, seqlen):
 
 def train(model, optimizer, X_buckets, y_buckets, epochs=100, batch_size=32):
     model.train()
+    model.cuda()
 
     batch_losses = []
     epoch_losses = []
     t = trange(epochs, desc='Training')
     for _ in t:
-        epoch_loss = Variable(torch.zeros(1)).float()
+        epoch_loss = Variable(torch.zeros(1)).float().cuda()
 
         for X_train, y_train in zip(X_buckets, y_buckets):
-            for i in range(0, X_train.shape[0], batch_size):
-                X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
-                y = Variable(torch.from_numpy(y_train[i:i+32])).float()
+            X_train = Variable(torch.from_numpy(X_train)).long().cuda()
+            y_train = Variable(torch.from_numpy(y_train)).float().cuda()
+
+            for i in range(0, X_train.size(0), batch_size):
+                X = X_train[i:i+32, :]
+                y = y_train[i:i+32]
 
                 y_pred = model(X)
                 loss = model.loss(y_pred, y)
@@ -184,7 +188,7 @@ def evaluate_clf(model, Xb, yb):
     true = []
 
     for X, y in zip(Xb, yb):
-        pred = model(Variable(torch.from_numpy(X)).long())
+        pred = model(Variable(torch.from_numpy(X)).long().cuda())
         pred = pred.squeeze().data.numpy()
         pred = np.where(pred > 0.5, 1, 0)
         predictions.extend(pred)
