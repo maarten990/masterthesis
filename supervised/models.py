@@ -147,7 +147,7 @@ class LSTMClassifier(nn.Module):
         "Initialize a zero hidden state with the appropriate dimensions."
         hidden = Variable(torch.zeros(1, self.hidden_size))
         hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
-        return hidden
+        return hidden.cuda()
 
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
