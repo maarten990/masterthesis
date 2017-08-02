@@ -37,7 +37,7 @@
     <xsl:variable name="index" select="$start-of-index/preceding::text"/>
     <xsl:variable name="body" select="/pdf2xml/page/text[matches(string(.), 'Beginn:? [\d\. ]+ Uhr')][1]/following::*
                                       intersect
-                                      /pdf2xml/page/text[matches(., '^\(Schluss:? .+ Uhr\)\s*$')][last()]/preceding::*"/>
+                                      /pdf2xml/page/text[matches(., '^\(Schlu(ss|ß):? .+ Uhr\)\s*$')][last()]/preceding::*"/>
 
     <xsl:function name="pm:isa-speech-or-stage-direction" as="xs:boolean">
         <xsl:param name="node" as="element()"/>
