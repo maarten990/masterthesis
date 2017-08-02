@@ -1,7 +1,19 @@
-import argparse
+"""
+Segment an xml file into speeches.
+
+Usage:
+segment.py (rnn | cnn) <file> [--dictpattern=<p>]
+segment.py (-h | --help)
+
+Options:
+    -h --help          Show this screen
+    --dictpattern=<p>  Glob pattern to create the dictionary [default: 1800*.xml]
+"""
+
 import os.path
 from data import create_dictionary, sliding_window, pad_sequences
-from train import load_model
+from docopt import docopt
+from train import load_model, get_filename
 
 import numpy as np
 from tabulate import tabulate
@@ -11,41 +23,30 @@ from sklearn.metrics import recall_score
 from torch.autograd import Variable
 
 
-def get_data(args, buckets):
-    vocab = create_dictionary('.\\training_data', args.pattern)
+def get_data(filepath, dictpattern, buckets):
+    vocab = create_dictionary('training_data', dictpattern)
 
-    folder, fname = os.path.split(args.file)
+    folder, fname = os.path.split(filepath)
     X_train, y_is_speech, Y_speaker, _ = sliding_window(folder, fname, 2, 1,
                                                         vocab=vocab)
     Xb, yb = pad_sequences(X_train, y_is_speech, buckets)
-    _, Yb = pad_sequences(X_train, Y_speaker, buckets)
 
-    return Xb, yb, Yb, vocab
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('file', help='xml file to segment')
-    parser.add_argument('-p', '--pattern', default='1800*.xml',
-                        help='pattern to use for dictionary generation')
-    parser.add_argument('--network', '-n', choices=['rnn', 'cnn'],
-                        default='rnn', help='the type of neural network to use')
-
-    return parser.parse_args()
+    return Xb, yb, vocab
 
 
 def main():
-    args = get_args()
+    args = docopt(__doc__)
     buckets = [40]
-    Xb, yb, Yb, vocab = get_data(args, buckets)
+    Xb, yb, vocab = get_data(args['<file>'], args['--dictpattern'], buckets)
 
     # unbucket
     X = Xb[0]
     speeches = yb[0]
-    speakers = Yb[0]
 
-    clf_path = f'pickle/clf_{args.network}.pkl'
-    spkr_path = f'pickle/spkr.pkl'
+    clftype = 'cnn' if args['cnn'] else 'rnn'
+
+    clf_path = get_filename(clftype, args['--dictpattern'])
+    spkr_path = get_filename('speaker', args['--dictpattern'])
     clf_model, _ = load_model(clf_path)
     spkr_model, _ = load_model(spkr_path)
     clf_model.eval()

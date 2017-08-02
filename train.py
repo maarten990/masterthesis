@@ -1,6 +1,23 @@
-import argparse
+"""
+Train the neural networks.
+
+Usage:
+train.py (rnn | cnn | speaker) <folder> <trainpattern> <testpattern>
+    [--epochs=<n>] [--dropout=<ratio>]
+train.py (-h | --help)
+
+Options:
+    -h --help          Show this screen
+    --epochs=<n>       Number of epochs to train for [default: 100]
+    --dropout=<ratio>  The dropout ratio between 0 and 1 [default: 0.5]
+
+"""
+
+
 import os.path
+import re
 from collections import namedtuple
+from docopt import docopt
 
 import numpy as np
 import torch
@@ -15,11 +32,34 @@ from models import LSTMClassifier, CNNClassifier, NameClassifier
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
 
 
+def get_filename(network, pattern):
+    """
+    Get the filename to use for pickling a classifier.
+
+    network: the type of network (i.e. cnn, rnn or speaker)
+    pattern: the glob pattern used for gathering training data
+
+    Returns: a string representing a file path
+    """
+    path = f'pickle/{network}_{pattern}'
+    path = re.sub(r'[*.]', '', path) + '.pkl'
+    return path
+
+
 def load_model(filename):
+    """
+    Load a model from the given path.
+    """
     if os.path.exists(filename):
-        return torch.load(filename)
+        modelfn, kwargs, optimfn, model_state, optim_state = torch.load(filename)
+        model = modelfn(**kwargs)
+        optim = optimfn(model.parameters())
+
+        model.load_state_dict(model_state)
+        optim.load_state_dict(optim_state)
+        return model, optim
     else:
-        return (None, None)
+        return None
 
 
 def write_losses(losses, basename):
@@ -32,55 +72,77 @@ def write_losses(losses, basename):
         f.write('\n'.join([str(l) for l in epoch]))
 
 
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('folder', help='folder containing the training data')
-    parser.add_argument('-p', '--pattern', default='*.xml',
-                        help='pattern to match in the training folder')
-    parser.add_argument('-tp', '--testpattern', default='*.xml',
-                        help='pattern to match in the training folder for testing data')
-    parser.add_argument('-e', '--epochs', type=int, default=5,
-                        help='number of epochs to train for')
-    parser.add_argument('-d', '--dropout', type=float, default=0.2,
-                        help='the dropout ratio (between 0 and 1)')
-    parser.add_argument('--network', '-n', choices=['rnn', 'cnn'],
-                        default='rnn', help='the type of neural network to use')
+def get_clf_data(folder, trainpattern, testpattern, buckets):
+    """
+    Return data meant for speech classification
 
-    return parser.parse_args()
+    folder: the folder containing the xml files
+    trainpattern: a glob pattern for selecting training files, e.g. '1800*.xml'
+    testpattern: a glob pattern for selecting training files, e.g. '1800*.xml'
+    buckets: sequence length buckets to pad the data to
 
+    Returns:
+    (training samples, testing samples, training labels, testing labels,
+     the vocabulary that was generated)
 
-def get_data(args, buckets=[-1], spkr_pad=-1):
-    X, y_is_speech, Y, vocab = sliding_window(args.folder, args.pattern, 2, 0.1)
-    Xb, yb = pad_sequences(X, y_is_speech, buckets)
-    X, Y = pad_sequences(X, Y, [spkr_pad])
+    The samples and labels are lists of numpy arrays, each array representing
+    a bucket.
+    """
+    X, y, _, vocab = sliding_window(folder, trainpattern, 2, 0.1)
+    Xb, yb = pad_sequences(X, y, buckets)
 
-    Xt, yt, Yt, _ = sliding_window(args.folder, args.testpattern, 2, 0.1, vocab=vocab)
+    Xt, yt, _, _ = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
     Xtb, ytb = pad_sequences(Xt, yt, buckets)
-    Xt, Yt = pad_sequences(Xt, Yt, [spkr_pad])
-
-    # filter the spkr extraction data to only positive samples
-    X_spkr = [b[y == 1, :] for b, y in zip(X, [y_is_speech])]
-    Y = [b[y == 1, :] for b, y in zip(Y, [y_is_speech])]
-    Xt_spkr = [b[y == 1, :] for b, y in zip(Xt, [yt])]
-    Yt = [b[y == 1, :] for b, y in zip(Yt, [yt])]
 
     for i, X in enumerate(Xb):
+        train_samples = X.shape[0] if len(X) > 0 else 0
+        test_samples = Xtb[i].shape[0] if len(Xtb[i]) > 0 else 0
+        seqlen = Xtb[i].shape[1] if len(Xtb[i]) > 0 else 0
         print('Speech classifier bucket {}: {} training samples, {} testing samples, sequence length {}'.format(
-            i, X.shape[0], Xtb[i].shape[0], X.shape[1]))
+            i, train_samples, test_samples, seqlen))
 
-    for i, X in enumerate(X_spkr):
-        print('Speaker extraction bucket {}: {} training samples, {} testing samples, sequence length {}'.format(
-            i, X.shape[0], Xt_spkr[i].shape[0], X.shape[1]))
-
-    return (Datatuple(Xb, X_spkr, yb, Y),
-            Datatuple(Xtb, Xt_spkr, ytb, Yt), vocab)
+    return Xb, Xtb, yb, ytb, vocab
 
 
-def train(model, X_buckets, y_buckets, epochs=100, batch_size=32, optimizer=None):
+def get_speaker_data(folder, trainpattern, testpattern, seqlen):
+    """
+    Return data meant for speaker extraction.
+
+    folder: the folder containing the xml files
+    trainpattern: a glob pattern for selecting training files, e.g. '1800*.xml'
+    testpattern: a glob pattern for selecting training files, e.g. '1800*.xml'
+    seqlen: the sequence length to which to pad/truncate the samples
+
+    Returns:
+    (training samples, testing samples, training labels, testing labels,
+     the vocabulary that was generated)
+
+    The samples and labels are wrapped in a single-element list for
+    compatibility with the functions expecting bucketed data.
+    """
+    X, y, Y, vocab = sliding_window(folder, trainpattern, 2, 0.1)
+    X, Y = pad_sequences(X, Y, [seqlen])
+
+    Xt, yt, Yt, _ = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
+    Xt, Yt = pad_sequences(Xt, Yt, [seqlen])
+
+    # remove the bucketing since we don't use it for this network
+    X, Y, Xt, Yt = X[0], Y[0], Xt[0], Yt[0]
+
+    # filter the spkr extraction data to only positive samples
+    X = X[y == 1, :]
+    Y = Y[y == 1, :]
+    Xt = Xt[yt == 1, :]
+    Yt = Yt[yt == 1, :]
+
+    print('Speaker extraction: {} training samples, {} testing samples, sequence length {}'.format(
+        X.shape[0], Xt.shape[0], X.shape[1]))
+
+    return [X], [Xt], [Y], [Yt], vocab
+
+
+def train(model, optimizer, X_buckets, y_buckets, epochs=100, batch_size=32):
     model.train()
-
-    if not optimizer:
-        optimizer = torch.optim.Adam(model.parameters())
 
     batch_losses = []
     epoch_losses = []
@@ -160,50 +222,68 @@ def evaluate_spkr(model, Xb, yb, idx_to_token):
 
 
 def main():
-    args = get_args()
+    args = docopt(__doc__)
+    dropout = float(args['--dropout'])
+    epochs = int(args['--epochs'])
 
-    if args.network == 'rnn':
+    if args['rnn']:
         buckets = [5, 10, 15, 25, 40, -1]
+        Xb, Xtb, yb, ytb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
+                                               args['<trainpattern>'], buckets)
+
+        pkl_path = get_filename('rnn', args['<trainpattern>'])
+        argdict = {'input_size': len(vocab.token_to_idx) + 1,
+                   'embed_size': 128,
+                   'hidden_size': 32,
+                   'num_layers': 1,
+                   'dropout': dropout}
+        modelfn = LSTMClassifier
+
+    elif args['cnn']:
+        Xb, Xtb, yb, ytb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
+                                               args['<trainpattern>'], [40])
+
+        pkl_path = get_filename('cnn', args['<trainpattern>'])
+        argdict = {'input_size': len(vocab.token_to_idx) + 1,
+                   'seq_len': Xb[0].shape[1],
+                   'embed_size': 128,
+                   'num_filters': 32,
+                   'dropout': dropout}
+        modelfn = CNNClassifier
+
+    elif args['speaker']:
+        Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],
+                                                   args['<trainpattern>'], 40)
+
+        pkl_path = get_filename('speaker', args['<trainpattern>'])
+        argdict = {'input_size': len(vocab.token_to_idx) + 1,
+                   'seq_length': Xb[0].shape[1],
+                   'embed_size': 128,
+                   'encoder_hidden': 64,
+                   'num_layers': 1,
+                   'dropout': dropout}
+        modelfn = NameClassifier
+
+    optimfn = torch.optim.Adam
+
+    # construct the model and optimizer
+    loaded = load_model(pkl_path)
+    if loaded is None:
+        model = modelfn(**argdict)
+        optim = optimfn(model.parameters())
     else:
-        buckets = [40]
+        model, optim = loaded
 
-    train_data, test_data, vocab = get_data(args, buckets, spkr_pad=40)
+    losses, optim = train(model, optim, Xb, yb, epochs)
+    torch.save((modelfn, argdict, optimfn, model.state_dict(), optim.state_dict()),
+               pkl_path)
 
-    clf_path = f'pickle/clf_{args.network}.pkl'
-    spkr_path = f'pickle/spkr.pkl'
-    clf_model, clf_optim = load_model(clf_path)
-    spkr_model, spkr_optim = load_model(spkr_path)
-
-    if clf_model is None:
-        if args.network == 'rnn':
-            clf_model = LSTMClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                       embed_size=128, hidden_size=32,
-                                       num_layers=1, dropout=args.dropout)
-        else:
-            clf_model = CNNClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                      seq_len=train_data.X_is_speech[0].shape[1],
-                                      embed_size=128, num_filters=16,
-                                      dropout=args.dropout)
-
-    if spkr_model is None:
-        spkr_model = NameClassifier(input_size=len(vocab.token_to_idx) + 1,
-                                    seq_length=train_data.X_speaker[0].shape[1],
-                                    embed_size=128,
-                                    encoder_hidden=64,
-                                    num_layers=1,
-                                    dropout=args.dropout)
-
-    clf_losses, clf_optim = train(clf_model, train_data.X_is_speech, train_data.y_is_speech,
-                                  args.epochs, optimizer=clf_optim)
-    torch.save((clf_model, clf_optim), clf_path)
-    evaluate_clf(clf_model, test_data.X_is_speech, test_data.y_is_speech)
-    write_losses(clf_losses, 'clf_losses.txt')
-
-    spkr_losses, spkr_optim = train(spkr_model, train_data.X_speaker, train_data.Y_speaker,
-                                    args.epochs, optimizer=spkr_optim)
-    torch.save((spkr_model, spkr_optim), spkr_path)
-    evaluate_spkr(spkr_model, test_data.X_speaker, test_data.Y_speaker, vocab.idx_to_token)
-    write_losses(spkr_losses, 'spkr_losses.txt')
+    if args['rnn'] or args['cnn']:
+        evaluate_clf(model, Xtb, ytb)
+        write_losses(losses, 'clf_losses.txt')
+    else:
+        evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
+        write_losses(losses, 'spkr_losses.txt')
 
 
 if __name__ == '__main__':
