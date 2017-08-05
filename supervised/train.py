@@ -96,7 +96,7 @@ def get_clf_data(folder, trainpattern, testpattern, buckets):
 
     for i, X in enumerate(Xb):
         train_samples = X.shape[0] if len(X) > 0 else 0
-        test_samples = Xtb[i].shape[0] if len(Xtb[i]) > 0 else 0
+        test_samples = sum(bucket.shape[0] if len(bucket) > 0 else 0 for bucket in Xtb)
         seqlen = Xtb[i].shape[1] if len(Xtb[i]) > 0 else 0
         print('Speech classifier bucket {}: {} training samples, {} testing samples, sequence length {}'.format(
             i, train_samples, test_samples, seqlen))
@@ -233,7 +233,7 @@ def main():
     if args['rnn']:
         buckets = [5, 10, 15, 25, 40, -1]
         Xb, Xtb, yb, ytb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
-                                               args['<trainpattern>'], buckets)
+                                               args['<testpattern>'], buckets)
 
         pkl_path = get_filename('rnn', args['<trainpattern>'])
         argdict = {'input_size': len(vocab.token_to_idx) + 1,
@@ -245,7 +245,7 @@ def main():
 
     elif args['cnn']:
         Xb, Xtb, yb, ytb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
-                                               args['<trainpattern>'], [40])
+                                               args['<testpattern>'], [40])
 
         pkl_path = get_filename('cnn', args['<trainpattern>'])
         argdict = {'input_size': len(vocab.token_to_idx) + 1,
@@ -257,7 +257,7 @@ def main():
 
     elif args['speaker']:
         Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],
-                                                   args['<trainpattern>'], 40)
+                                                   args['<testpattern>'], 40)
 
         pkl_path = get_filename('speaker', args['<trainpattern>'])
         argdict = {'input_size': len(vocab.token_to_idx) + 1,
