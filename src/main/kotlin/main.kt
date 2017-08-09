@@ -36,7 +36,7 @@ class TextRectParser() : PDFTextStripper() {
      */
     fun getCharsOnPage(doc: PDDocument, page: Int): List<CharData> {
         chars.clear()
-        this.startPage = page
+        this.startPage = page + 1
         this.endPage = page + 1
         val dummy = OutputStreamWriter(ByteArrayOutputStream())
         writeText(doc, dummy)
