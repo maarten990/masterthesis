@@ -1,5 +1,8 @@
 package main
 
+import com.apporiented.algorithm.clustering.Cluster
+import com.apporiented.algorithm.clustering.DefaultClusteringAlgorithm
+import com.apporiented.algorithm.clustering.SingleLinkageStrategy
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -10,13 +13,24 @@ import java.io.File
 import java.io.IOException
 import java.io.ByteArrayOutputStream
 import java.io.OutputStreamWriter
+import java.lang.Math.pow
+import java.lang.Math.sqrt
+
+var ID = 0
 
 
 /**
  * Class to hold the coordinates of a pdf character.
  */
 data class CharData(val left: Float, val top: Float, val width: Float,
-                    val height: Float)
+                    val height: Float) {
+    val asVec = listOf(left, top, width, height)
+    val name: String = "$ID";
+
+    init {
+        ID += 1
+    }
+}
 
 
 /**
@@ -46,9 +60,8 @@ class TextRectParser() : PDFTextStripper() {
 
     @Throws(IOException::class)
     override fun writeString(string: String, textPositions: List<TextPosition>?) {
-        for (text in textPositions!!) {
-            chars.add(CharData(text.xDirAdj, text.yDirAdj,
-                    text.widthDirAdj, text.heightDir))
+        textPositions?.map {
+            chars.add(CharData(it.xDirAdj, it.yDirAdj, it.widthDirAdj, it.heightDir))
         }
     }
 }
@@ -59,9 +72,15 @@ fun main(args: Array<String>) {
     val doc = PDDocument.load(f)
 
     val parser = TextRectParser()
-    for (pagenum in 0..doc.numberOfPages - 1) {
-        val chars = parser.getCharsOnPage(doc, pagenum)
-        val page = doc.getPage(pagenum)
+    for (pageNum in 2..2) {
+        val chars = parser.getCharsOnPage(doc, pageNum)
+        println("Clustering")
+        val cluster = clusterChars(chars)
+        println("Clustered")
+
+        cluster.children[0].
+
+        val page = doc.getPage(pageNum)
         chars.map {char -> drawRect(doc, page, char)}
     }
 
@@ -76,12 +95,38 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
     val leftOffset = page.trimBox.lowerLeftX
     val topOffset = page.trimBox.lowerLeftY
     val content = PDPageContentStream(document, page, PDPageContentStream.AppendMode.APPEND, false)
-    content.addRect(char.left + leftOffset,
-            (pageHeight + topOffset) - char.top,
-            char.width, char.height)
-    content.setStrokingColor(Color.RED)
-    content.stroke()
-    content.close()
+
+    content.apply {
+        addRect(char.left + leftOffset,
+                (pageHeight + topOffset) - char.top,
+                char.width, char.height)
+        setStrokingColor(Color.RED)
+        stroke()
+        close()
+    }
 }
 
 
+fun euclidian(c1: CharData, c2: CharData): Double {
+    return c1.asVec
+            .zip(c2.asVec)
+            .map { (i, j) -> pow(i.toDouble() - j.toDouble(), 2.0) }
+            .reduce(Double::plus)
+            .let { sum -> sqrt(sum) }
+}
+
+
+fun getDistanceMatrix(chars: List<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
+    return chars
+            .map {c1 -> chars.map { c2 -> metric(c1, c2) }.toDoubleArray() }
+            .toTypedArray()
+}
+
+
+fun clusterChars(chars: List<CharData>): Cluster {
+    val matrix = getDistanceMatrix(chars, ::euclidian)
+    val clusterer = DefaultClusteringAlgorithm()
+
+    return clusterer.performClustering(matrix,
+            chars.map {it.name}.toTypedArray(), SingleLinkageStrategy())
+}
