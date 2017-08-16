@@ -1,35 +1,34 @@
 package main
 
 import com.apporiented.algorithm.clustering.Cluster
-import com.apporiented.algorithm.clustering.DefaultClusteringAlgorithm
-import com.apporiented.algorithm.clustering.SingleLinkageStrategy
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import java.awt.Color
 import java.io.File
-import java.lang.Math.pow
-import java.lang.Math.sqrt
 
 
 fun main(args: Array<String>) {
     val f = File(args[0])
 
     val parser = TextRectParser()
-    for (cutoff in listOf(1, 5, 7, 10, 25, 50)) {
+    val clusterer = Clusterer()
+    for (cutoff in listOf(1, 5, 7, 10)) {
         val doc = PDDocument.load(f)
         for (pageNum in 2..2) {
             val chars = parser.getCharsOnPage(doc, pageNum)
-            val clusters = clusterChars(chars.values)
+            val clusters = clusterer.cluster(chars)
 
             val words = collectBelowCutoff(clusters, cutoff)
             println("${words.size} word-clusters")
 
             val page = doc.getPage(pageNum)
-            words
-                    .map { word -> word.map { chars[it.toInt()] }.requireNoNulls() }
-                    .map { getBoundingRect(it) }
-                    .forEach { drawRect(doc, page, it) }
+            for (wordCluster in words) {
+                val bbox = getBoundingRect(wordCluster.map {
+                    clusterer.lookupTable[it]!!
+                })
+                drawRect(doc, page, bbox)
+            }
         }
 
         doc.save("modified-$cutoff.pdf")
@@ -64,31 +63,6 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
         stroke()
         close()
     }
-}
-
-
-fun euclidian(c1: CharData, c2: CharData): Double {
-    return c1.asVec
-            .zip(c2.asVec)
-            .map { (i, j) -> pow(i.toDouble() - j.toDouble(), 2.0) }
-            .reduce(Double::plus)
-            .let { sum -> sqrt(sum) }
-}
-
-
-fun getDistanceMatrix(chars: Collection<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
-    return chars
-            .map {c1 -> chars.map { c2 -> metric(c1, c2) }.toDoubleArray() }
-            .toTypedArray()
-}
-
-
-fun clusterChars(chars: Collection<CharData>): Cluster {
-    val matrix = getDistanceMatrix(chars, ::euclidian)
-    val clusterer = DefaultClusteringAlgorithm()
-
-    return clusterer.performClustering(matrix,
-            chars.map { it.name }.toTypedArray(), SingleLinkageStrategy())
 }
 
 

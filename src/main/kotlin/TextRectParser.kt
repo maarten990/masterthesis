@@ -7,14 +7,12 @@ import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStreamWriter
 
-var ID = 0
-
 /**
  * Modified textstripper which saves all the character positions in the chars
  * list.
  */
 class TextRectParser() : PDFTextStripper() {
-    val chars = mutableMapOf<Int, CharData>()
+    val chars = mutableListOf<CharData>()
     var fontID = 0
     var fontToID = mutableMapOf<String, Int>()
 
@@ -27,7 +25,7 @@ class TextRectParser() : PDFTextStripper() {
      * Clear the chars list, populate it with the characters on the specified
      * page, and returns the list.
      */
-    fun getCharsOnPage(doc: PDDocument, page: Int): Map<Int, CharData> {
+    fun getCharsOnPage(doc: PDDocument, page: Int): List<CharData> {
         chars.clear()
         fontToID.clear()
         this.startPage = page + 1
@@ -49,7 +47,7 @@ class TextRectParser() : PDFTextStripper() {
 
             val data = CharData(it.xDirAdj, it.yDirAdj, it.widthDirAdj,
                     it.heightDir, it.unicode, it.fontSize, fontToID[fontStr]?.toFloat()!!)
-            chars[data.id] = data
+            chars.add(data)
         }
     }
 }
@@ -61,12 +59,6 @@ data class CharData(val left: Float, val top: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
                     val fontID: Float) {
     val asVec = listOf(left, top, width, height, fontSize, fontID)
-    val name: String = "$ID";
-    val id = ID
-
-    init {
-        ID += 1
-    }
 }
 
 
