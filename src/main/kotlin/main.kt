@@ -39,10 +39,10 @@ fun main(args: Array<String>) {
 
 
 fun getBoundingRect(chars: List<CharData>): CharData {
-    val leftMost = chars.map(CharData::left).min()!!
-    val rightMost = chars.map { it.left + it.width }.max()!!
-    val topMost = chars.map(CharData::top).min()!!
-    val botMost = chars.map { it.top + it.height }.max()!!
+    val leftMost = chars.map(CharData::left).min() ?: 0.0f
+    val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
+    val topMost = chars.map(CharData::top).min() ?: 0.0f
+    val botMost = chars.map { it.top + it.height }.max() ?: 0.0f
 
     return CharData(leftMost, topMost, rightMost - leftMost, botMost - topMost,
             "0", 0.0f, 0.0f)
