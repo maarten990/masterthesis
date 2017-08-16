@@ -6,86 +6,46 @@ import com.apporiented.algorithm.clustering.SingleLinkageStrategy
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
-import org.apache.pdfbox.text.PDFTextStripper
-import org.apache.pdfbox.text.TextPosition
 import java.awt.Color
 import java.io.File
-import java.io.IOException
-import java.io.ByteArrayOutputStream
-import java.io.OutputStreamWriter
 import java.lang.Math.pow
 import java.lang.Math.sqrt
-
-var ID = 0
-
-
-/**
- * Class to hold the coordinates of a pdf character.
- */
-data class CharData(val left: Float, val top: Float, val width: Float,
-                    val height: Float) {
-    val asVec = listOf(left, top, width, height)
-    val name: String = "$ID";
-
-    init {
-        ID += 1
-    }
-}
-
-
-/**
- * Modified textstripper which saves all the character positions in the chars
- * list.
- */
-class TextRectParser() : PDFTextStripper() {
-    val chars = mutableListOf<CharData>()
-
-    init {
-        super.setSortByPosition(true)
-    }
-
-    /**
-     * Clear the chars list, populate it with the characters on the specified
-     * page, and returns the list.
-     */
-    fun getCharsOnPage(doc: PDDocument, page: Int): List<CharData> {
-        chars.clear()
-        this.startPage = page + 1
-        this.endPage = page + 1
-        val dummy = OutputStreamWriter(ByteArrayOutputStream())
-        writeText(doc, dummy)
-
-        return chars
-    }
-
-    @Throws(IOException::class)
-    override fun writeString(string: String, textPositions: List<TextPosition>?) {
-        textPositions?.map {
-            chars.add(CharData(it.xDirAdj, it.yDirAdj, it.widthDirAdj, it.heightDir))
-        }
-    }
-}
 
 
 fun main(args: Array<String>) {
     val f = File(args[0])
-    val doc = PDDocument.load(f)
 
     val parser = TextRectParser()
-    for (pageNum in 2..2) {
-        val chars = parser.getCharsOnPage(doc, pageNum)
-        println("Clustering")
-        val cluster = clusterChars(chars)
-        println("Clustered")
+    for (cutoff in listOf(1, 5, 7, 10, 25, 50)) {
+        val doc = PDDocument.load(f)
+        for (pageNum in 2..2) {
+            val chars = parser.getCharsOnPage(doc, pageNum)
+            val clusters = clusterChars(chars.values)
 
-        cluster.children[0].
+            val words = collectBelowCutoff(clusters, cutoff)
+            println("${words.size} word-clusters")
 
-        val page = doc.getPage(pageNum)
-        chars.map {char -> drawRect(doc, page, char)}
+            val page = doc.getPage(pageNum)
+            words
+                    .map { word -> word.map { chars[it.toInt()] }.requireNoNulls() }
+                    .map { getBoundingRect(it) }
+                    .forEach { drawRect(doc, page, it) }
+        }
+
+        doc.save("modified-$cutoff.pdf")
+        doc.close()
     }
+}
 
-    doc.save("modified.pdf")
-    doc.close()
+
+fun getBoundingRect(chars: List<CharData>): CharData {
+    val leftMost = chars.map(CharData::left).min()!!
+    val rightMost = chars.map { it.left + it.width }.max()!!
+    val topMost = chars.map(CharData::top).min()!!
+    val botMost = chars.map { it.top + it.height }.max()!!
+
+    return CharData(leftMost, topMost, rightMost - leftMost, botMost - topMost,
+            "0", 0.0f, 0.0f)
 }
 
 
@@ -116,17 +76,35 @@ fun euclidian(c1: CharData, c2: CharData): Double {
 }
 
 
-fun getDistanceMatrix(chars: List<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
+fun getDistanceMatrix(chars: Collection<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
     return chars
             .map {c1 -> chars.map { c2 -> metric(c1, c2) }.toDoubleArray() }
             .toTypedArray()
 }
 
 
-fun clusterChars(chars: List<CharData>): Cluster {
+fun clusterChars(chars: Collection<CharData>): Cluster {
     val matrix = getDistanceMatrix(chars, ::euclidian)
     val clusterer = DefaultClusteringAlgorithm()
 
     return clusterer.performClustering(matrix,
-            chars.map {it.name}.toTypedArray(), SingleLinkageStrategy())
+            chars.map { it.name }.toTypedArray(), SingleLinkageStrategy())
+}
+
+
+fun collectBelowCutoff(cluster: Cluster, cutoff: Int) : Collection<Set<String>> {
+    return if (cluster.distanceValue <= cutoff || cluster.isLeaf) {
+        listOf(cluster.getLeafs().map { it.name!! }.toSet())
+    } else {
+        cluster.children.flatMap { collectBelowCutoff(it, cutoff) }
+    }
+}
+
+
+fun Cluster.getLeafs(): Collection<Cluster> {
+    if (this.isLeaf) {
+        return listOf(this)
+    } else {
+        return this.children.flatMap(Cluster::getLeafs)
+    }
 }
