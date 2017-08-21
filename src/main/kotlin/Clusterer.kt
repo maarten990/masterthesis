@@ -20,12 +20,32 @@ class Clusterer {
                 SingleLinkageStrategy())
     }
 
+    fun recluster(clusters: Collection<Set<String>>): Cluster {
+        // get the bounding rectangles for each clusters and recluster based on them
+        val bboxes = clusters.map(this::getBoundingRect)
+        return cluster(bboxes)
+    }
+
     private fun getDistanceMatrix(chars: Collection<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
         return chars
                 .map {c1 -> chars.map { c2 -> metric(c1, c2) }.toDoubleArray() }
                 .toTypedArray()
     }
+
+    fun getBoundingRect(cluster: Collection<String>): CharData {
+        // translate from the names to the actual CharData objects
+        val chars = cluster.map { lookupTable[it]!! }
+
+        val leftMost = chars.map(CharData::left).min() ?: 0.0f
+        val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
+        val topMost = chars.map(CharData::top).min() ?: 0.0f
+        val botMost = chars.map { it.top + it.height }.max() ?: 0.0f
+
+        return CharData(leftMost, topMost, rightMost - leftMost, topMost - botMost,
+                "0", 0.0f, 0.0f)
+    }
 }
+
 
 fun euclidean(c1: CharData, c2: CharData): Double {
     return c1.asVec

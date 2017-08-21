@@ -1,6 +1,7 @@
 package main
 
 import com.apporiented.algorithm.clustering.Cluster
+import com.sun.javafx.geometry.BoundsUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -13,38 +14,27 @@ fun main(args: Array<String>) {
 
     val parser = TextRectParser()
     val clusterer = Clusterer()
-    for (cutoff in listOf(1, 5, 7, 10)) {
-        val doc = PDDocument.load(f)
-        for (pageNum in 2..2) {
-            val chars = parser.getCharsOnPage(doc, pageNum)
-            val clusters = clusterer.cluster(chars)
+    val doc = PDDocument.load(f)
+    val cutoff = 10
 
-            val words = collectBelowCutoff(clusters, cutoff)
-            println("${words.size} word-clusters")
+    for (pageNum in 2..2) {
+        val chars = parser.getCharsOnPage(doc, pageNum)
 
-            val page = doc.getPage(pageNum)
-            for (wordCluster in words) {
-                val bbox = getBoundingRect(wordCluster.map {
-                    clusterer.lookupTable[it]!!
-                })
-                drawRect(doc, page, bbox)
-            }
-        }
+        val clusters = clusterer.cluster(chars)
+        val wordNameClusters = collectBelowCutoff(clusters, cutoff)
+        println("${wordNameClusters.size} word-clusters")
 
-        doc.save("modified-$cutoff.pdf")
-        doc.close()
+        val blockClusters = clusterer.recluster(wordNameClusters)
+        val blocks = collectBelowCutoff(blockClusters, 50)
+        println("${blocks.size} block-clusters")
+
+        val page = doc.getPage(pageNum)
+        blocks.map(clusterer::getBoundingRect)
+                .forEach { drawRect(doc, page, it) }
     }
-}
 
-
-fun getBoundingRect(chars: List<CharData>): CharData {
-    val leftMost = chars.map(CharData::left).min() ?: 0.0f
-    val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
-    val topMost = chars.map(CharData::top).min() ?: 0.0f
-    val botMost = chars.map { it.top + it.height }.max() ?: 0.0f
-
-    return CharData(leftMost, topMost, rightMost - leftMost, botMost - topMost,
-            "0", 0.0f, 0.0f)
+    doc.save("modified-$cutoff.pdf")
+    doc.close()
 }
 
 
