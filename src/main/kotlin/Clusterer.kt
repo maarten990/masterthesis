@@ -38,11 +38,14 @@ class Clusterer {
 
         val leftMost = chars.map(CharData::left).min() ?: 0.0f
         val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
-        val topMost = chars.map(CharData::top).min() ?: 0.0f
-        val botMost = chars.map { it.top + it.height }.max() ?: 0.0f
+        val topMost = chars.map{ it.top }.max() ?: 0.0f
+        val botMost = chars.map { it.top + it.height }.min() ?: 0.0f
+
+        // collect all characters sequentially inside the bounding box
+        val clusterText = chars.sortedBy(CharData::left).joinToString("", transform=CharData::ch)
 
         return CharData(leftMost, topMost, rightMost - leftMost, topMost - botMost,
-                "0", 0.0f, 0.0f)
+                clusterText, 0.0f, 0.0f)
     }
 }
 

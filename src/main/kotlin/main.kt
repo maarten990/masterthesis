@@ -1,7 +1,6 @@
 package main
 
 import com.apporiented.algorithm.clustering.Cluster
-import com.sun.javafx.geometry.BoundsUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -15,17 +14,18 @@ fun main(args: Array<String>) {
     val parser = TextRectParser()
     val clusterer = Clusterer()
     val doc = PDDocument.load(f)
-    val cutoff = 10
+    val wordCutoff = 10
+    val blockCutoff = 20
 
-    for (pageNum in 2..2) {
+    for (pageNum in 2..4) {
         val chars = parser.getCharsOnPage(doc, pageNum)
 
         val clusters = clusterer.cluster(chars)
-        val wordNameClusters = collectBelowCutoff(clusters, cutoff)
+        val wordNameClusters = collectBelowCutoff(clusters, wordCutoff)
         println("${wordNameClusters.size} word-clusters")
 
         val blockClusters = clusterer.recluster(wordNameClusters)
-        val blocks = collectBelowCutoff(blockClusters, 50)
+        val blocks = collectBelowCutoff(blockClusters, blockCutoff)
         println("${blocks.size} block-clusters")
 
         val page = doc.getPage(pageNum)
@@ -33,7 +33,7 @@ fun main(args: Array<String>) {
                 .forEach { drawRect(doc, page, it) }
     }
 
-    doc.save("modified-$cutoff.pdf")
+    doc.save("modified-$wordCutoff.pdf")
     doc.close()
 }
 
@@ -49,7 +49,7 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
         addRect(char.left + leftOffset,
                 (pageHeight + topOffset) - char.top,
                 char.width, char.height)
-        setStrokingColor(Color.RED)
+        setStrokingColor(Color.CYAN)
         stroke()
         close()
     }
