@@ -1,7 +1,7 @@
 package main
 
 import com.apporiented.algorithm.clustering.Cluster
-import com.apporiented.algorithm.clustering.DefaultClusteringAlgorithm
+import com.apporiented.algorithm.clustering.PDistClusteringAlgorithm
 import com.apporiented.algorithm.clustering.SingleLinkageStrategy
 import java.lang.Math.pow
 import java.lang.Math.sqrt
@@ -9,9 +9,9 @@ import java.lang.Math.sqrt
 class Clusterer {
     var lookupTable: Map<String, CharData> = mapOf()
 
-    fun cluster(chars: Collection<CharData>): Cluster {
+    fun cluster(chars: List<CharData>): Cluster {
         val matrix = getDistanceMatrix(chars, ::euclidean)
-        val clusterer = DefaultClusteringAlgorithm()
+        val clusterer = PDistClusteringAlgorithm()
 
         lookupTable = chars.map {Pair(it.hashCode().toString(), it)}.toMap()
 
@@ -26,10 +26,15 @@ class Clusterer {
         return cluster(bboxes)
     }
 
-    private fun getDistanceMatrix(chars: Collection<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
-        return chars
-                .map {c1 -> chars.map { c2 -> metric(c1, c2) }.toDoubleArray() }
-                .toTypedArray()
+    private fun getDistanceMatrix(chars: List<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
+        val pdists = mutableListOf<Double>()
+        for (i in 0 until chars.size - 1) {
+            for (j in (i + 1) until chars.size) {
+                pdists.add(metric(chars[i], chars[j]))
+            }
+        }
+
+        return listOf(pdists.toDoubleArray()).toTypedArray()
     }
 
     fun getBoundingRect(cluster: Collection<String>): CharData {
