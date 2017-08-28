@@ -1,45 +1,40 @@
 package main
 
-import com.apporiented.algorithm.clustering.Cluster
-import com.apporiented.algorithm.clustering.PDistClusteringAlgorithm
-import com.apporiented.algorithm.clustering.SingleLinkageStrategy
+import org.opencompare.hac.HierarchicalAgglomerativeClusterer
+import org.opencompare.hac.agglomeration.SingleLinkage
+import org.opencompare.hac.dendrogram.DendrogramBuilder
+import org.opencompare.hac.dendrogram.DendrogramNode
+import org.opencompare.hac.experiment.DissimilarityMeasure
+import org.opencompare.hac.experiment.Experiment
 import java.lang.Math.pow
 import java.lang.Math.sqrt
 
+data class Cluster(val i: Int)
+
 class Clusterer {
-    var lookupTable: Map<String, CharData> = mapOf()
+    var lookupTable: List<CharData> = listOf()
 
-    fun cluster(chars: List<CharData>): Cluster {
-        val matrix = getDistanceMatrix(chars, ::euclidean)
-        val clusterer = PDistClusteringAlgorithm()
+    fun cluster(chars: List<CharData>): DendrogramNode {
+        val experiment = Experiment(chars::size)
+        val measure = DissimilarityMeasure { _, i, j -> euclidean(chars[i], chars[j]) }
+        val treeBuilder = DendrogramBuilder(experiment.numberOfObservations)
+        val clusterer = HierarchicalAgglomerativeClusterer(experiment, measure, SingleLinkage())
 
-        lookupTable = chars.map {Pair(it.hashCode().toString(), it)}.toMap()
+        clusterer.cluster(treeBuilder)
+        lookupTable = chars
 
-        return clusterer.performClustering(matrix,
-                chars.map { it.hashCode().toString() }.toTypedArray(),
-                SingleLinkageStrategy())
+        return treeBuilder.dendrogram.root
     }
 
-    fun recluster(clusters: Collection<Set<String>>): Cluster {
+    fun recluster(clusters: Collection<Set<Int>>): DendrogramNode {
         // get the bounding rectangles for each clusters and recluster based on them
         val bboxes = clusters.map(this::getBoundingRect)
         return cluster(bboxes)
     }
 
-    private fun getDistanceMatrix(chars: List<CharData>, metric: (CharData, CharData) -> Double): Array<DoubleArray> {
-        val pdists = mutableListOf<Double>()
-        for (i in 0 until chars.size - 1) {
-            for (j in (i + 1) until chars.size) {
-                pdists.add(metric(chars[i], chars[j]))
-            }
-        }
-
-        return listOf(pdists.toDoubleArray()).toTypedArray()
-    }
-
-    fun getBoundingRect(cluster: Collection<String>): CharData {
+    fun getBoundingRect(cluster: Collection<Int>): CharData {
         // translate from the names to the actual CharData objects
-        val chars = cluster.map { lookupTable[it]!! }
+        val chars = cluster.map { lookupTable[it] }
 
         val leftMost = chars.map(CharData::left).min() ?: 0.0f
         val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f

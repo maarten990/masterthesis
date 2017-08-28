@@ -1,9 +1,11 @@
 package main
 
-import com.apporiented.algorithm.clustering.Cluster
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
+import org.opencompare.hac.dendrogram.DendrogramNode
+import org.opencompare.hac.dendrogram.MergeNode
+import org.opencompare.hac.dendrogram.ObservationNode
 import java.awt.Color
 import java.io.File
 
@@ -15,7 +17,7 @@ fun main(args: Array<String>) {
     val clusterer = Clusterer()
     val doc = PDDocument.load(f)
     val wordCutoff = 10
-    val blockCutoff = 20
+    val blockCutoff = 25
 
     for (pageNum in 2..4) {
         val chars = parser.getCharsOnPage(doc, pageNum)
@@ -56,19 +58,21 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
 }
 
 
-fun collectBelowCutoff(cluster: Cluster, cutoff: Int) : Collection<Set<String>> {
-    return if (cluster.distanceValue <= cutoff || cluster.isLeaf) {
-        listOf(cluster.getLeafs().map { it.name!! }.toSet())
+fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int) : Collection<Set<Int>> {
+    return if (cluster is ObservationNode) {
+        listOf(setOf(cluster.observation))
+    } else if (cluster is MergeNode && cluster.dissimilarity <= cutoff) {
+        listOf(cluster.getLeafs().map { it.observation }.toSet())
     } else {
-        cluster.children.flatMap { collectBelowCutoff(it, cutoff) }
+        listOf(cluster.left, cluster.right).flatMap { collectBelowCutoff(it, cutoff)}
     }
 }
 
 
-fun Cluster.getLeafs(): Collection<Cluster> {
-    if (this.isLeaf) {
-        return listOf(this)
+fun DendrogramNode.getLeafs(): Collection<ObservationNode> {
+    return if (this is ObservationNode) {
+        listOf(this)
     } else {
-        return this.children.flatMap(Cluster::getLeafs)
+        listOf(this.left, this.right).flatMap(DendrogramNode::getLeafs)
     }
 }
