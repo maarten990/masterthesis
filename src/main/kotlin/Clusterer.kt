@@ -49,8 +49,8 @@ class Clusterer {
 
 
 fun euclidean(c1: CharData, c2: CharData): Double {
-    return c1.asVec
-            .zip(c2.asVec)
+    return c1.asGeomVec
+            .zip(c2.asGeomVec)
             .map { (i, j) -> pow(i.toDouble() - j.toDouble(), 2.0) }
             .reduce(Double::plus)
             .let { sum -> sqrt(sum) }

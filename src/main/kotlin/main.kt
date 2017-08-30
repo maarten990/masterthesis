@@ -26,11 +26,9 @@ fun main(args: Array<String>) {
         var mergedClusters = collectBelowCutoff(clusters, wordCutoff)
         println("${mergedClusters.size} word-clusters")
 
-        /*
         clusters = clusterer.recluster(mergedClusters)
         mergedClusters = collectBelowCutoff(clusters, blockCutoff)
         println("${mergedClusters.size} block-clusters")
-        */
 
         val page = doc.getPage(pageNum)
         mergedClusters.map(clusterer::getBoundingRect)

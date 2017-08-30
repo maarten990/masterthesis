@@ -59,8 +59,9 @@ class TextRectParser() : PDFTextStripper() {
 data class CharData(val left: Float, val bottom: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
                     val fontID: Float) {
-    // calculate the centroid in the horizontal and vertical directions
-    val asVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
+    val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
+    val asGeomVec: List<Float> = listOf(left, left + width, bottom, bottom + height, fontSize, fontID)
+    val asCentroidVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
 }
 
 
