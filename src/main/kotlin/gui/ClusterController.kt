@@ -3,7 +3,6 @@ package gui
 import clustering.clusterFilePage
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.PDFRenderer
-import java.awt.Color
 import java.io.File
 import javax.swing.ImageIcon
 import kotlin.concurrent.thread
@@ -35,19 +34,21 @@ class ClusterController(val view: ClusterView) {
         set(value) {
             field = value
             model.document = PDDocument.load(File(value))
-            view.filepath.text = value
-            view.pagenum.removeAllItems()
-            model.document?.let { (0..it.numberOfPages).forEach(view.pagenum::addItem) }
+            view.fieldFilepath.text = value
+            view.comboboxPagenum.removeAllItems()
+            model.document?.let { (0..it.numberOfPages).forEach(view.comboboxPagenum::addItem) }
         }
 
     fun cluster() {
         thread(start = true) {
-            view.cluster_btn.isEnabled = false
+            view.btnCluster.isEnabled = false
+            view.labelStatus.text = "Clustering..."
             model.document?.let {
                 clusterFilePage(it, model.threshold, model.pagenum)
                 val img = PDFRenderer(it).renderImage(model.pagenum)
-                view.pdfviewer.icon = ImageIcon(img)
-                view.cluster_btn.isEnabled = true
+                view.labelPdfViewer.icon = ImageIcon(img)
+                view.btnCluster.isEnabled = true
+                view.labelStatus.text = "Clustering finished"
                 view.frame.repaint()
                 view.frame.revalidate()
             }

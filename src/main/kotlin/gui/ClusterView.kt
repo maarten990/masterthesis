@@ -9,19 +9,24 @@ import javax.swing.filechooser.FileNameExtensionFilter
 
 class ClusterView: Runnable {
     val frame = JFrame("Clusterer")
-    private val controller = ClusterController(this)
-    val threshold = JTextField("5")
-    val filepath = JTextField("")
-    val vectorizer = JComboBox<Vectorizer>(arrayOf(Vectorizer.ALL, Vectorizer.GEOM, Vectorizer.CENTROID))
-    val pagenum = JComboBox<Int>()
-    val cluster_btn = JButton("Cluster")
-    val file_btn = JButton("Open file")
-    val pdfviewer = JLabel()
+    val controller = ClusterController(this)
+
+    val fieldThreshold = JTextField("5")
+    val fieldFilepath = JTextField("")
+
+    val comboboxVectorizer = JComboBox<Vectorizer>(arrayOf(Vectorizer.ALL, Vectorizer.GEOM, Vectorizer.CENTROID))
+    val comboboxPagenum = JComboBox<Int>()
+
+    val btnCluster = JButton("Cluster")
+    val btnFile = JButton("Open file")
+
+    val labelPdfViewer = JLabel()
+    val labelStatus = JLabel()
 
     init {
-        cluster_btn.addActionListener({ controller.cluster() })
+        btnCluster.addActionListener({ controller.cluster() })
 
-        file_btn.addActionListener({
+        btnFile.addActionListener({
             val chooser = JFileChooser()
             chooser.fileFilter = FileNameExtensionFilter("PDF Documents", "pdf")
             chooser.currentDirectory = File(System.getProperty("user.dir"))
@@ -31,17 +36,17 @@ class ClusterView: Runnable {
             }
         })
 
-        threshold.document.addDocumentListener(object: DocumentListener {
+        fieldThreshold.document.addDocumentListener(object: DocumentListener {
             override fun changedUpdate(e: DocumentEvent?) = update()
             override fun insertUpdate(e: DocumentEvent?) = update()
             override fun removeUpdate(e: DocumentEvent?) = update()
             fun update() {
-                controller.threshold = threshold.text
+                controller.threshold = fieldThreshold.text
             }
         })
 
-        vectorizer.addActionListener({ controller.vectorizer = vectorizer.selectedItem as Vectorizer })
-        pagenum.addActionListener({ controller.pagenum = pagenum.selectedItem as Int })
+        comboboxVectorizer.addActionListener({ controller.vectorizer = comboboxVectorizer.selectedItem as Vectorizer })
+        comboboxPagenum.addActionListener({ controller.pagenum = comboboxPagenum.selectedItem as Int })
     }
 
     override fun run() {
@@ -50,16 +55,17 @@ class ClusterView: Runnable {
         frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 
         frame.layout = MigLayout()
-        frame.add(pdfviewer, "east, grow")
-        frame.add(filepath, "growx")
-        frame.add(file_btn, "wrap")
+        frame.add(labelPdfViewer, "east, grow")
+        frame.add(fieldFilepath, "growx")
+        frame.add(btnFile, "wrap")
         frame.add(JLabel("Page number"))
-        frame.add(pagenum, "wrap")
-        frame.add(JLabel("Merge threshold"))
-        frame.add(threshold, "growx, wrap")
+        frame.add(comboboxPagenum, "wrap")
+        frame.add(JLabel("Merge fieldThreshold"))
+        frame.add(fieldThreshold, "growx, wrap")
         frame.add(JLabel("Vectorization"))
-        frame.add(vectorizer, "wrap")
-        frame.add(cluster_btn)
+        frame.add(comboboxVectorizer, "wrap")
+        frame.add(btnCluster)
+        frame.add(labelStatus, "growx")
 
         frame.pack()
         frame.isVisible = true
