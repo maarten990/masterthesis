@@ -1,5 +1,3 @@
-package main
-
 import org.opencompare.hac.HierarchicalAgglomerativeClusterer
 import org.opencompare.hac.agglomeration.SingleLinkage
 import org.opencompare.hac.dendrogram.DendrogramBuilder
