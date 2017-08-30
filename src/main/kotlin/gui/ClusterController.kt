@@ -39,19 +39,43 @@ class ClusterController(val view: ClusterView) {
             model.document?.let { (0..it.numberOfPages).forEach(view.comboboxPagenum::addItem) }
         }
 
-    fun cluster() {
-        thread(start = true) {
-            view.btnCluster.isEnabled = false
-            view.labelStatus.text = "Clustering..."
-            model.document?.let {
-                clusterFilePage(it, model.threshold, model.pagenum)
-                val img = PDFRenderer(it).renderImage(model.pagenum)
-                view.labelPdfViewer.icon = ImageIcon(img)
-                view.btnCluster.isEnabled = true
-                view.labelStatus.text = "Clustering finished"
-                view.frame.repaint()
-                view.frame.revalidate()
-            }
+    fun validateValues(): ValidationError {
+        return when {
+            model.threshold < 0 -> ValidationError.INVALIDTHRESHOLD
+            model.document == null -> ValidationError.NODOCUMENT
+            else -> ValidationError.NONE
         }
+    }
+
+    fun cluster() {
+        val error = validateValues()
+
+        if (error == ValidationError.NONE) {
+            thread(start = true) {
+                view.btnCluster.isEnabled = false
+                view.labelStatus.text = "Clustering..."
+                model.document?.let {
+                    clusterFilePage(it, model.threshold, model.pagenum)
+                    val img = PDFRenderer(it).renderImage(model.pagenum)
+                    view.labelPdfViewer.icon = ImageIcon(img)
+                    view.btnCluster.isEnabled = true
+                    view.labelStatus.text = "Clustering finished"
+                    view.frame.repaint()
+                    view.frame.revalidate()
+                }
+            }
+        } else {
+            view.labelStatus.text = error.toString()
+        }
+    }
+
+    enum class ValidationError {
+        NONE,
+        INVALIDTHRESHOLD {
+            override fun toString() = "Threshold should be a number >= 0"
+        },
+        NODOCUMENT {
+            override fun toString() = "Document could not be loaded"
+        },
     }
 }

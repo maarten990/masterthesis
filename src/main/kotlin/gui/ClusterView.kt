@@ -55,17 +55,17 @@ class ClusterView: Runnable {
         frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 
         frame.layout = MigLayout()
-        frame.add(labelPdfViewer, "east, grow")
         frame.add(fieldFilepath, "growx")
         frame.add(btnFile, "wrap")
         frame.add(JLabel("Page number"))
         frame.add(comboboxPagenum, "wrap")
-        frame.add(JLabel("Merge fieldThreshold"))
+        frame.add(JLabel("Merge threshold"))
         frame.add(fieldThreshold, "growx, wrap")
         frame.add(JLabel("Vectorization"))
         frame.add(comboboxVectorizer, "wrap")
         frame.add(btnCluster)
         frame.add(labelStatus, "growx")
+        frame.add(JScrollPane(labelPdfViewer), "dock east, grow")
 
         frame.pack()
         frame.isVisible = true
