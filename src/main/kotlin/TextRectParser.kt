@@ -12,9 +12,9 @@ import java.io.OutputStreamWriter
  * list.
  */
 class TextRectParser() : PDFTextStripper() {
-    val chars = mutableListOf<CharData>()
-    var fontID = 0
-    var fontToID = mutableMapOf<String, Int>()
+    private val chars = mutableListOf<CharData>()
+    private var fontID = 0
+    private var fontToID = mutableMapOf<String, Int>()
 
 
     init {
@@ -45,20 +45,40 @@ class TextRectParser() : PDFTextStripper() {
                 fontID += 1
             }
 
-            val data = CharData(it.xDirAdj, it.yDirAdj, it.widthDirAdj,
+            val data = CharData(it.xDirAdj, it.yBottom(), it.widthDirAdj,
                     it.heightDir, it.unicode, it.fontSize, fontToID[fontStr]?.toFloat()!!)
             chars.add(data)
         }
     }
 }
 
+
 /**
  * Class to hold the coordinates of a pdf character.
  */
-data class CharData(val left: Float, val top: Float, val width: Float,
+data class CharData(val left: Float, val bottom: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
                     val fontID: Float) {
-    val asVec = listOf(left, top, width, height, fontSize, fontID)
+    // calculate the centroid in the horizontal and vertical directions
+    val asVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
 }
 
 
+// extend TextPosition to get the y coordinate relative to a bottom-left origin
+fun TextPosition.yBottom(): Float {
+    /*
+    y_top = height - y_bot
+    -y_bot = y_top - height
+    y_bot = -y_top + height
+    y_bot = height - y_top
+    */
+    return getPageHeight() - y
+}
+
+
+// extend TextPosition to get the private field `pageHeight`
+fun TextPosition.getPageHeight(): Float {
+    val field = TextPosition::class.java.getDeclaredField("pageHeight")
+    field.isAccessible = true
+    return field.getFloat(this)
+}

@@ -16,22 +16,24 @@ fun main(args: Array<String>) {
     val parser = TextRectParser()
     val clusterer = Clusterer()
     val doc = PDDocument.load(f)
-    val wordCutoff = 10
+    val wordCutoff = 5
     val blockCutoff = 25
 
-    for (pageNum in 2..4) {
+    for (pageNum in 2..2) {
         val chars = parser.getCharsOnPage(doc, pageNum)
 
-        val clusters = clusterer.cluster(chars)
-        val wordNameClusters = collectBelowCutoff(clusters, wordCutoff)
-        println("${wordNameClusters.size} word-clusters")
+        var clusters = clusterer.cluster(chars)
+        var mergedClusters = collectBelowCutoff(clusters, wordCutoff)
+        println("${mergedClusters.size} word-clusters")
 
-        val blockClusters = clusterer.recluster(wordNameClusters)
-        val blocks = collectBelowCutoff(blockClusters, blockCutoff)
-        println("${blocks.size} block-clusters")
+        /*
+        clusters = clusterer.recluster(mergedClusters)
+        mergedClusters = collectBelowCutoff(clusters, blockCutoff)
+        println("${mergedClusters.size} block-clusters")
+        */
 
         val page = doc.getPage(pageNum)
-        blocks.map(clusterer::getBoundingRect)
+        mergedClusters.map(clusterer::getBoundingRect)
                 .forEach { drawRect(doc, page, it) }
     }
 
@@ -42,16 +44,15 @@ fun main(args: Array<String>) {
 
 // Draw a char's bounding box on the specified page
 fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
-    val pageHeight = page.trimBox.height
     val leftOffset = page.trimBox.lowerLeftX
-    val topOffset = page.trimBox.lowerLeftY
+    val botOffset = page.trimBox.lowerLeftY
     val content = PDPageContentStream(document, page, PDPageContentStream.AppendMode.APPEND, false)
 
     content.apply {
         addRect(char.left + leftOffset,
-                (pageHeight + topOffset) - char.top,
+                char.bottom + botOffset,
                 char.width, char.height)
-        setStrokingColor(Color.CYAN)
+        setStrokingColor(Color.RED)
         stroke()
         close()
     }
