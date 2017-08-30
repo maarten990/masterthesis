@@ -5,36 +5,33 @@ import org.opencompare.hac.dendrogram.DendrogramNode
 import org.opencompare.hac.dendrogram.MergeNode
 import org.opencompare.hac.dendrogram.ObservationNode
 import java.awt.Color
-import java.io.File
+import javax.swing.SwingUtilities
 
 
 fun main(args: Array<String>) {
-    val f = File(args[0])
+    val view = ClusterView()
+    SwingUtilities.invokeLater(view)
+}
 
+
+fun clusterFilePage(document: PDDocument, threshold: Int, pagenum: Int) {
     val parser = TextRectParser()
     val clusterer = Clusterer()
-    val doc = PDDocument.load(f)
-    val wordCutoff = 5
-    val blockCutoff = 25
 
-    for (pageNum in 2..2) {
-        val chars = parser.getCharsOnPage(doc, pageNum)
+    val chars = parser.getCharsOnPage(document, pagenum)
 
-        var clusters = clusterer.cluster(chars)
-        var mergedClusters = collectBelowCutoff(clusters, wordCutoff)
-        println("${mergedClusters.size} word-clusters")
+    var clusters = clusterer.cluster(chars)
+    var mergedClusters = collectBelowCutoff(clusters, threshold)
+    println("${mergedClusters.size} word-clusters")
 
-        clusters = clusterer.recluster(mergedClusters)
-        mergedClusters = collectBelowCutoff(clusters, blockCutoff)
-        println("${mergedClusters.size} block-clusters")
+    clusters = clusterer.recluster(mergedClusters)
+    mergedClusters = collectBelowCutoff(clusters, 2 * threshold)
+    println("${mergedClusters.size} block-clusters")
 
-        val page = doc.getPage(pageNum)
-        mergedClusters.map(clusterer::getBoundingRect)
-                .forEach { drawRect(doc, page, it) }
-    }
-
-    doc.save("modified-$wordCutoff.pdf")
-    doc.close()
+    val page = document.getPage(pagenum)
+    mergedClusters
+            .map(clusterer::getBoundingRect)
+            .forEach { drawRect(document, page, it) }
 }
 
 
