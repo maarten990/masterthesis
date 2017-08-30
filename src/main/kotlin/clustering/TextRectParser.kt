@@ -73,13 +73,5 @@ fun TextPosition.yBottom(): Float {
     y_bot = -y_top + height
     y_bot = height - y_top
     */
-    return getPageHeight() - y
-}
-
-
-// extend TextPosition to get the private field `pageHeight`
-fun TextPosition.getPageHeight(): Float {
-    val field = TextPosition::class.java.getDeclaredField("pageHeight")
-    field.isAccessible = true
-    return field.getFloat(this)
+    return pageHeight - y
 }
