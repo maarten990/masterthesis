@@ -18,15 +18,17 @@ class ClusterView: Runnable {
     val comboboxPagenum = JComboBox<Int>()
 
     val btnCluster = JButton("Cluster")
+    val btnMerge = JButton("Merge")
     val btnFile = JButton("Open file")
 
     val labelPdfViewer = JLabel()
     val labelStatus = JLabel()
 
     init {
-        btnCluster.addActionListener({ controller.cluster() })
+        btnCluster.addActionListener { controller.cluster() }
+        btnMerge.addActionListener { controller.merge() }
 
-        btnFile.addActionListener({
+        btnFile.addActionListener {
             val chooser = JFileChooser()
             chooser.fileFilter = FileNameExtensionFilter("PDF Documents", "pdf")
             chooser.currentDirectory = File(System.getProperty("user.dir"))
@@ -34,7 +36,7 @@ class ClusterView: Runnable {
             if (chooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
                 controller.path = chooser.selectedFile.path
             }
-        })
+        }
 
         fieldThreshold.document.addDocumentListener(object: DocumentListener {
             override fun changedUpdate(e: DocumentEvent?) = update()
@@ -63,9 +65,12 @@ class ClusterView: Runnable {
         frame.add(fieldThreshold, "growx, wrap")
         frame.add(JLabel("Vectorization"))
         frame.add(comboboxVectorizer, "wrap")
-        frame.add(btnCluster)
-        frame.add(labelStatus, "growx")
-        frame.add(JScrollPane(labelPdfViewer), "dock east, grow")
+        frame.add(btnCluster, "split 2")
+        frame.add(btnMerge)
+        frame.add(labelStatus, "growx, wrap")
+        frame.add(labelPdfViewer, "grow")
+
+        labelPdfViewer.isVisible = false
 
         frame.pack()
         frame.isVisible = true

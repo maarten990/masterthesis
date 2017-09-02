@@ -1,5 +1,6 @@
 package clustering
 
+import org.apache.pdfbox.pdmodel.PDDocument
 import org.opencompare.hac.HierarchicalAgglomerativeClusterer
 import org.opencompare.hac.agglomeration.SingleLinkage
 import org.opencompare.hac.dendrogram.DendrogramBuilder
@@ -44,6 +45,12 @@ class Clusterer {
         val clusterText = chars.sortedBy(CharData::left).joinToString("", transform=CharData::ch)
         return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
                 clusterText, 0.0f, 0.0f)
+    }
+
+    fun clusterFilePage(document: PDDocument, pagenum: Int): DendrogramNode {
+        val parser = TextRectParser()
+        val chars = parser.getCharsOnPage(document, pagenum)
+        return cluster(chars)
     }
 }
 

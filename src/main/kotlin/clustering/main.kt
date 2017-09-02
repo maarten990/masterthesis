@@ -17,27 +17,6 @@ fun main(args: Array<String>) {
 }
 
 
-fun clusterFilePage(document: PDDocument, threshold: Int, pagenum: Int) {
-    val parser = TextRectParser()
-    val clusterer = Clusterer()
-
-    val chars = parser.getCharsOnPage(document, pagenum)
-
-    var clusters = clusterer.cluster(chars)
-    var mergedClusters = collectBelowCutoff(clusters, threshold)
-    println("${mergedClusters.size} word-clusters")
-
-    clusters = clusterer.recluster(mergedClusters)
-    mergedClusters = collectBelowCutoff(clusters, 2 * threshold)
-    println("${mergedClusters.size} block-clusters")
-
-    val page = document.getPage(pagenum)
-    mergedClusters
-            .map(clusterer::getBoundingRect)
-            .forEach { drawRect(document, page, it) }
-}
-
-
 // Draw a char's bounding box on the specified page
 fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
     val leftOffset = page.trimBox.lowerLeftX
