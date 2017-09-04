@@ -25,6 +25,7 @@ class ClusterController(val view: ClusterView) {
     var vectorizer: Vectorizer
         get() = model.vectorizer
         set(value) {
+            clusterer.vectorizer = value
             model.vectorizer = value
         }
 
@@ -102,6 +103,7 @@ class ClusterController(val view: ClusterView) {
                     view.labelPdfViewer.isVisible = true
                     view.frame.repaint()
                     view.frame.revalidate()
+                    view.frame.pack()
                 }
                 document.close()
             }

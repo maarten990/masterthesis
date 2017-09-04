@@ -34,14 +34,19 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
 }
 
 
-fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int) : Collection<Set<Int>> {
+fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int): Collection<List<ObservationNode>> {
     return if (cluster is ObservationNode) {
-        listOf(setOf(cluster.observation))
+        listOf(listOf(cluster))
     } else if (cluster is MergeNode && cluster.dissimilarity <= cutoff) {
-        listOf(cluster.getLeafs().map { it.observation }.toSet())
+        listOf(cluster.getLeafs().toList())
     } else {
         listOf(cluster.left, cluster.right).flatMap { collectBelowCutoff(it, cutoff)}
     }
+}
+
+
+fun split(clusters: Collection<Set<Int>>): Collection<List<ObservationNode>> {
+    return listOf(listOf())
 }
 
 

@@ -6,6 +6,8 @@ import javax.swing.*
 import javax.swing.event.DocumentEvent
 import javax.swing.event.DocumentListener
 import javax.swing.filechooser.FileNameExtensionFilter
+import javax.swing.UIManager
+
 
 class ClusterView: Runnable {
     val frame = JFrame("Clusterer")
@@ -53,7 +55,6 @@ class ClusterView: Runnable {
 
     override fun run() {
         //Create and set up the window.
-        UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName())
         frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
 
         frame.layout = MigLayout()
@@ -71,6 +72,14 @@ class ClusterView: Runnable {
         frame.add(labelPdfViewer, "grow")
 
         labelPdfViewer.isVisible = false
+
+        for (info in UIManager.getInstalledLookAndFeels()) {
+            if (info.name == "Nimbus") {
+                UIManager.setLookAndFeel(info.className)
+                break
+            }
+        }
+        SwingUtilities.updateComponentTreeUI(frame)
 
         frame.pack()
         frame.isVisible = true
