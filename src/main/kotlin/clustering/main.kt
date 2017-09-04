@@ -1,5 +1,6 @@
-package main
+package clustering
 
+import gui.ClusterView
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -7,36 +8,12 @@ import org.opencompare.hac.dendrogram.DendrogramNode
 import org.opencompare.hac.dendrogram.MergeNode
 import org.opencompare.hac.dendrogram.ObservationNode
 import java.awt.Color
-import java.io.File
+import javax.swing.SwingUtilities
 
 
 fun main(args: Array<String>) {
-    val f = File(args[0])
-
-    val parser = TextRectParser()
-    val clusterer = Clusterer()
-    val doc = PDDocument.load(f)
-    val wordCutoff = 5
-    val blockCutoff = 25
-
-    for (pageNum in 2..2) {
-        val chars = parser.getCharsOnPage(doc, pageNum)
-
-        var clusters = clusterer.cluster(chars)
-        var mergedClusters = collectBelowCutoff(clusters, wordCutoff)
-        println("${mergedClusters.size} word-clusters")
-
-        clusters = clusterer.recluster(mergedClusters)
-        mergedClusters = collectBelowCutoff(clusters, blockCutoff)
-        println("${mergedClusters.size} block-clusters")
-
-        val page = doc.getPage(pageNum)
-        mergedClusters.map(clusterer::getBoundingRect)
-                .forEach { drawRect(doc, page, it) }
-    }
-
-    doc.save("modified-$wordCutoff.pdf")
-    doc.close()
+    val view = ClusterView()
+    SwingUtilities.invokeLater(view)
 }
 
 
@@ -57,14 +34,19 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
 }
 
 
-fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int) : Collection<Set<Int>> {
+fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int): Collection<List<ObservationNode>> {
     return if (cluster is ObservationNode) {
-        listOf(setOf(cluster.observation))
+        listOf(listOf(cluster))
     } else if (cluster is MergeNode && cluster.dissimilarity <= cutoff) {
-        listOf(cluster.getLeafs().map { it.observation }.toSet())
+        listOf(cluster.getLeafs().toList())
     } else {
         listOf(cluster.left, cluster.right).flatMap { collectBelowCutoff(it, cutoff)}
     }
+}
+
+
+fun split(clusters: Collection<Set<Int>>): Collection<List<ObservationNode>> {
+    return listOf(listOf())
 }
 
 

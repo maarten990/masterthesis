@@ -1,9 +1,12 @@
-package main
+package clustering
 
+import gui.Vectorizer
+import org.apache.pdfbox.pdmodel.PDDocument
 import org.opencompare.hac.HierarchicalAgglomerativeClusterer
 import org.opencompare.hac.agglomeration.SingleLinkage
 import org.opencompare.hac.dendrogram.DendrogramBuilder
 import org.opencompare.hac.dendrogram.DendrogramNode
+import org.opencompare.hac.dendrogram.ObservationNode
 import org.opencompare.hac.experiment.DissimilarityMeasure
 import org.opencompare.hac.experiment.Experiment
 import java.lang.Math.pow
@@ -12,10 +15,11 @@ import java.lang.Math.sqrt
 
 class Clusterer {
     var lookupTable: List<CharData> = listOf()
+    var vectorizer: Vectorizer = Vectorizer.ALL
 
     fun cluster(chars: List<CharData>): DendrogramNode {
         val experiment = Experiment(chars::size)
-        val measure = DissimilarityMeasure { _, i, j -> euclidean(chars[i], chars[j]) }
+        val measure = DissimilarityMeasure { _, i, j -> euclidean(chars[i], chars[j], this.vectorizer) }
         val treeBuilder = DendrogramBuilder(experiment.numberOfObservations)
         val clusterer = HierarchicalAgglomerativeClusterer(experiment, measure, SingleLinkage())
 
@@ -25,15 +29,15 @@ class Clusterer {
         return treeBuilder.dendrogram.root
     }
 
-    fun recluster(clusters: Collection<Set<Int>>): DendrogramNode {
+    fun recluster(clusters: Collection<List<ObservationNode>>): DendrogramNode {
         // get the bounding rectangles for each clusters and recluster based on them
         val bboxes = clusters.map(this::getBoundingRect)
         return cluster(bboxes)
     }
 
-    fun getBoundingRect(cluster: Collection<Int>): CharData {
+    fun getBoundingRect(cluster: Collection<ObservationNode>): CharData {
         // translate from the names to the actual CharData objects
-        val chars = cluster.map { lookupTable[it] }
+        val chars = cluster.map { lookupTable[it.observation] }
 
         val leftMost = chars.map(CharData::left).min() ?: 0.0f
         val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
@@ -45,12 +49,18 @@ class Clusterer {
         return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
                 clusterText, 0.0f, 0.0f)
     }
+
+    fun clusterFilePage(document: PDDocument, pagenum: Int): DendrogramNode {
+        val parser = TextRectParser()
+        val chars = parser.getCharsOnPage(document, pagenum)
+        return cluster(chars)
+    }
 }
 
 
-fun euclidean(c1: CharData, c2: CharData): Double {
-    return c1.asGeomVec
-            .zip(c2.asGeomVec)
+fun euclidean(c1: CharData, c2: CharData, vectorizer: Vectorizer): Double {
+    return vectorizer.function(c1)
+            .zip(vectorizer.function(c2))
             .map { (i, j) -> pow(i.toDouble() - j.toDouble(), 2.0) }
             .reduce(Double::plus)
             .let { sum -> sqrt(sum) }
