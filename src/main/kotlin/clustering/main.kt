@@ -34,7 +34,7 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
 }
 
 
-fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int): Collection<List<ObservationNode>> {
+fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int): List<List<ObservationNode>> {
     return if (cluster is ObservationNode) {
         listOf(listOf(cluster))
     } else if (cluster is MergeNode && cluster.dissimilarity <= cutoff) {
@@ -44,13 +44,55 @@ fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int): Collection<List<Ob
     }
 }
 
+fun collectAtLevel(cluster: DendrogramNode, level: Int, currentLevel: Int=0): List<List<ObservationNode>> {
+    return if (currentLevel >= level) {
+        listOf(cluster.getLeafs())
+    } else {
+        listOf(cluster.left, cluster.right).flatMap { collectAtLevel(it, level, currentLevel + 1)}
+    }
+}
+
+
+fun collectBiggestJump(cluster: DendrogramNode): List<List<ObservationNode>> {
+    return collectAtLevel(cluster, getBiggestJump(cluster))
+}
+
+fun getBiggestJump(cluster: DendrogramNode): Int {
+    // get the biggest jump by going depth-first through the entire tree
+    val nodes = mutableListOf(Pair(cluster, 0))
+    val jumps = mutableListOf<Pair<Double, Int>>()
+    while (nodes.isNotEmpty()) {
+        val (node, level) = nodes.removeAt(0)
+        if (node is MergeNode) {
+            jumps.add(Pair(getChildDist(node) - node.dissimilarity, level))
+            nodes.add(Pair(node.left, level + 1))
+            nodes.add(Pair(node.right, level + 1))
+        }
+    }
+
+    return jumps.maxBy { it.first }?.second ?: 0
+}
+
+
+fun getChildDist(cluster: MergeNode): Double {
+    val left = cluster.left
+    val right = cluster.right
+
+    return when {
+        left is MergeNode && right is MergeNode -> (left.dissimilarity + right.dissimilarity) / 2
+        left is MergeNode -> left.dissimilarity
+        right is MergeNode -> right.dissimilarity
+        else -> 0.0
+    }
+}
+
 
 fun split(clusters: Collection<Set<Int>>): Collection<List<ObservationNode>> {
     return listOf(listOf())
 }
 
 
-fun DendrogramNode.getLeafs(): Collection<ObservationNode> {
+fun DendrogramNode.getLeafs(): List<ObservationNode> {
     return if (this is ObservationNode) {
         listOf(this)
     } else {
