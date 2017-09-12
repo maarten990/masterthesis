@@ -8,13 +8,6 @@ import org.opencompare.hac.dendrogram.DendrogramNode
 import org.opencompare.hac.dendrogram.MergeNode
 import org.opencompare.hac.dendrogram.ObservationNode
 import java.awt.Color
-import javax.swing.SwingUtilities
-
-
-fun main(args: Array<String>) {
-    val view = ClusterView()
-    SwingUtilities.invokeLater(view)
-}
 
 
 // Draw a char's bounding box on the specified page

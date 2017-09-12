@@ -1,87 +1,47 @@
 package gui
 
-import net.miginfocom.swing.MigLayout
+import javafx.collections.FXCollections
+import javafx.scene.control.TextField
+import javafx.stage.FileChooser
+import tornadofx.*
 import java.io.File
-import javax.swing.*
-import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
-import javax.swing.filechooser.FileNameExtensionFilter
-import javax.swing.UIManager
 
 
-class ClusterView: Runnable {
-    val frame = JFrame("Clusterer")
-    val controller = ClusterController(this)
 
-    val fieldThreshold = JTextField("5")
-    val fieldFilepath = JTextField("")
+class ClusterApp: App(ClusterView::class)
 
-    val comboboxVectorizer = JComboBox<Vectorizer>(arrayOf(Vectorizer.ALL, Vectorizer.GEOM, Vectorizer.CENTROID))
-    val comboboxPagenum = JComboBox<Int>()
-
-    val btnCluster = JButton("Cluster")
-    val btnMerge = JButton("Merge")
-    val btnFile = JButton("Open file")
-
-    val labelPdfViewer = JLabel()
-    val labelStatus = JLabel()
-
-    init {
-        btnCluster.addActionListener { controller.cluster() }
-        btnMerge.addActionListener { controller.merge() }
-
-        btnFile.addActionListener {
-            val chooser = JFileChooser()
-            chooser.fileFilter = FileNameExtensionFilter("PDF Documents", "pdf")
-            chooser.currentDirectory = File(System.getProperty("user.dir"))
-
-            if (chooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
-                controller.path = chooser.selectedFile.path
-            }
-        }
-
-        fieldThreshold.document.addDocumentListener(object: DocumentListener {
-            override fun changedUpdate(e: DocumentEvent?) = update()
-            override fun insertUpdate(e: DocumentEvent?) = update()
-            override fun removeUpdate(e: DocumentEvent?) = update()
-            fun update() {
-                controller.threshold = fieldThreshold.text
-            }
-        })
-
-        comboboxVectorizer.addActionListener({ controller.vectorizer = comboboxVectorizer.selectedItem as Vectorizer })
-        comboboxPagenum.addActionListener({ controller.pagenum = comboboxPagenum.selectedItem as Int })
+class ClusterView: View() {
+    override val root = borderpane {
+        left(InputView::class)
     }
+}
 
-    override fun run() {
-        //Create and set up the window.
-        frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
+class InputView: View() {
+    val vectorizeOptions = Vectorizer.values().toList().observable()
+    var path: TextField by singleAssign()
 
-        frame.layout = MigLayout()
-        frame.add(fieldFilepath, "growx")
-        frame.add(btnFile, "wrap")
-        frame.add(JLabel("Page number"))
-        frame.add(comboboxPagenum, "wrap")
-        frame.add(JLabel("Merge threshold"))
-        frame.add(fieldThreshold, "growx, wrap")
-        frame.add(JLabel("Vectorization"))
-        frame.add(comboboxVectorizer, "wrap")
-        frame.add(btnCluster, "split 2")
-        frame.add(btnMerge)
-        frame.add(labelStatus, "growx, wrap")
-        frame.add(labelPdfViewer, "grow")
+    override val root = form {
+        fieldset("Settings") {
+            field("File") {
+                button("Load file") {
+                    action {
+                        val cwd = File(System.getProperty("user.dir"))
+                        val result = chooseFile("Select PDF file",
+                                arrayOf(FileChooser.ExtensionFilter("PDF file", "*.pdf")),
+                                op = { initialDirectory = cwd })
+                        path.text = result.first().path
+                    }
+                }
+                path = textfield()
+            }
 
-        labelPdfViewer.isVisible = false
+            field("Threshold") {
+                textfield("15")
+            }
 
-        for (info in UIManager.getInstalledLookAndFeels()) {
-            if (info.name == "Nimbus") {
-                UIManager.setLookAndFeel(info.className)
-                break
+            field("Vectorizer") {
+                combobox(values = vectorizeOptions)
             }
         }
-        SwingUtilities.updateComponentTreeUI(frame)
-
-        frame.pack()
-        frame.isVisible = true
     }
 }
