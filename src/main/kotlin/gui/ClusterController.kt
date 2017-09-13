@@ -1,5 +1,33 @@
 package gui
 
+import clustering.Clusterer
+import javafx.embed.swing.SwingFXUtils
+import org.apache.pdfbox.rendering.PDFRenderer
+import tornadofx.*
+
+
+class ClusterController: Controller() {
+    val model: ParamsModel by inject()
+    val status: StatusModel by inject()
+    val results: ResultsModel by inject()
+    val clusterer = Clusterer()
+
+    fun cluster() {
+        clusterer.vectorizer = model.vectorizer.value
+        status.running.value = true
+
+        runAsync {
+            results.clusters.value = clusterer.clusterFilePage(model.document.value,
+                    model.pagenum.value.toInt())
+
+            val image = PDFRenderer(model.document.value).renderImage(model.pagenum.value.toInt())
+            results.image.value = SwingFXUtils.toFXImage(image, null)
+        } ui {
+            status.running.value = false
+        }
+    }
+}
+
 /*
 import clustering.Clusterer
 import clustering.collectBelowCutoff
