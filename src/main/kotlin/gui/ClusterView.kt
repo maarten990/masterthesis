@@ -1,87 +1,124 @@
 package gui
 
-import net.miginfocom.swing.MigLayout
+import javafx.beans.value.ChangeListener
+import javafx.collections.ObservableList
+import javafx.scene.control.Label
+import javafx.stage.FileChooser
+import org.apache.pdfbox.pdmodel.PDDocument
+import tornadofx.*
 import java.io.File
-import javax.swing.*
-import javax.swing.event.DocumentEvent
-import javax.swing.event.DocumentListener
-import javax.swing.filechooser.FileNameExtensionFilter
-import javax.swing.UIManager
+import javax.xml.bind.DatatypeConverter
 
 
-class ClusterView: Runnable {
-    val frame = JFrame("Clusterer")
-    val controller = ClusterController(this)
+class ClusterApp: App(ClusterView::class)
 
-    val fieldThreshold = JTextField("5")
-    val fieldFilepath = JTextField("")
+class ClusterView: View() {
+    val vectorizeOptions = Vectorizer.values().toList().observable()
+    val collectOptions = Collector.values().toList().observable()
+    var pageNums: ObservableList<Int> = mutableListOf<Int>().observable()
+    val param: ParamsModel by inject()
+    val mergeParam: MergeParamsModel by inject()
+    val status: StatusModel by inject()
+    val results: ResultsModel by inject()
 
-    val comboboxVectorizer = JComboBox<Vectorizer>(arrayOf(Vectorizer.ALL, Vectorizer.GEOM, Vectorizer.CENTROID))
-    val comboboxPagenum = JComboBox<Int>()
+    val controller: ClusterController by inject()
 
-    val btnCluster = JButton("Cluster")
-    val btnMerge = JButton("Merge")
-    val btnFile = JButton("Open file")
+    var paramLabel: Field by singleAssign()
 
-    val labelPdfViewer = JLabel()
-    val labelStatus = JLabel()
+    override val root = borderpane {
+        param.validate(decorateErrors = false)
+        left {
+            form {
+                fieldset("Cluster Settings") {
+                    field("File") {
+                        button("Load file") {
+                            action {
+                                val cwd = File(System.getProperty("user.dir"))
+                                val result = chooseFile("Select PDF file",
+                                        arrayOf(FileChooser.ExtensionFilter("PDF file", "*.pdf")),
+                                        op = { initialDirectory = cwd })
 
-    init {
-        btnCluster.addActionListener { controller.cluster() }
-        btnMerge.addActionListener { controller.merge() }
+                                if (result.isEmpty()) {
+                                    status.docLoaded.value = false
+                                } else {
+                                    param.path.value = result.first().canonicalPath
+                                    param.document.value = PDDocument.load(result.first())
+                                    status.docLoaded.value = param.document.value != null
 
-        btnFile.addActionListener {
-            val chooser = JFileChooser()
-            chooser.fileFilter = FileNameExtensionFilter("PDF Documents", "pdf")
-            chooser.currentDirectory = File(System.getProperty("user.dir"))
+                                    pageNums.clear()
+                                    (0..param.document.value.numberOfPages).forEach { pageNums.add(it) }
+                                }
+                            }
+                        }
 
-            if (chooser.showOpenDialog(frame) == JFileChooser.APPROVE_OPTION) {
-                controller.path = chooser.selectedFile.path
+                        label("Succesfully loaded") {
+                            visibleWhen { status.docLoaded }
+                        }
+                    }
+
+                    field("Page number") {
+                        combobox(param.pagenum, values = pageNums) {
+                            enableWhen { status.docLoaded }
+                            required()
+                        }
+                    }
+
+                    field("Vectorizer") {
+                        combobox(param.vectorizer, values = vectorizeOptions).required()
+                    }
+
+                    button("Cluster") {
+                        enableWhen { param.valid }
+                        action {
+                            param.commit()
+                            controller.cluster()
+                        }
+                    }
+                }
+
+                fieldset("Merge Settings") {
+                    field("Vectorizer") {
+                        combobox(mergeParam.collector, values = collectOptions) {
+                            required()
+                            setOnAction {
+                                selectedItem?.let { paramLabel.text = it.desc }
+                            }
+                        }
+                    }
+
+                    paramLabel = field("Parameter") {
+                        textfield(mergeParam.threshold).validator {
+                            val value = it?.toIntOrNull()
+                            when {
+                                value == null -> error("Could not parse integer")
+                                value < 1 -> error("Value needs to be greater than zero")
+                                else -> null
+                            }
+                        }
+                    }
+
+                    button("Merge") {
+                        enableWhen { mergeParam.valid }
+                        action {
+                            mergeParam.commit()
+                            controller.merge()
+                        }
+                    }
+                }
             }
         }
 
-        fieldThreshold.document.addDocumentListener(object: DocumentListener {
-            override fun changedUpdate(e: DocumentEvent?) = update()
-            override fun insertUpdate(e: DocumentEvent?) = update()
-            override fun removeUpdate(e: DocumentEvent?) = update()
-            fun update() {
-                controller.threshold = fieldThreshold.text
-            }
-        })
-
-        comboboxVectorizer.addActionListener({ controller.vectorizer = comboboxVectorizer.selectedItem as Vectorizer })
-        comboboxPagenum.addActionListener({ controller.pagenum = comboboxPagenum.selectedItem as Int })
-    }
-
-    override fun run() {
-        //Create and set up the window.
-        frame.defaultCloseOperation = JFrame.EXIT_ON_CLOSE
-
-        frame.layout = MigLayout()
-        frame.add(fieldFilepath, "growx")
-        frame.add(btnFile, "wrap")
-        frame.add(JLabel("Page number"))
-        frame.add(comboboxPagenum, "wrap")
-        frame.add(JLabel("Merge threshold"))
-        frame.add(fieldThreshold, "growx, wrap")
-        frame.add(JLabel("Vectorization"))
-        frame.add(comboboxVectorizer, "wrap")
-        frame.add(btnCluster, "split 2")
-        frame.add(btnMerge)
-        frame.add(labelStatus, "growx, wrap")
-        frame.add(labelPdfViewer, "grow")
-
-        labelPdfViewer.isVisible = false
-
-        for (info in UIManager.getInstalledLookAndFeels()) {
-            if (info.name == "Nimbus") {
-                UIManager.setLookAndFeel(info.className)
-                break
+        bottom {
+            progressbar(-1.0) {
+                visibleWhen { status.running }
             }
         }
-        SwingUtilities.updateComponentTreeUI(frame)
 
-        frame.pack()
-        frame.isVisible = true
+        center {
+            scrollpane {
+                imageview(results.image)
+            }
+        }
     }
 }
+

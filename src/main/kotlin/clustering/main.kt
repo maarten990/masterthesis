@@ -8,13 +8,6 @@ import org.opencompare.hac.dendrogram.DendrogramNode
 import org.opencompare.hac.dendrogram.MergeNode
 import org.opencompare.hac.dendrogram.ObservationNode
 import java.awt.Color
-import javax.swing.SwingUtilities
-
-
-fun main(args: Array<String>) {
-    val view = ClusterView()
-    SwingUtilities.invokeLater(view)
-}
 
 
 // Draw a char's bounding box on the specified page
@@ -53,11 +46,11 @@ fun collectAtLevel(cluster: DendrogramNode, level: Int, currentLevel: Int=0): Li
 }
 
 
-fun collectBiggestJump(cluster: DendrogramNode): List<List<ObservationNode>> {
-    return collectAtLevel(cluster, getBiggestJump(cluster))
+fun collectBiggestJump(cluster: DendrogramNode, offset: Int): List<List<ObservationNode>> {
+    return collectAtLevel(cluster, getBiggestJump(cluster, offset))
 }
 
-fun getBiggestJump(cluster: DendrogramNode): Int {
+fun getBiggestJump(cluster: DendrogramNode, offset: Int): Int {
     // get the biggest jump by going depth-first through the entire tree
     val nodes = mutableListOf(Pair(cluster, 0))
     val jumps = mutableListOf<Pair<Double, Int>>()
@@ -70,7 +63,7 @@ fun getBiggestJump(cluster: DendrogramNode): Int {
         }
     }
 
-    return jumps.maxBy { it.first }?.second ?: 0
+    return jumps.sortedBy { it.first }.getOrNull(offset)?.second ?: 0
 }
 
 
@@ -84,11 +77,6 @@ fun getChildDist(cluster: MergeNode): Double {
         right is MergeNode -> right.dissimilarity
         else -> 0.0
     }
-}
-
-
-fun split(clusters: Collection<Set<Int>>): Collection<List<ObservationNode>> {
-    return listOf(listOf())
 }
 
 
