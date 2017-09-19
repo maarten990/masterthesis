@@ -110,6 +110,7 @@ class ClusterView: View() {
 
         bottom {
             progressbar(-1.0) {
+                useMaxWidth = true
                 visibleWhen { status.running }
             }
         }
