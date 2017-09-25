@@ -4,7 +4,7 @@ import numpy as np
 
 
 def main():
-    data = np.loadtxt(sys.argv[1])
+    data = np.genfromtxt(sys.argv[1], delimiter=',')
 
     print(f'Received {data.size} points, clustering...')
     clusters = fastcluster.single(data)
@@ -13,7 +13,12 @@ def main():
     # from of the output: an (N-1)*4 matrix where each row is the 2 joined
     # indices along with the distance and number of points
     with open(sys.argv[2], 'w') as f:
-        f.write(clusters)
+        string_repr = ''
+        for row in clusters:
+            string_repr += ','.join(map(str, row))
+            string_repr += '\n'
+
+        f.write(string_repr)
 
 
 if __name__ == '__main__':

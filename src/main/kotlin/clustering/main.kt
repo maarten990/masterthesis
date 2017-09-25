@@ -87,3 +87,4 @@ fun DendrogramNode.getLeafs(): List<ObservationNode> {
         listOf(this.left, this.right).flatMap(DendrogramNode::getLeafs)
     }
 }
+

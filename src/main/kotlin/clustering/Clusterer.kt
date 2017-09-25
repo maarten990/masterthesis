@@ -18,15 +18,9 @@ class Clusterer {
     var vectorizer: Vectorizer = Vectorizer.ALL
 
     fun cluster(chars: List<CharData>): DendrogramNode {
-        val experiment = Experiment(chars::size)
-        val measure = DissimilarityMeasure { _, i, j -> euclidean(chars[i], chars[j], this.vectorizer) }
-        val treeBuilder = DendrogramBuilder(experiment.numberOfObservations)
-        val clusterer = HierarchicalAgglomerativeClusterer(experiment, measure, SingleLinkage())
-
-        clusterer.cluster(treeBuilder)
-        lookupTable = chars
-
-        return treeBuilder.dendrogram.root
+        val data = pythonCluster(chars, vectorizer)
+        println("Python returned ${data.size} clusters")
+        return ObservationNode(0)
     }
 
     fun recluster(clusters: Collection<List<ObservationNode>>): DendrogramNode {
