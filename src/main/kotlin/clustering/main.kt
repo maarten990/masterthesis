@@ -1,14 +1,9 @@
 package clustering
 
-import gui.ClusterView
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
-import org.opencompare.hac.dendrogram.DendrogramNode
-import org.opencompare.hac.dendrogram.MergeNode
-import org.opencompare.hac.dendrogram.ObservationNode
 import java.awt.Color
-
 
 // Draw a char's bounding box on the specified page
 fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
@@ -26,38 +21,40 @@ fun drawRect(document: PDDocument, page: PDPage, char: CharData) {
     }
 }
 
-
-fun collectBelowCutoff(cluster: DendrogramNode, cutoff: Int): List<List<ObservationNode>> {
-    return if (cluster is ObservationNode) {
+fun collectBelowCutoff(cluster: Dendrogram, cutoff: Int): List<List<LeafNode>> {
+    return if (cluster is LeafNode) {
         listOf(listOf(cluster))
-    } else if (cluster is MergeNode && cluster.dissimilarity <= cutoff) {
-        listOf(cluster.getLeafs().toList())
+    } else if (cluster is MergeNode && cluster.dist <= cutoff) {
+        listOf(cluster.leafNodes().toList())
     } else {
+        cluster as MergeNode
         listOf(cluster.left, cluster.right).flatMap { collectBelowCutoff(it, cutoff)}
     }
 }
 
-fun collectAtLevel(cluster: DendrogramNode, level: Int, currentLevel: Int=0): List<List<ObservationNode>> {
+fun collectAtLevel(cluster: Dendrogram, level: Int, currentLevel: Int=0): List<List<LeafNode>> {
     return if (currentLevel >= level) {
-        listOf(cluster.getLeafs())
+        listOf(cluster.leafNodes())
     } else {
-        listOf(cluster.left, cluster.right).flatMap { collectAtLevel(it, level, currentLevel + 1)}
+        if (cluster is MergeNode)
+            listOf(cluster.left, cluster.right).flatMap { collectAtLevel(it, level, currentLevel + 1)}
+        else
+            listOf(listOf(cluster as LeafNode))
     }
 }
 
-
-fun collectBiggestJump(cluster: DendrogramNode, offset: Int): List<List<ObservationNode>> {
+fun collectBiggestJump(cluster: Dendrogram, offset: Int): List<List<LeafNode>> {
     return collectAtLevel(cluster, getBiggestJump(cluster, offset))
 }
 
-fun getBiggestJump(cluster: DendrogramNode, offset: Int): Int {
+fun getBiggestJump(cluster: Dendrogram, offset: Int): Int {
     // get the biggest jump by going depth-first through the entire tree
     val nodes = mutableListOf(Pair(cluster, 0))
     val jumps = mutableListOf<Pair<Double, Int>>()
     while (nodes.isNotEmpty()) {
         val (node, level) = nodes.removeAt(0)
         if (node is MergeNode) {
-            jumps.add(Pair(getChildDist(node) - node.dissimilarity, level))
+            jumps.add(Pair(getChildDist(node) - node.dist, level))
             nodes.add(Pair(node.left, level + 1))
             nodes.add(Pair(node.right, level + 1))
         }
@@ -66,25 +63,14 @@ fun getBiggestJump(cluster: DendrogramNode, offset: Int): Int {
     return jumps.sortedBy { it.first }.getOrNull(offset)?.second ?: 0
 }
 
-
 fun getChildDist(cluster: MergeNode): Double {
     val left = cluster.left
     val right = cluster.right
 
     return when {
-        left is MergeNode && right is MergeNode -> (left.dissimilarity + right.dissimilarity) / 2
-        left is MergeNode -> left.dissimilarity
-        right is MergeNode -> right.dissimilarity
+        left is MergeNode && right is MergeNode -> (left.dist + right.dist) / 2
+        left is MergeNode -> left.dist
+        right is MergeNode -> right.dist
         else -> 0.0
     }
 }
-
-
-fun DendrogramNode.getLeafs(): List<ObservationNode> {
-    return if (this is ObservationNode) {
-        listOf(this)
-    } else {
-        listOf(this.left, this.right).flatMap(DendrogramNode::getLeafs)
-    }
-}
-

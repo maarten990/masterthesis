@@ -6,6 +6,18 @@ import java.io.FileReader
 import com.opencsv.CSVReader
 
 
+abstract class Dendrogram {
+    abstract fun leafNodes(): List<LeafNode>
+};
+
+class LeafNode(val data: CharData): Dendrogram() {
+    override fun leafNodes(): List<LeafNode> = listOf(this)
+}
+
+class MergeNode(val left: Dendrogram, val right: Dendrogram, val dist: Double): Dendrogram() {
+    override fun leafNodes(): List<LeafNode> = listOf(left, right).flatMap(Dendrogram::leafNodes)
+}
+
 fun saveChardata(data: List<CharData>, vectorizer: Vectorizer, path: String) {
     File(path).printWriter().use { out ->
         data.forEach {
@@ -14,12 +26,10 @@ fun saveChardata(data: List<CharData>, vectorizer: Vectorizer, path: String) {
     }
 }
 
-
 fun callPython(inPath: String, outPath: String) {
     val cmd = "python src/main/resources/cluster.py $inPath $outPath"
     Runtime.getRuntime().exec(cmd)
 }
-
 
 fun loadCsv(path: String): List<List<Double>> {
     val reader = CSVReader(FileReader(path))
@@ -30,12 +40,22 @@ fun loadCsv(path: String): List<List<Double>> {
 
 }
 
+fun createDendrogram(data: List<CharData>, clusters: List<List<Double>>): Dendrogram {
+    val nodes: MutableList<Dendrogram> = data.map(::LeafNode).toMutableList()
 
-fun pythonCluster(data: List<CharData>, vectorizer: Vectorizer): List<List<Double>> {
+    for ((left, right, dist, _) in clusters) {
+        nodes.add(MergeNode(nodes[left.toInt()], nodes[right.toInt()], dist))
+    }
+
+    return nodes.last()
+}
+
+fun pythonCluster(data: List<CharData>, vectorizer: Vectorizer): Dendrogram {
     val inPath = "in.numpy"
     val outPath = "out.numpy"
     saveChardata(data, vectorizer, inPath)
     callPython(inPath, outPath)
+    val clusters = loadCsv(outPath)
 
-    return loadCsv(outPath)
+    return createDendrogram(data, clusters)
 }
