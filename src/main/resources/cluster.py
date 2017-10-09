@@ -6,7 +6,7 @@ import numpy as np
 def main():
     data = np.genfromtxt(sys.argv[1], delimiter=',')
 
-    print(f'Received {data.size} points, clustering...')
+    print('Received {} points, clustering...'.format(data.size))
     clusters = fastcluster.single(data)
     print('Finished clustering')
 
