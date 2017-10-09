@@ -1,17 +1,12 @@
 package gui
 
-import clustering.CharData
-import clustering.Clusterer
-import clustering.collectBelowCutoff
-import clustering.collectBiggestJump
+import clustering.*
 import javafx.beans.property.SimpleBooleanProperty
 import javafx.beans.property.SimpleIntegerProperty
 import javafx.beans.property.SimpleObjectProperty
 import javafx.beans.property.SimpleStringProperty
 import javafx.scene.image.Image
 import org.apache.pdfbox.pdmodel.PDDocument
-import org.opencompare.hac.dendrogram.DendrogramNode
-import org.opencompare.hac.dendrogram.ObservationNode
 import tornadofx.*
 import tornadofx.getValue
 import tornadofx.setValue
@@ -75,7 +70,7 @@ class Results {
     val imageProperty = SimpleObjectProperty<Image>()
     var image by imageProperty
 
-    val clustersProperty = SimpleObjectProperty<DendrogramNode>()
+    val clustersProperty = SimpleObjectProperty<Dendrogram>()
     var clusters by clustersProperty
 }
 
@@ -111,6 +106,6 @@ enum class Collector {
         override val desc = "n'th biggest jump"
     };
 
-    abstract val function: (DendrogramNode, Int) -> List<List<ObservationNode>>
+    abstract val function: (Dendrogram, Int) -> List<List<LeafNode>>
     abstract val desc: String
 }

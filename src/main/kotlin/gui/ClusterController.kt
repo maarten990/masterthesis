@@ -5,6 +5,7 @@ import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.PDFRenderer
 import tornadofx.*
+import java.awt.image.BufferedImage
 import java.io.File
 
 
@@ -16,6 +17,7 @@ class ClusterController: Controller() {
 
     fun cluster() {
         status.running.value = true
+        var image: BufferedImage? = null
 
         runAsync {
             param.run {
@@ -23,11 +25,11 @@ class ClusterController: Controller() {
                 results.clusterer.vectorizer = vectorizer.value
                 results.clusters.value = results.clusterer.clusterFilePage(doc, pagenum.value.toInt())
 
-                val image = PDFRenderer(doc).renderImage(pagenum.value.toInt())
-                results.image.value = SwingFXUtils.toFXImage(image, null)
+                image = PDFRenderer(doc).renderImage(pagenum.value.toInt())
                 doc.close()
             }
         } ui {
+            results.image.value = SwingFXUtils.toFXImage(image, null)
             results.commit()
             status.running.value = false
         }
@@ -35,6 +37,7 @@ class ClusterController: Controller() {
 
     fun merge() {
         status.running.value = true
+        var image: BufferedImage? = null
 
         runAsync {
             mergeParam.run {
@@ -44,11 +47,11 @@ class ClusterController: Controller() {
                 val bboxes = merged.map(results.clusterer::getBoundingRect)
                 bboxes.forEach { drawRect(doc, page, it) }
 
-                val image = PDFRenderer(doc).renderImage(param.pagenum.value.toInt())
-                results.image.value = SwingFXUtils.toFXImage(image, null)
+                image = PDFRenderer(doc).renderImage(param.pagenum.value.toInt())
                 doc.close()
             }
         } ui {
+            results.image.value = SwingFXUtils.toFXImage(image, null)
             results.commit()
             status.running.value = false
         }
