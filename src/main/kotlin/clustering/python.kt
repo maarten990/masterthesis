@@ -27,8 +27,9 @@ fun saveChardata(data: List<CharData>, vectorizer: Vectorizer, path: String) {
 }
 
 fun callPython(inPath: String, outPath: String) {
-    val cmd = "python src/main/resources/cluster.py $inPath $outPath"
-    Runtime.getRuntime().exec(cmd)
+    val builder = ProcessBuilder("python3", "src/main/resources/cluster.py", inPath, outPath)
+    val process = builder.inheritIO().start()
+    process.waitFor()
 }
 
 fun loadCsv(path: String): List<List<Double>> {
