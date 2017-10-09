@@ -4,6 +4,8 @@ import gui.Vectorizer
 import java.io.File
 import java.io.FileReader
 import com.opencsv.CSVReader
+import java.nio.file.Files
+import java.nio.file.Paths
 
 
 abstract class Dendrogram {
@@ -51,12 +53,18 @@ fun createDendrogram(data: List<CharData>, clusters: List<List<Double>>): Dendro
     return nodes.last()
 }
 
+fun cleanup(inPath: String, outPath: String) {
+    Files.deleteIfExists(Paths.get(inPath))
+    Files.deleteIfExists(Paths.get(outPath))
+}
+
 fun pythonCluster(data: List<CharData>, vectorizer: Vectorizer): Dendrogram {
     val inPath = "in.numpy"
     val outPath = "out.numpy"
     saveChardata(data, vectorizer, inPath)
     callPython(inPath, outPath)
     val clusters = loadCsv(outPath)
+    cleanup(inPath, outPath)
 
     return createDendrogram(data, clusters)
 }
