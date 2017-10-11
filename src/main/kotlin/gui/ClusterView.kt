@@ -1,33 +1,28 @@
 package gui
 
-import javafx.beans.value.ChangeListener
 import javafx.collections.ObservableList
-import javafx.scene.control.Label
 import javafx.stage.FileChooser
 import org.apache.pdfbox.pdmodel.PDDocument
 import tornadofx.*
 import java.io.File
-import javax.xml.bind.DatatypeConverter
 
 
 class ClusterApp: App(ClusterView::class)
 
 class ClusterView: View() {
+    val mergePane = MergePane()
+
     val vectorizeOptions = Vectorizer.values().toList().observable()
-    val collectOptions = Collector.values().toList().observable()
     var pageNums: ObservableList<Int> = mutableListOf<Int>().observable()
     val param: ParamsModel by inject()
-    val mergeParam: MergeParamsModel by inject()
     val status: StatusModel by inject()
     val results: ResultsModel by inject()
 
     val controller: ClusterController by inject()
 
-    var paramLabel: Field by singleAssign()
-
     override val root = borderpane {
         param.validate(decorateErrors = false)
-        left {
+        left = vbox {
             form {
                 fieldset("Cluster Settings") {
                     field("File") {
@@ -75,49 +70,56 @@ class ClusterView: View() {
                         }
                     }
                 }
+            }
 
-                fieldset("Merge Settings") {
-                    field("Vectorizer") {
-                        combobox(mergeParam.collector, values = collectOptions) {
-                            required()
-                            setOnAction {
-                                selectedItem?.let { paramLabel.text = it.desc }
-                            }
-                        }
-                    }
+            this.add(mergePane.root)
+        }
 
-                    paramLabel = field("Parameter") {
-                        textfield(mergeParam.threshold).validator {
-                            val value = it?.toIntOrNull()
-                            when {
-                                value == null -> error("Could not parse integer")
-                                value < 1 -> error("Value needs to be greater than zero")
-                                else -> null
-                            }
-                        }
-                    }
+        bottom = progressbar(-1.0) {
+                useMaxWidth = true
+                visibleWhen { status.running }
+        }
 
-                    button("Merge") {
-                        enableWhen { mergeParam.valid }
-                        action {
-                            mergeParam.commit()
-                            controller.merge()
-                        }
+        center = scrollpane {
+                imageview(results.image)
+        }
+    }
+}
+
+class MergePane: View() {
+    val mergeParam: MergeParamsModel by inject()
+    val collectOptions = Collector.values().toList().observable()
+    var paramLabel: Field by singleAssign()
+    val controller: ClusterController by inject()
+
+    override val root = form {
+        fieldset("Merge Settings") {
+            field("Vectorizer") {
+                combobox(mergeParam.collector, values = collectOptions) {
+                    required()
+                    setOnAction {
+                        selectedItem?.let { paramLabel.text = it.desc }
                     }
                 }
             }
-        }
 
-        bottom {
-            progressbar(-1.0) {
-                useMaxWidth = true
-                visibleWhen { status.running }
+            paramLabel = field("Parameter") {
+                textfield(mergeParam.threshold).validator {
+                    val value = it?.toIntOrNull()
+                    when {
+                        value == null -> error("Could not parse integer")
+                        value < 1 -> error("Value needs to be greater than zero")
+                        else -> null
+                    }
+                }
             }
-        }
 
-        center {
-            scrollpane {
-                imageview(results.image)
+            button("Merge") {
+                enableWhen { mergeParam.valid }
+                action {
+                    mergeParam.commit()
+                    controller.merge()
+                }
             }
         }
     }
