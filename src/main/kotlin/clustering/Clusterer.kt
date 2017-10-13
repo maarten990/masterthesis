@@ -40,12 +40,3 @@ class Clusterer {
         return cluster(chars)
     }
 }
-
-
-fun euclidean(c1: CharData, c2: CharData, vectorizer: Vectorizer): Double {
-    return vectorizer.function(c1)
-            .zip(vectorizer.function(c2))
-            .map { (i, j) -> pow(i.toDouble() - j.toDouble(), 2.0) }
-            .reduce(Double::plus)
-            .let { sum -> sqrt(sum) }
-}
