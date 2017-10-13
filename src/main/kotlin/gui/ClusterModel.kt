@@ -98,11 +98,11 @@ enum class Vectorizer {
 
 enum class Collector {
     THRESHOLD {
-        override val function = ::collectBelowCutoff
+        override val function = Dendrogram::collectBelowCutoff
         override val desc = "Threshold"
     },
     BIGGEST_JUMP {
-        override val function = ::collectBiggestJump
+        override val function = Dendrogram::collectBiggestJump
         override val desc = "n'th biggest jump"
     };
 
