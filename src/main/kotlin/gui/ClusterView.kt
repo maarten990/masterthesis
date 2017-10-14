@@ -73,6 +73,13 @@ class ClusterView: View() {
             }
 
             this.add(mergePane.root)
+
+            button("Print distances") {
+                action {
+                    // println(results.clusters.value.collectDistances(10))
+                    // println(results.clusters.value?.collectDistances(param.threshold.value.toInt())?.joinToString(separator=", "))
+                }
+            }
         }
 
         bottom = progressbar(-1.0) {
