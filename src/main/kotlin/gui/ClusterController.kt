@@ -20,14 +20,12 @@ class ClusterController: Controller() {
         var image: BufferedImage? = null
 
         runAsync {
-            param.run {
-                val doc = PDDocument.load(File(path.value))
-                results.clusterer.vectorizer = vectorizer.value
-                results.clusters.value = results.clusterer.clusterFilePage(doc, pagenum.value.toInt())
+            val doc = PDDocument.load(File(param.item.path))
+            results.clusterer.vectorizer = param.item.vectorizer
+            results.clusters.value = results.clusterer.clusterFilePage(doc, param.item.pagenum)
 
-                image = PDFRenderer(doc).renderImage(pagenum.value.toInt())
-                doc.close()
-            }
+            image = PDFRenderer(doc).renderImage(param.item.pagenum)
+            doc.close()
         } ui {
             results.image.value = SwingFXUtils.toFXImage(image, null)
             results.commit()
@@ -40,16 +38,14 @@ class ClusterController: Controller() {
         var image: BufferedImage? = null
 
         runAsync {
-            mergeParam.run {
-                val doc = PDDocument.load(File(param.path.value))
-                val page = doc.getPage(param.pagenum.value.toInt())
-                val merged = collector.value.function(results.clusters.value, threshold.value.toInt())
-                val bboxes = merged.map(results.clusterer::getBoundingRect)
-                bboxes.forEach { drawRect(doc, page, it) }
+            val doc = PDDocument.load(File(param.item.path))
+            val page = doc.getPage(param.item.pagenum)
+            val merged = mergeParam.item.collector.function(results.item.clusters, mergeParam.item.threshold)
+            val bboxes = merged.map(results.clusterer::getBoundingRect)
+            bboxes.forEach { drawRect(doc, page, it) }
 
-                image = PDFRenderer(doc).renderImage(param.pagenum.value.toInt())
-                doc.close()
-            }
+            image = PDFRenderer(doc).renderImage(param.item.pagenum)
+            doc.close()
         } ui {
             results.image.value = SwingFXUtils.toFXImage(image, null)
             results.commit()

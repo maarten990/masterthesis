@@ -36,6 +36,10 @@ class ParamsModel : ItemViewModel<Params>() {
     val vectorizer = bind(Params::vectorizerProperty)
     val threshold = bind(Params::thresholdProperty)
     val path = bind(Params::pathProperty)
+
+    init {
+        item = Params()
+    }
 }
 
 class MergeParams() {
@@ -49,6 +53,10 @@ class MergeParams() {
 class MergeParamsModel : ItemViewModel<MergeParams>() {
     val threshold = bind(MergeParams::thresholdProperty)
     val collector = bind(MergeParams::collectorProperty)
+
+    init {
+        item = MergeParams()
+    }
 }
 
 
@@ -63,6 +71,10 @@ class Status {
 class StatusModel : ItemViewModel<Status>() {
     val docLoaded = bind(Status::docLoadedProperty)
     val running = bind(Status::runningProperty)
+
+    init {
+        item = Status()
+    }
 }
 
 
@@ -79,6 +91,10 @@ class ResultsModel : ItemViewModel<Results>() {
     val clusters = bind(Results::clustersProperty)
 
     val clusterer = Clusterer()
+
+    init {
+        item = Results()
+    }
 }
 
 
