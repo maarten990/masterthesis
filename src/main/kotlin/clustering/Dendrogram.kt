@@ -2,12 +2,13 @@ package clustering
 
 sealed class Dendrogram {
     abstract fun leafNodes(): List<LeafNode>
+    abstract fun childDistances(): List<Double>
 
     fun collectBelowCutoff(cutoff: Int): List<List<LeafNode>> {
         return if (this is LeafNode) {
             listOf(listOf(this))
         } else if (this is MergeNode && dist <= cutoff) {
-            listOf(leafNodes().toList())
+            listOf(leafNodes())
         } else {
             this as MergeNode
             listOf(left, right).flatMap { it.collectBelowCutoff(cutoff)}
@@ -18,21 +19,7 @@ sealed class Dendrogram {
          return if (this is LeafNode) {
              listOf()
         } else if (this is MergeNode && dist <= cutoff) {
-             val dists = mutableListOf<Double>()
-             val stack = mutableListOf<MergeNode>(this)
-             var elem: Dendrogram
-
-             while (stack.isNotEmpty()) {
-                 elem = stack.removeAt(0)
-                 dists.add(elem.dist)
-
-                 if (left is MergeNode)
-                    stack.add(left)
-                 if (right is MergeNode)
-                     stack.add(right)
-             }
-
-             dists
+            childDistances()
         } else {
              this as MergeNode
              left.collectDistances(cutoff) + right.collectDistances(cutoff)
@@ -42,8 +29,10 @@ sealed class Dendrogram {
 
 class LeafNode(val data: CharData): Dendrogram() {
     override fun leafNodes() = listOf(this)
+    override fun childDistances() = listOf<Double>()
 }
 
 class MergeNode(val left: Dendrogram, val right: Dendrogram, val dist: Double): Dendrogram() {
     override fun leafNodes() = listOf(left, right).flatMap(Dendrogram::leafNodes)
+    override fun childDistances() = listOf(dist) + left.childDistances() + right.childDistances()
 }

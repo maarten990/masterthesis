@@ -76,8 +76,7 @@ class ClusterView: View() {
 
             button("Print distances") {
                 action {
-                    // println(results.clusters.value.collectDistances(10))
-                    // println(results.clusters.value?.collectDistances(param.threshold.value.toInt())?.joinToString(separator=", "))
+                    println(results.item.clusters?.collectDistances(param.item.threshold)?.joinToString(separator=", "))
                 }
             }
         }
