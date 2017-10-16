@@ -4,16 +4,18 @@ from sklearn.cluster import KMeans
 
 
 def main():
-    data = np.genfromtxt(sys.argv[1], delimiter=',')
+    data = np.genfromtxt(sys.argv[1], delimiter=',').reshape(-1, 1)
 
     print('Received {} points, clustering...'.format(data.size))
+    
+    kmeans = KMeans(n_clusters=2)
+    kmeans.fit(data)
+    clusters = kmeans.cluster_centers_.reshape(-1)
 
     print('Finished clustering')
 
-    # from of the output:
-    # indices along with the distance and number of points
     with open(sys.argv[2], 'w') as f:
-        pass
+        f.write(','.join(str(centroid) for centroid in clusters))
 
 
 if __name__ == '__main__':
