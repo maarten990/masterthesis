@@ -1,6 +1,7 @@
 package gui
 
 import clustering.drawRect
+import clustering.pythonKMeans
 import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.PDFRenderer
@@ -51,5 +52,10 @@ class ClusterController: Controller() {
             results.commit()
             status.running.value = false
         }
+    }
+
+    fun KMeans() {
+        val centroids = pythonKMeans(results.item.clusters, mergeParam.item.threshold)
+        println(centroids)
     }
 }

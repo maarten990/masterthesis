@@ -12,9 +12,6 @@ import tornadofx.getValue
 import tornadofx.setValue
 
 class Params {
-    val thresholdProperty = SimpleIntegerProperty(15)
-    var threshold by thresholdProperty
-
     val vectorizerProperty = SimpleObjectProperty<Vectorizer>(Vectorizer.ALL)
     var vectorizer by vectorizerProperty
 
@@ -27,14 +24,13 @@ class Params {
     val pathProperty = SimpleStringProperty(null)
     var path by pathProperty
 
-    override fun toString(): String = "$threshold, $vectorizer, $pagenum, $document, $path"
+    override fun toString(): String = "$vectorizer, $pagenum, $document, $path"
 }
 
 class ParamsModel : ItemViewModel<Params>() {
     val document = bind(Params::documentProperty)
     val pagenum = bind(Params::pagenumProperty)
     val vectorizer = bind(Params::vectorizerProperty)
-    val threshold = bind(Params::thresholdProperty)
     val path = bind(Params::pathProperty)
 
     init {

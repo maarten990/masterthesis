@@ -15,8 +15,14 @@ fun saveChardata(data: List<CharData>, vectorizer: Vectorizer, path: String) {
     }
 }
 
-fun callPython(inPath: String, outPath: String) {
-    val builder = ProcessBuilder("python3", "src/main/resources/cluster.py", inPath, outPath)
+fun saveDistances(tree: Dendrogram, cutoff: Int, path: String) {
+    File(path).printWriter().use { out ->
+        out.println(tree.collectDistances(cutoff).joinToString(","))
+    }
+}
+
+fun callPython(scriptPath: String, inPath: String, outPath: String) {
+    val builder = ProcessBuilder("python3", scriptPath, inPath, outPath)
     val process = builder.inheritIO().start()
     process.waitFor()
 }
@@ -49,9 +55,21 @@ fun pythonCluster(data: List<CharData>, vectorizer: Vectorizer): Dendrogram {
     val inPath = "in.numpy"
     val outPath = "out.numpy"
     saveChardata(data, vectorizer, inPath)
-    callPython(inPath, outPath)
+    callPython("src/main/resources/cluster.py", inPath, outPath)
     val clusters = loadCsv(outPath)
     cleanup(inPath, outPath)
 
     return createDendrogram(data, clusters)
+}
+
+fun pythonKMeans(tree: Dendrogram, cutoff: Int): List<Double> {
+    val inPath = "in.numpy"
+    val outPath = "out.numpy"
+
+    saveDistances(tree, cutoff, inPath)
+    callPython("src/main/resources/kmeans.py", inPath, outPath)
+    val centroids = loadCsv(outPath)[0]
+    cleanup(inPath, outPath)
+
+    return centroids
 }
