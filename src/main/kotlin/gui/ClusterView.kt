@@ -1,5 +1,6 @@
 package gui
 
+import clustering.pythonKMeans
 import javafx.collections.ObservableList
 import javafx.stage.FileChooser
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -73,6 +74,12 @@ class ClusterView: View() {
             }
 
             this.add(mergePane.root)
+
+            button("Print centroids") {
+                action {
+                    controller.KMeans()
+                }
+            }
         }
 
         bottom = progressbar(-1.0) {
