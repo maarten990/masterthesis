@@ -1,10 +1,7 @@
 package gui
 
 import clustering.*
-import javafx.beans.property.SimpleBooleanProperty
-import javafx.beans.property.SimpleIntegerProperty
-import javafx.beans.property.SimpleObjectProperty
-import javafx.beans.property.SimpleStringProperty
+import javafx.beans.property.*
 import javafx.scene.image.Image
 import org.apache.pdfbox.pdmodel.PDDocument
 import tornadofx.*
@@ -55,24 +52,17 @@ class MergeParamsModel : ItemViewModel<MergeParams>() {
     }
 }
 
-
-class Status {
-    val docLoadedProperty = SimpleBooleanProperty(false)
-    var docLoaded by docLoadedProperty
-
-    val runningProperty = SimpleBooleanProperty(false)
-    var running by runningProperty
-}
-
-class StatusModel : ItemViewModel<Status>() {
-    val docLoaded = bind(Status::docLoadedProperty)
-    val running = bind(Status::runningProperty)
+class StatusModel : ViewModel() {
+    val docLoaded = bind{ SimpleBooleanProperty() }
+    val running = bind { SimpleBooleanProperty() }
+    val merged = bind { SimpleBooleanProperty() }
 
     init {
-        item = Status()
+        docLoaded.value = false
+        running.value = false
+        merged.value = false
     }
 }
-
 
 class Results {
     val imageProperty = SimpleObjectProperty<Image>()
@@ -80,11 +70,15 @@ class Results {
 
     val clustersProperty = SimpleObjectProperty<Dendrogram>()
     var clusters by clustersProperty
+
+    val mergedProperty = SimpleListProperty<List<LeafNode>>()
+    var merged by mergedProperty
 }
 
 class ResultsModel : ItemViewModel<Results>() {
     val image = bind(Results::imageProperty)
     val clusters = bind(Results::clustersProperty)
+    val merged = bind(Results::mergedProperty)
 
     val clusterer = Clusterer()
 
@@ -92,7 +86,6 @@ class ResultsModel : ItemViewModel<Results>() {
         item = Results()
     }
 }
-
 
 enum class Vectorizer {
     ALL {

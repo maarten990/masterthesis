@@ -1,6 +1,7 @@
 package gui
 
 import clustering.pythonKMeans
+import javafx.beans.binding.Bindings
 import javafx.collections.ObservableList
 import javafx.stage.FileChooser
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -68,6 +69,14 @@ class ClusterView: View() {
                         action {
                             param.commit()
                             controller.cluster()
+                        }
+                    }
+
+                    button("Recluster") {
+                        enableWhen { status.merged }
+                        action {
+                            param.commit()
+                            controller.recluster()
                         }
                     }
                 }
