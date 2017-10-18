@@ -1,5 +1,6 @@
 package gui
 
+import clustering.LeafNode
 import clustering.drawRect
 import clustering.pythonKMeans
 import javafx.embed.swing.SwingFXUtils
@@ -47,15 +48,37 @@ class ClusterController: Controller() {
 
             image = PDFRenderer(doc).renderImage(param.item.pagenum)
             doc.close()
+
+            results.merged.value = merged.observable()
         } ui {
             results.image.value = SwingFXUtils.toFXImage(image, null)
             results.commit()
+
             status.running.value = false
+            status.merged.value = true
         }
     }
 
     fun KMeans() {
         val centroids = pythonKMeans(results.item.clusters, mergeParam.item.threshold)
         println(centroids)
+    }
+
+    fun recluster() {
+        status.running.value = true
+        var image: BufferedImage? = null
+
+        runAsync {
+            val doc = PDDocument.load(File(param.item.path))
+            results.clusterer.vectorizer = param.item.vectorizer
+            results.clusters.value = results.clusterer.recluster(results.item.merged)
+
+            image = PDFRenderer(doc).renderImage(param.item.pagenum)
+            doc.close()
+        } ui {
+            results.image.value = SwingFXUtils.toFXImage(image, null)
+            results.commit()
+            status.running.value = false
+        }
     }
 }
