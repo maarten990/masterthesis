@@ -28,12 +28,11 @@ fun callPython(scriptPath: String, inPath: String, outPath: String) {
 }
 
 fun loadCsv(path: String): List<List<Double>> {
-    val reader = CSVReader(FileReader(path))
-
-    return reader.readAll().map {
-        it.map(String::toDouble)
+    return CSVReader(FileReader(path)).use { reader ->
+        reader.readAll().map {
+            it.map(String::toDouble)
+        }
     }
-
 }
 
 fun createDendrogram(data: List<CharData>, clusters: List<List<Double>>): Dendrogram {
