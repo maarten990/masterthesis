@@ -1,8 +1,6 @@
 package gui
 
-import clustering.LeafNode
 import clustering.drawRect
-import clustering.pythonKMeans
 import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.PDFRenderer
@@ -44,7 +42,7 @@ class ClusterController: Controller() {
             val page = doc.getPage(param.item.pagenum)
             val merged = mergeParam.item.collector.function(results.item.clusters, mergeParam.item.threshold)
             val bboxes = merged.map(results.clusterer::getBoundingRect)
-            bboxes.forEach { drawRect(doc, page, it) }
+            bboxes.forEach { doc.drawRect(page, it) }
 
             image = PDFRenderer(doc).renderImage(param.item.pagenum)
             doc.close()
@@ -59,8 +57,8 @@ class ClusterController: Controller() {
         }
     }
 
-    fun KMeans() {
-        val centroids = pythonKMeans(results.item.clusters, mergeParam.item.threshold)
+    fun kmeans() {
+        val centroids = results.clusterer.kmeans(results.item.clusters, mergeParam.item.threshold)
         println(centroids)
     }
 

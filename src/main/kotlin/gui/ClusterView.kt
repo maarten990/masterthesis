@@ -1,7 +1,5 @@
 package gui
 
-import clustering.pythonKMeans
-import javafx.beans.binding.Bindings
 import javafx.collections.ObservableList
 import javafx.stage.FileChooser
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -86,7 +84,7 @@ class ClusterView: View() {
 
             button("Print centroids") {
                 action {
-                    controller.KMeans()
+                    controller.kmeans()
                 }
             }
         }

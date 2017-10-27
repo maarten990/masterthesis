@@ -8,9 +8,14 @@ import java.lang.Math.sqrt
 
 class Clusterer {
     var vectorizer: Vectorizer = Vectorizer.ALL
+    private val python = PythonEnv()
+
+    fun kmeans(tree: Dendrogram, cutoff: Int): List<Double> {
+        return python.kmeans(tree, cutoff)
+    }
 
     fun cluster(chars: List<CharData>): Dendrogram {
-        return pythonCluster(chars, vectorizer)
+        return python.cluster(chars, vectorizer)
     }
 
     fun recluster(clusters: Collection<List<LeafNode>>): Dendrogram {

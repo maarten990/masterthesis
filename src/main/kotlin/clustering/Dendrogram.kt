@@ -25,6 +25,18 @@ sealed class Dendrogram {
              left.collectDistances(cutoff) + right.collectDistances(cutoff)
         }
     }
+
+    companion object Factory {
+        fun fromLists(data: List<CharData>, clusters: List<List<Double>>): Dendrogram {
+            val nodes: MutableList<Dendrogram> = data.map(::LeafNode).toMutableList()
+
+            for ((left, right, dist, _) in clusters) {
+                nodes.add(MergeNode(nodes[left.toInt()], nodes[right.toInt()], dist))
+            }
+
+            return nodes.last()
+        }
+    }
 }
 
 class LeafNode(val data: CharData): Dendrogram() {

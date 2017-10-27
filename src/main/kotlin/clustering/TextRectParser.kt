@@ -1,8 +1,11 @@
 package clustering
 
 import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.pdmodel.PDPage
+import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.text.PDFTextStripper
 import org.apache.pdfbox.text.TextPosition
+import java.awt.Color
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStreamWriter
@@ -52,7 +55,6 @@ class TextRectParser() : PDFTextStripper() {
     }
 }
 
-
 /**
  * Class to hold the coordinates of a pdf character.
  */
@@ -64,7 +66,6 @@ data class CharData(val left: Float, val bottom: Float, val width: Float,
     val asCentroidVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
 }
 
-
 // extend TextPosition to get the y coordinate relative to a bottom-left origin
 fun TextPosition.yBottom(): Float {
     /*
@@ -74,4 +75,20 @@ fun TextPosition.yBottom(): Float {
     y_bot = height - y_top
     */
     return pageHeight - y
+}
+
+// Draw a char's bounding box on the specified page
+fun PDDocument.drawRect(page: PDPage, char: CharData) {
+    val leftOffset = page.trimBox.lowerLeftX
+    val botOffset = page.trimBox.lowerLeftY
+    val content = PDPageContentStream(this, page, PDPageContentStream.AppendMode.APPEND, false)
+
+    content.apply {
+        addRect(char.left + leftOffset,
+                char.bottom + botOffset,
+                char.width, char.height)
+        setStrokingColor(Color.RED)
+        stroke()
+        close()
+    }
 }

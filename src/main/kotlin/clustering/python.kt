@@ -4,71 +4,91 @@ import gui.Vectorizer
 import java.io.File
 import java.io.FileReader
 import com.opencsv.CSVReader
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Paths
 
-fun saveChardata(data: List<CharData>, vectorizer: Vectorizer, path: String) {
-    File(path).printWriter().use { out ->
-        data.forEach {
-            out.println(vectorizer.function(it).joinToString(","))
+class PythonEnv(var inPath: String="in.numpy", var outPath: String="out.numpy") {
+    var interpreterPath: String
+    var scriptFolder: String
+
+    init {
+        scriptFolder = "src/main/resources/"
+
+        if (tryExectuable("python3")) {
+            interpreterPath = "python3"
+        } else if (tryExectuable("python")) {
+            interpreterPath = "python"
+        } else {
+            throw Exception("Could not find a valid Python 3 installation in the runtime path")
         }
     }
-}
 
-fun saveDistances(tree: Dendrogram, cutoff: Int, path: String) {
-    File(path).printWriter().use { out ->
-        out.println(tree.collectDistances(cutoff).joinToString(","))
+    fun cluster(data: List<CharData>, vectorizer: Vectorizer): Dendrogram {
+        saveChardata(data, vectorizer)
+        val clusters = callPython("cluster.py")
+
+        return Dendrogram.fromLists(data, clusters)
     }
-}
 
-fun callPython(scriptPath: String, inPath: String, outPath: String) {
-    val builder = ProcessBuilder("python3", scriptPath, inPath, outPath)
-    val process = builder.inheritIO().start()
-    process.waitFor()
-}
+    fun kmeans(tree: Dendrogram, cutoff: Int): List<Double> {
+        saveDistances(tree, cutoff)
+        val centroids = callPython("kmeans.py")[0]
 
-fun loadCsv(path: String): List<List<Double>> {
-    return CSVReader(FileReader(path)).use { reader ->
-        reader.readAll().map {
-            it.map(String::toDouble)
+        return centroids
+    }
+
+    private fun callPython(script: String): List<List<Double>> {
+        val builder = ProcessBuilder(interpreterPath, scriptFolder + script, inPath, outPath)
+        val process = builder.inheritIO().start()
+        process.waitFor()
+
+        val output = loadCsv()
+        cleanup()
+
+        return output
+    }
+
+    // Ensure that the given executable is Python 3
+    private fun tryExectuable(name: String): Boolean {
+        val builder = ProcessBuilder(name, "-c", "\"import sys; print(sys.version_info[0])\"")
+
+        return try {
+            val process = builder.start()
+            val output = process.inputStream
+            process.waitFor()
+
+            output.reader().use { it.readText() }.trim() == "3"
+        } catch(_: IOException) {
+            false
         }
     }
-}
 
-fun createDendrogram(data: List<CharData>, clusters: List<List<Double>>): Dendrogram {
-    val nodes: MutableList<Dendrogram> = data.map(::LeafNode).toMutableList()
-
-    for ((left, right, dist, _) in clusters) {
-        nodes.add(MergeNode(nodes[left.toInt()], nodes[right.toInt()], dist))
+    private fun loadCsv(): List<List<Double>> {
+        return CSVReader(FileReader(outPath)).use { reader ->
+            reader.readAll().map {
+                it.map(String::toDouble)
+            }
+        }
     }
 
-    return nodes.last()
-}
+    private fun cleanup() {
+        Files.deleteIfExists(Paths.get(inPath))
+        Files.deleteIfExists(Paths.get(outPath))
+    }
 
-fun cleanup(inPath: String, outPath: String) {
-    Files.deleteIfExists(Paths.get(inPath))
-    Files.deleteIfExists(Paths.get(outPath))
-}
+    private fun saveChardata(data: List<CharData>, vectorizer: Vectorizer) {
+        File(inPath).printWriter().use { out ->
+            data.forEach {
+                out.println(vectorizer.function(it).joinToString(","))
+            }
+        }
+    }
 
-fun pythonCluster(data: List<CharData>, vectorizer: Vectorizer): Dendrogram {
-    val inPath = "in.numpy"
-    val outPath = "out.numpy"
-    saveChardata(data, vectorizer, inPath)
-    callPython("src/main/resources/cluster.py", inPath, outPath)
-    val clusters = loadCsv(outPath)
-    cleanup(inPath, outPath)
+    private fun saveDistances(tree: Dendrogram, cutoff: Int) {
+        File(inPath).printWriter().use { out ->
+            out.println(tree.collectDistances(cutoff).joinToString(","))
+        }
+    }
 
-    return createDendrogram(data, clusters)
-}
-
-fun pythonKMeans(tree: Dendrogram, cutoff: Int): List<Double> {
-    val inPath = "in.numpy"
-    val outPath = "out.numpy"
-
-    saveDistances(tree, cutoff, inPath)
-    callPython("src/main/resources/kmeans.py", inPath, outPath)
-    val centroids = loadCsv(outPath)[0]
-    cleanup(inPath, outPath)
-
-    return centroids
 }
