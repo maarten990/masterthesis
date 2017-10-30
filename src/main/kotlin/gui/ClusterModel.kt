@@ -80,8 +80,6 @@ class ResultsModel : ItemViewModel<Results>() {
     val clusters = bind(Results::clustersProperty)
     val merged = bind(Results::mergedProperty)
 
-    val clusterer = Clusterer()
-
     init {
         item = Results()
     }

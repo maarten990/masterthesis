@@ -1,5 +1,6 @@
 package gui
 
+import clustering.Clusterer
 import clustering.drawRect
 import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -14,6 +15,7 @@ class ClusterController: Controller() {
     private val mergeParam: MergeParamsModel by inject()
     private val status: StatusModel by inject()
     private val results: ResultsModel by inject()
+    private val clusterer = Clusterer()
 
     fun cluster() {
         status.running.value = true
@@ -21,8 +23,8 @@ class ClusterController: Controller() {
 
         runAsync {
             val doc = PDDocument.load(File(param.item.path))
-            results.clusterer.vectorizer = param.item.vectorizer
-            results.clusters.value = results.clusterer.clusterFilePage(doc, param.item.pagenum)
+            clusterer.vectorizer = param.item.vectorizer
+            results.clusters.value = clusterer.clusterFilePage(doc, param.item.pagenum)
 
             image = PDFRenderer(doc).renderImage(param.item.pagenum)
             doc.close()
@@ -41,7 +43,7 @@ class ClusterController: Controller() {
             val doc = PDDocument.load(File(param.item.path))
             val page = doc.getPage(param.item.pagenum)
             val merged = mergeParam.item.collector.function(results.item.clusters, mergeParam.item.threshold)
-            val bboxes = merged.map(results.clusterer::getBoundingRect)
+            val bboxes = merged.map(clusterer::getBoundingRect)
             bboxes.forEach { doc.drawRect(page, it) }
 
             image = PDFRenderer(doc).renderImage(param.item.pagenum)
@@ -58,7 +60,7 @@ class ClusterController: Controller() {
     }
 
     fun kmeans() {
-        val centroids = results.clusterer.kmeans(results.item.clusters, mergeParam.item.threshold)
+        val centroids = clusterer.clusterDistances(results.item.clusters, mergeParam.item.threshold)
         println(centroids)
     }
 
@@ -68,8 +70,8 @@ class ClusterController: Controller() {
 
         runAsync {
             val doc = PDDocument.load(File(param.item.path))
-            results.clusterer.vectorizer = param.item.vectorizer
-            results.clusters.value = results.clusterer.recluster(results.item.merged)
+            clusterer.vectorizer = param.item.vectorizer
+            results.clusters.value = clusterer.recluster(results.item.merged)
 
             image = PDFRenderer(doc).renderImage(param.item.pagenum)
             doc.close()
@@ -78,5 +80,10 @@ class ClusterController: Controller() {
             results.commit()
             status.running.value = false
         }
+    }
+
+    fun labelClusters() {
+        val clusters = mergeParam.item.collector.function(results.item.clusters, mergeParam.item.threshold)
+        clusterer.labelClusters(clusters, 2)
     }
 }

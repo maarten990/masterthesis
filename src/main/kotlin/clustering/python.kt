@@ -8,19 +8,15 @@ import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Paths
 
-class PythonEnv(var inPath: String="in.numpy", var outPath: String="out.numpy") {
-    var interpreterPath: String
-    var scriptFolder: String
+class PythonEnv(private var inPath: String="in.numpy", private var outPath: String="out.numpy") {
+    private var interpreterPath: String
+    private var scriptFolder = "src/main/resources/"
 
     init {
-        scriptFolder = "src/main/resources/"
-
-        if (tryExectuable("python3")) {
-            interpreterPath = "python3"
-        } else if (tryExectuable("python")) {
-            interpreterPath = "python"
-        } else {
-            throw Exception("Could not find a valid Python 3 installation in the runtime path")
+        interpreterPath = when {
+            tryExectuable("python3") -> "python3"
+            tryExectuable("python") -> "python"
+            else -> throw Exception("Could not find a valid Python 3 installation in the runtime path")
         }
     }
 
@@ -31,11 +27,13 @@ class PythonEnv(var inPath: String="in.numpy", var outPath: String="out.numpy") 
         return Dendrogram.fromLists(data, clusters)
     }
 
-    fun kmeans(tree: Dendrogram, cutoff: Int): List<Double> {
+    fun cluster_distances(tree: Dendrogram, cutoff: Int): List<Double> {
         saveDistances(tree, cutoff)
-        val centroids = callPython("kmeans.py")[0]
+        return callPython("kmeans.py")[0]
+    }
 
-        return centroids
+    fun label_clusters(clusters: List<List<LeafNode>>, k: Int): List<Int> {
+        return listOf()
     }
 
     private fun callPython(script: String): List<List<Double>> {
