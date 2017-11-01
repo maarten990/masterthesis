@@ -1,6 +1,7 @@
 package gui
 
 import javafx.collections.ObservableList
+import javafx.scene.image.ImageView
 import javafx.stage.FileChooser
 import org.apache.pdfbox.pdmodel.PDDocument
 import tornadofx.*
@@ -11,6 +12,7 @@ class ClusterApp: App(ClusterView::class)
 
 class ClusterView: View() {
     val mergePane = MergePane()
+    var imView: ImageView by singleAssign()
 
     val vectorizeOptions = Vectorizer.values().toList().observable()
     var pageNums: ObservableList<Int> = mutableListOf<Int>().observable()
@@ -94,8 +96,25 @@ class ClusterView: View() {
                 visibleWhen { status.running }
         }
 
-        center = scrollpane {
-                imageview(results.image)
+        center = vbox {
+            hbox {
+                button("Zoom in") {
+                    action {
+                        imView.scaleX += 0.25
+                        imView.scaleY += 0.25
+                    }
+                }
+
+                button("Zoom out") {
+                    action {
+                        imView.scaleX -= 0.25
+                        imView.scaleY -= 0.25
+                    }
+                }
+            }
+            scrollpane {
+                imView = imageview(results.image)
+            }
         }
     }
 }
