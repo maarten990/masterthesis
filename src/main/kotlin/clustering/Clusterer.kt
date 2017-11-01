@@ -52,8 +52,11 @@ class Clusterer {
 
         // collect all characters sequentially inside the bounding box
         val clusterText = chars.sortedBy(CharData::left).joinToString("", transform=CharData::ch)
+        val fontSize = getMode(chars.map(CharData::fontSize)) ?: 0.0f
+        val fontID = getMode(chars.map(CharData::fontID)) ?: 0.0f
+
         return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
-                clusterText, 0.0f, 0.0f)
+                clusterText, fontSize, fontID)
     }
 
     /**
@@ -64,4 +67,15 @@ class Clusterer {
         val chars = parser.getCharsOnPage(document, pagenum)
         return cluster(chars)
     }
+}
+
+/**
+ * Return the mode (most common element) of a list.
+ */
+fun<T> getMode(items: Collection<T>): T? {
+    return items
+            .groupBy { it }
+            .entries
+            .maxBy { it.value.size }
+            ?.key
 }
