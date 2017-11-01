@@ -6,8 +6,8 @@ from sklearn.cluster import KMeans
 def main():
     data = np.genfromtxt(sys.argv[1], delimiter=',').reshape(-1, 1)
 
-    print('Received {} points, clustering...'.format(data.size))
-    
+    print('Received {} points, clustering...'.format(data.shape[0]))
+
     kmeans = KMeans(n_clusters=2)
     kmeans.fit(data)
     clusters = kmeans.cluster_centers_.reshape(-1)
