@@ -42,6 +42,7 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
 
         return (0 until data.size)
                 .groupBy(clusters::get)
+                .filterKeys { it >= 0.0 }
                 .values
                 .map { it.map(data::get) }
     }
