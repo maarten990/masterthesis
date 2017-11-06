@@ -18,7 +18,7 @@ class Clusterer {
     /**
      * Label the different kinds of clusters using K-Means clustering.
      */
-    fun labelClusters(clusters: List<List<LeafNode>>, k: Int): List<Int> {
+    fun labelClusters(clusters: List<List<CharData>>, k: Int): List<Int> {
         return python.label_clusters(clusters, k)
     }
 
@@ -30,9 +30,16 @@ class Clusterer {
     }
 
     /**
+     * Cluster a collection of items using DBSCAN.
+     */
+    fun dbscan(chars: List<CharData>, epsilon: Float, minSamples: Int): List<List<CharData>> {
+        return python.dbscan(chars, vectorizer, epsilon, minSamples)
+    }
+
+    /**
      * Recluster hierarchically based on the bounding rectangles of each cluster.
      */
-    fun recluster(clusters: Collection<List<LeafNode>>): Dendrogram {
+    fun recluster(clusters: Collection<List<CharData>>): Dendrogram {
         val bboxes = clusters.map(this::getBoundingRect)
         return cluster(bboxes)
     }
@@ -40,10 +47,7 @@ class Clusterer {
     /**
      * Return the bounding rectangle of a collection of nodes.
      */
-    fun getBoundingRect(cluster: Collection<LeafNode>): CharData {
-        // translate from the names to the actual CharData objects
-        val chars = cluster.map { it.data }
-
+    fun getBoundingRect(chars: Collection<CharData>): CharData {
         // get the bounding rectangles for each clusters and recluster based on them
         val leftMost = chars.map(CharData::left).min() ?: 0.0f
         val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
@@ -66,6 +70,15 @@ class Clusterer {
         val parser = TextRectParser()
         val chars = parser.getCharsOnPage(document, pagenum)
         return cluster(chars)
+    }
+
+    /**
+     * Cluster the text on a PDF page using DBSCAN.
+     */
+    fun clusterFilePageDbscan(document: PDDocument, pagenum: Int, epsilon: Float, minSamples: Int): List<List<CharData>> {
+        val parser = TextRectParser()
+        val chars = parser.getCharsOnPage(document, pagenum)
+        return dbscan(chars, epsilon, minSamples)
     }
 }
 

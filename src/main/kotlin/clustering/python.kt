@@ -32,12 +32,22 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
         return callPython("kmeans.py")[0]
     }
 
-    fun label_clusters(clusters: List<List<LeafNode>>, k: Int): List<Int> {
+    fun label_clusters(clusters: List<List<CharData>>, k: Int): List<Int> {
         return listOf()
     }
 
-    private fun callPython(script: String): List<List<Double>> {
-        val builder = ProcessBuilder(interpreterPath, scriptFolder + script, inPath, outPath)
+    fun dbscan(data: List<CharData>, vectorizer: Vectorizer, epsilon: Float, minSamples: Int): List<List<CharData>> {
+        saveChardata(data, vectorizer)
+        val clusters = callPython("dbscan.py", epsilon.toString(), minSamples.toString())[0]
+
+        return (0 until data.size)
+                .groupBy(clusters::get)
+                .values
+                .map { it.map(data::get) }
+    }
+
+    private fun callPython(script: String, vararg args: String): List<List<Double>> {
+        val builder = ProcessBuilder(interpreterPath, scriptFolder + script, inPath, outPath, *args)
         val process = builder.inheritIO().start()
         process.waitFor()
 

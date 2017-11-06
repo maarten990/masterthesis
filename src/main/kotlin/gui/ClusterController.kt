@@ -1,6 +1,7 @@
 package gui
 
 import clustering.Clusterer
+import clustering.LeafNode
 import clustering.drawRect
 import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -11,79 +12,105 @@ import java.io.File
 
 
 class ClusterController: Controller() {
-    private val param: ParamsModel by inject()
-    private val mergeParam: MergeParamsModel by inject()
-    private val status: StatusModel by inject()
-    private val results: ResultsModel by inject()
+    private val model: StateModel by inject()
     private val clusterer = Clusterer()
 
     fun cluster() {
-        status.running.value = true
+        model.running.value = true
         var image: BufferedImage? = null
 
         runAsync {
-            val doc = PDDocument.load(File(param.item.path))
-            clusterer.vectorizer = param.item.vectorizer
-            results.clusters.value = clusterer.clusterFilePage(doc, param.item.pagenum)
+            model.apply {
+                val doc = PDDocument.load(File(item.path))
+                clusterer.vectorizer = item.vectorizer
+                dendrogram.value = clusterer.clusterFilePage(doc, item.pagenum)
 
-            image = PDFRenderer(doc).renderImage(param.item.pagenum)
-            doc.close()
+                image = PDFRenderer(doc).renderImage(item.pagenum)
+                doc.close()
+            }
         } ui {
-            results.image.value = SwingFXUtils.toFXImage(image, null)
-            results.commit()
-            status.running.value = false
+            model.image.value = SwingFXUtils.toFXImage(image, null)
+            model.running.value = false
+            model.commit()
+        }
+    }
+
+    fun cluster_dbscan() {
+        model.running.value = true
+        var image: BufferedImage? = null
+
+        runAsync {
+            model.apply {
+                val doc = PDDocument.load(File(item.path))
+                val page = doc.getPage(item.pagenum)
+                clusterer.vectorizer = item.vectorizer
+                val merged = clusterer.clusterFilePageDbscan(doc, item.pagenum, item.epsilon, item.minSamples)
+                val bboxes = merged.map(clusterer::getBoundingRect)
+                bboxes.forEach { doc.drawRect(page, it) }
+
+                image = PDFRenderer(doc).renderImage(item.pagenum)
+                doc.close()
+
+                blocks.value = merged.observable()
+            }
+        } ui {
+            model.image.value = SwingFXUtils.toFXImage(image, null)
+            model.running.value = false
+            model.commit()
         }
     }
 
     fun merge() {
-        status.running.value = true
+        model.running.value = true
         var image: BufferedImage? = null
 
         runAsync {
-            val doc = PDDocument.load(File(param.item.path))
-            val page = doc.getPage(param.item.pagenum)
-            val merged = mergeParam.item.collector.function(results.item.clusters, mergeParam.item.threshold)
-            val bboxes = merged.map(clusterer::getBoundingRect)
-            bboxes.forEach { doc.drawRect(page, it) }
+            model.apply {
+                val doc = PDDocument.load(File(item.path))
+                val page = doc.getPage(item.pagenum)
+                val merged = item.collector.function(item.dendrogram!!, item.threshold)
+                val bboxes = merged.map(clusterer::getBoundingRect)
+                bboxes.forEach { doc.drawRect(page, it) }
 
-            image = PDFRenderer(doc).renderImage(param.item.pagenum)
-            doc.close()
+                image = PDFRenderer(doc).renderImage(item.pagenum)
+                doc.close()
 
-            results.merged.value = merged.observable()
+                blocks.value = merged.observable()
+            }
         } ui {
-            results.image.value = SwingFXUtils.toFXImage(image, null)
-            results.commit()
-
-            status.running.value = false
-            status.merged.value = true
+            model.image.value = SwingFXUtils.toFXImage(image, null)
+            model.running.value = false
+            model.merged.value = true
+            model.commit()
         }
     }
 
     fun kmeans() {
-        val centroids = clusterer.clusterDistances(results.item.clusters, mergeParam.item.threshold)
+        val centroids = clusterer.clusterDistances(model.item.dendrogram!!, model.item.threshold)
         println(centroids)
     }
 
     fun recluster() {
-        status.running.value = true
+        model.running.value = true
         var image: BufferedImage? = null
 
         runAsync {
-            val doc = PDDocument.load(File(param.item.path))
-            clusterer.vectorizer = param.item.vectorizer
-            results.clusters.value = clusterer.recluster(results.item.merged)
+            model.apply {
+                val doc = PDDocument.load(File(item.path))
+                clusterer.vectorizer = item.vectorizer
+                dendrogram.value = clusterer.recluster(item.blocks!!)
 
-            image = PDFRenderer(doc).renderImage(param.item.pagenum)
-            doc.close()
+                image = PDFRenderer(doc).renderImage(item.pagenum)
+                doc.close()
+            }
         } ui {
-            results.image.value = SwingFXUtils.toFXImage(image, null)
-            results.commit()
-            status.running.value = false
+            model.image.value = SwingFXUtils.toFXImage(image, null)
+            model.running.value = false
+            model.commit()
         }
     }
 
     fun labelClusters() {
-        val clusters = mergeParam.item.collector.function(results.item.clusters, mergeParam.item.threshold)
-        clusterer.labelClusters(clusters, 2)
+        clusterer.labelClusters(model.item.blocks!!, 2)
     }
 }

@@ -1,6 +1,7 @@
 package gui
 
 import javafx.collections.ObservableList
+import javafx.scene.control.TabPane
 import javafx.scene.image.ImageView
 import javafx.stage.FileChooser
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -11,22 +12,19 @@ import java.io.File
 class ClusterApp: App(ClusterView::class)
 
 class ClusterView: View() {
-    val mergePane = MergePane()
+    val paramPane = ParamTab()
+    val dbscan = DBSCANTab()
     var imView: ImageView by singleAssign()
+
+    val model: StateModel by inject()
 
     val vectorizeOptions = Vectorizer.values().toList().observable()
     var pageNums: ObservableList<Int> = mutableListOf<Int>().observable()
-    val param: ParamsModel by inject()
-    val status: StatusModel by inject()
-    val results: ResultsModel by inject()
-
-    val controller: ClusterController by inject()
 
     override val root = borderpane {
-        param.validate(decorateErrors = false)
         left = vbox {
             form {
-                fieldset("Cluster Settings") {
+                fieldset("") {
                     field("File") {
                         button("Load file") {
                             action {
@@ -36,64 +34,45 @@ class ClusterView: View() {
                                         op = { initialDirectory = cwd })
 
                                 if (result.isEmpty()) {
-                                    status.docLoaded.value = false
+                                    model.docLoaded.value = false
                                 } else {
-                                    param.path.value = result.first().canonicalPath
-                                    param.document.value = PDDocument.load(result.first())
-                                    status.docLoaded.value = param.document.value != null
+                                    model.path.value = result.first().canonicalPath
+                                    model.document.value = PDDocument.load(result.first())
+                                    model.docLoaded.value = model.document.value != null
 
                                     pageNums.clear()
-                                    (0..param.document.value.numberOfPages).forEach { pageNums.add(it) }
+                                    (0..model.document.value.numberOfPages).forEach { pageNums.add(it) }
                                 }
                             }
                         }
 
                         label("Succesfully loaded") {
-                            visibleWhen { status.docLoaded }
+                            visibleWhen { model.docLoaded }
                         }
                     }
 
                     field("Page number") {
-                        combobox(param.pagenum, values = pageNums) {
-                            enableWhen { status.docLoaded }
-                            required()
+                        combobox(model.pagenum, values = pageNums) {
+                            enableWhen { model.docLoaded }
                         }
                     }
 
                     field("Vectorizer") {
-                        combobox(param.vectorizer, values = vectorizeOptions).required()
-                    }
-
-                    button("Cluster") {
-                        enableWhen { param.valid }
-                        action {
-                            param.commit()
-                            controller.cluster()
-                        }
-                    }
-
-                    button("Recluster") {
-                        enableWhen { status.merged }
-                        action {
-                            param.commit()
-                            controller.recluster()
-                        }
+                        combobox(model.vectorizer, values = vectorizeOptions)
                     }
                 }
             }
 
-            this.add(mergePane.root)
-
-            button("Print centroids") {
-                action {
-                    controller.kmeans()
-                }
+            tabpane {
+                tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
+                tab("Hierarchical clustering", paramPane.root)
+                tab("DBSCAN", dbscan.root)
             }
         }
 
         bottom = progressbar(-1.0) {
                 useMaxWidth = true
-                visibleWhen { status.running }
+                visibleWhen { model.running }
         }
 
         center = vbox {
@@ -113,14 +92,47 @@ class ClusterView: View() {
                 }
             }
             scrollpane {
-                imView = imageview(results.image)
+                imView = imageview(model.image)
+            }
+        }
+    }
+}
+
+class ParamTab : View() {
+    val mergePane = MergePane()
+
+    val model: StateModel by inject()
+    val controller: ClusterController by inject()
+
+
+    override val root = vbox {
+        button("Cluster") {
+            action {
+                model.commit()
+                controller.cluster()
+            }
+        }
+
+        button("Recluster") {
+            enableWhen { model.merged }
+            action {
+                model.commit()
+                controller.recluster()
+            }
+        }
+
+        this.add(mergePane.root)
+
+        button("Print centroids") {
+            action {
+                controller.kmeans()
             }
         }
     }
 }
 
 class MergePane: View() {
-    val mergeParam: MergeParamsModel by inject()
+    val model: StateModel by inject()
     val collectOptions = Collector.values().toList().observable()
     var paramLabel: Field by singleAssign()
     val controller: ClusterController by inject()
@@ -128,8 +140,7 @@ class MergePane: View() {
     override val root = form {
         fieldset("Merge Settings") {
             field("Vectorizer") {
-                combobox(mergeParam.collector, values = collectOptions) {
-                    required()
+                combobox(model.collector, values = collectOptions) {
                     setOnAction {
                         selectedItem?.let { paramLabel.text = it.desc }
                     }
@@ -137,20 +148,12 @@ class MergePane: View() {
             }
 
             paramLabel = field("Parameter") {
-                textfield(mergeParam.threshold).validator {
-                    val value = it?.toIntOrNull()
-                    when {
-                        value == null -> error("Could not parse integer")
-                        value < 1 -> error("Value needs to be greater than zero")
-                        else -> null
-                    }
-                }
+                textfield(model.threshold)
             }
 
             button("Merge") {
-                enableWhen { mergeParam.valid }
                 action {
-                    mergeParam.commit()
+                    model.commit()
                     controller.merge()
                 }
             }
@@ -158,3 +161,26 @@ class MergePane: View() {
     }
 }
 
+class DBSCANTab: View() {
+    val model: StateModel by inject()
+    val controller: ClusterController by inject()
+
+    override val root = form {
+        fieldset("Parameters") {
+            field("Epsilon") {
+                textfield(model.epsilon)
+            }
+
+            field("Min samples") {
+                textfield(model.minSamples)
+            }
+
+            button("Cluster") {
+                action {
+                    model.commit()
+                    controller.cluster_dbscan()
+                }
+            }
+        }
+    }
+}

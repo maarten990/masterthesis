@@ -8,80 +8,74 @@ import tornadofx.*
 import tornadofx.getValue
 import tornadofx.setValue
 
-class Params {
-    val vectorizerProperty = SimpleObjectProperty<Vectorizer>(Vectorizer.ALL)
-    var vectorizer by vectorizerProperty
+class ProgramState {
+    // the blocks of text found on a page
+    val blocksProperty = SimpleListProperty<List<CharData>>()
+    var blocks by blocksProperty
 
-    val pagenumProperty = SimpleIntegerProperty(0)
-    var pagenum by pagenumProperty
+    // a dendrogram clustering all the chars on a page
+    val dendrogramProperty = SimpleObjectProperty<Dendrogram>()
+    var dendrogram by dendrogramProperty
 
-    val documentProperty = SimpleObjectProperty<PDDocument>()
-    var document by documentProperty
+    // the image to display
+    val imageProperty = SimpleObjectProperty<Image>()
+    var image by imageProperty
 
-    val pathProperty = SimpleStringProperty(null)
-    var path by pathProperty
+    // the collector to use for cutting the dendrogram
+    val collectorProperty = SimpleObjectProperty<Collector>(Collector.THRESHOLD)
+    var collector by collectorProperty
 
-    override fun toString(): String = "$vectorizer, $pagenum, $document, $path"
-}
-
-class ParamsModel : ItemViewModel<Params>() {
-    val document = bind(Params::documentProperty)
-    val pagenum = bind(Params::pagenumProperty)
-    val vectorizer = bind(Params::vectorizerProperty)
-    val path = bind(Params::pathProperty)
-
-    init {
-        item = Params()
-    }
-}
-
-class MergeParams() {
+    // the threshold to pass to the collector
     val thresholdProperty = SimpleIntegerProperty(15)
     var threshold by thresholdProperty
 
-    val collectorProperty = SimpleObjectProperty<Collector>(Collector.THRESHOLD)
-    var collector by collectorProperty
+    // the PDF's path on disk
+    val pathProperty = SimpleStringProperty()
+    var path by pathProperty
+
+    // the loaded pdf
+    val documentProperty = SimpleObjectProperty<PDDocument>()
+    var document by documentProperty
+
+    // the page to cluster
+    val pagenumProperty = SimpleIntegerProperty(0)
+    var pagenum by pagenumProperty
+
+    // the vectorizer to use on CharData objects
+    val vectorizerProperty = SimpleObjectProperty<Vectorizer>(Vectorizer.GEOM)
+    var vectorizer by vectorizerProperty
+
+    val epsilonProperty = SimpleFloatProperty(16.0f)
+    var epsilon by epsilonProperty
+
+    val minSamplesProperty = SimpleIntegerProperty(1)
+    var minSamples by minSamplesProperty
 }
 
-class MergeParamsModel : ItemViewModel<MergeParams>() {
-    val threshold = bind(MergeParams::thresholdProperty)
-    val collector = bind(MergeParams::collectorProperty)
+class StateModel : ItemViewModel<ProgramState>() {
+    val blocks = bind(ProgramState::blocksProperty)
+    val dendrogram = bind(ProgramState::dendrogramProperty)
+    val image = bind(ProgramState::imageProperty)
+    val collector = bind(ProgramState::collectorProperty)
+    val threshold = bind(ProgramState::thresholdProperty)
+    val path = bind(ProgramState::pathProperty)
+    val document = bind(ProgramState::documentProperty)
+    val pagenum = bind(ProgramState::pagenumProperty)
+    val vectorizer = bind(ProgramState::vectorizerProperty)
+    val epsilon = bind(ProgramState::epsilonProperty)
+    val minSamples = bind(ProgramState::minSamplesProperty)
 
-    init {
-        item = MergeParams()
-    }
-}
-
-class StatusModel : ViewModel() {
-    val docLoaded = bind{ SimpleBooleanProperty() }
+    // program status
+    val docLoaded = bind { SimpleBooleanProperty() }
     val running = bind { SimpleBooleanProperty() }
     val merged = bind { SimpleBooleanProperty() }
 
     init {
+        item = ProgramState()
+
         docLoaded.value = false
         running.value = false
         merged.value = false
-    }
-}
-
-class Results {
-    val imageProperty = SimpleObjectProperty<Image>()
-    var image by imageProperty
-
-    val clustersProperty = SimpleObjectProperty<Dendrogram>()
-    var clusters by clustersProperty
-
-    val mergedProperty = SimpleListProperty<List<LeafNode>>()
-    var merged by mergedProperty
-}
-
-class ResultsModel : ItemViewModel<Results>() {
-    val image = bind(Results::imageProperty)
-    val clusters = bind(Results::clustersProperty)
-    val merged = bind(Results::mergedProperty)
-
-    init {
-        item = Results()
     }
 }
 
@@ -105,6 +99,6 @@ enum class Collector {
         override val desc = "Threshold"
     };
 
-    abstract val function: (Dendrogram, Int) -> List<List<LeafNode>>
+    abstract val function: (Dendrogram, Int) -> List<List<CharData>>
     abstract val desc: String
 }
