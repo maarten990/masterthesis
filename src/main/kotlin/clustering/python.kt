@@ -60,14 +60,10 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
 
     // Ensure that the given executable is Python 3
     private fun tryExectuable(name: String): Boolean {
-        val builder = ProcessBuilder(name, "-c", "\"import sys; print(sys.version_info[0])\"")
+        val builder = ProcessBuilder(name, "-c", "\"import sys; sys.exit(0 if sys.version_info[0] == 3 else 1)\"")
 
         return try {
-            val process = builder.start()
-            val output = process.inputStream
-            process.waitFor()
-
-            output.reader().use { it.readText() }.trim() == "3"
+            builder.start().waitFor() == 0
         } catch(_: IOException) {
             false
         }
