@@ -32,13 +32,20 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
         return callPython("kmeans.py")[0]
     }
 
-    fun label_clusters(clusters: List<List<CharData>>, k: Int): List<Int> {
-        return listOf()
-    }
-
     fun dbscan(data: List<CharData>, vectorizer: Vectorizer, epsilon: Float, minSamples: Int): List<List<CharData>> {
         saveChardata(data, vectorizer)
         val clusters = callPython("dbscan.py", epsilon.toString(), minSamples.toString())[0]
+
+        return (0 until data.size)
+                .groupBy(clusters::get)
+                .filterKeys { it >= 0.0 }
+                .values
+                .map { it.map(data::get) }
+    }
+
+    fun kmeans(data: List<CharData>, vectorizer: Vectorizer, k: Int): List<List<CharData>> {
+        saveChardata(data, vectorizer)
+        val clusters = callPython("kmeans.py", k.toString())[0]
 
         return (0 until data.size)
                 .groupBy(clusters::get)

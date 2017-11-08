@@ -16,13 +16,6 @@ class Clusterer {
     }
 
     /**
-     * Label the different kinds of clusters using K-Means clustering.
-     */
-    fun labelClusters(clusters: List<List<CharData>>, k: Int): List<Int> {
-        return python.label_clusters(clusters, k)
-    }
-
-    /**
      * Hierarchically cluster a collection of items.
      */
     fun cluster(chars: List<CharData>): Dendrogram {
@@ -34,6 +27,13 @@ class Clusterer {
      */
     fun dbscan(chars: List<CharData>, epsilon: Float, minSamples: Int): List<List<CharData>> {
         return python.dbscan(chars, vectorizer, epsilon, minSamples)
+    }
+
+    /**
+     * Cluster a collection of items using KMeans.
+     */
+    fun kmeans(chars: List<CharData>, k: Int): List<List<CharData>> {
+        return python.kmeans(chars, vectorizer, k)
     }
 
     /**

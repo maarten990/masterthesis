@@ -45,11 +45,21 @@ class ProgramState {
     val vectorizerProperty = SimpleObjectProperty<Vectorizer>(Vectorizer.GEOM)
     var vectorizer by vectorizerProperty
 
+    // epsilon parameter for dbscan
     val epsilonProperty = SimpleFloatProperty(16.0f)
     var epsilon by epsilonProperty
 
+    // min_samples parameter for dbscan
     val minSamplesProperty = SimpleIntegerProperty(1)
     var minSamples by minSamplesProperty
+
+    // k for kmeans block labeling
+    val kProperty = SimpleIntegerProperty(3)
+    var k by kProperty
+
+    // vectorizer for kmeans block labeling
+    val kVectProperty = SimpleObjectProperty<Vectorizer>(Vectorizer.ONLY_DIMS)
+    var kVect by kVectProperty
 }
 
 class StateModel : ItemViewModel<ProgramState>() {
@@ -64,6 +74,8 @@ class StateModel : ItemViewModel<ProgramState>() {
     val vectorizer = bind(ProgramState::vectorizerProperty)
     val epsilon = bind(ProgramState::epsilonProperty)
     val minSamples = bind(ProgramState::minSamplesProperty)
+    val k = bind(ProgramState::kProperty)
+    val kVect = bind(ProgramState::kVectProperty)
 
     // program status
     val docLoaded = bind { SimpleBooleanProperty() }
@@ -88,6 +100,9 @@ enum class Vectorizer {
     },
     CENTROID {
         override fun function(data: CharData) = data.asCentroidVec
+    },
+    ONLY_DIMS {
+        override fun function(data: CharData) = data.asDims
     };
 
     abstract fun function(data: CharData): List<Float>

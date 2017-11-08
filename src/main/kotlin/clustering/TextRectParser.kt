@@ -14,7 +14,7 @@ import java.io.OutputStreamWriter
  * Modified textstripper which saves all the character positions in the chars
  * list.
  */
-class TextRectParser() : PDFTextStripper() {
+class TextRectParser : PDFTextStripper() {
     private val chars = mutableListOf<CharData>()
     private var fontID = 0
     private var fontToID = mutableMapOf<String, Int>()
@@ -64,6 +64,7 @@ data class CharData(val left: Float, val bottom: Float, val width: Float,
     val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
     val asGeomVec: List<Float> = listOf(left, left + width, bottom, bottom + height, fontSize, fontID)
     val asCentroidVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
+    val asDims: List<Float> = listOf(width, height, fontSize, fontID)
 }
 
 // extend TextPosition to get the y coordinate relative to a bottom-left origin
@@ -78,7 +79,7 @@ fun TextPosition.yBottom(): Float {
 }
 
 // Draw a char's bounding box on the specified page
-fun PDDocument.drawRect(page: PDPage, char: CharData) {
+fun PDDocument.drawRect(page: PDPage, char: CharData, color: Color=Color.RED) {
     val leftOffset = page.trimBox.lowerLeftX
     val botOffset = page.trimBox.lowerLeftY
     val content = PDPageContentStream(this, page, PDPageContentStream.AppendMode.APPEND, false)
@@ -87,7 +88,7 @@ fun PDDocument.drawRect(page: PDPage, char: CharData) {
         addRect(char.left + leftOffset,
                 char.bottom + botOffset,
                 char.width, char.height)
-        setStrokingColor(Color.RED)
+        setStrokingColor(color)
         stroke()
         close()
     }

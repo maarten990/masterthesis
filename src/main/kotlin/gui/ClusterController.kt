@@ -7,9 +7,11 @@ import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.PDFRenderer
 import tornadofx.*
+import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.File
 
+val COLORS = listOf(Color.RED, Color.BLUE, Color.GREEN, Color.MAGENTA, Color.ORANGE, Color.CYAN, Color.YELLOW)
 
 class ClusterController: Controller() {
     private val model: StateModel by inject()
@@ -68,7 +70,7 @@ class ClusterController: Controller() {
             model.apply {
                 val doc = PDDocument.load(File(item.path))
                 val page = doc.getPage(item.pagenum)
-                val merged = item.collector.function(item.dendrogram!!, item.threshold)
+                val merged = item.collector.function(item.dendrogram, item.threshold)
                 val bboxes = merged.map(clusterer::getBoundingRect)
                 bboxes.forEach { doc.drawRect(page, it) }
 
@@ -86,7 +88,7 @@ class ClusterController: Controller() {
     }
 
     fun kmeans() {
-        val centroids = clusterer.clusterDistances(model.item.dendrogram!!, model.item.threshold)
+        val centroids = clusterer.clusterDistances(model.item.dendrogram, model.item.threshold)
         println(centroids)
     }
 
@@ -98,7 +100,7 @@ class ClusterController: Controller() {
             model.apply {
                 val doc = PDDocument.load(File(item.path))
                 clusterer.vectorizer = item.vectorizer
-                dendrogram.value = clusterer.recluster(item.blocks!!)
+                dendrogram.value = clusterer.recluster(item.blocks)
 
                 image = PDFRenderer(doc).renderImage(item.pagenum)
                 doc.close()
@@ -111,6 +113,28 @@ class ClusterController: Controller() {
     }
 
     fun labelClusters() {
-        clusterer.labelClusters(model.item.blocks!!, 2)
+        model.running.value = true
+        var image: BufferedImage? = null
+
+        runAsync {
+            model.apply {
+                val doc = PDDocument.load(File(item.path))
+                val page = doc.getPage(item.pagenum)
+                clusterer.vectorizer = item.kVect
+
+                val labeled = clusterer.kmeans(item.blocks.map(clusterer::getBoundingRect), model.item.k)
+
+                COLORS.zip(labeled).forEach { (color, clusters) ->
+                    clusters.map { doc.drawRect(page, it, color=color) }
+                }
+
+                image = PDFRenderer(doc).renderImage(item.pagenum)
+                doc.close()
+            }
+        } ui {
+            model.image.value = SwingFXUtils.toFXImage(image, null)
+            model.running.value = false
+            model.commit()
+        }
     }
 }

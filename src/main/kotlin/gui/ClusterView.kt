@@ -17,6 +17,7 @@ class ClusterView: View() {
     var imView: ImageView by singleAssign()
 
     val model: StateModel by inject()
+    val controller: ClusterController by inject()
 
     val vectorizeOptions = Vectorizer.values().toList().observable()
     var pageNums: ObservableList<Int> = mutableListOf<Int>().observable()
@@ -67,6 +68,26 @@ class ClusterView: View() {
                 tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
                 tab("Hierarchical clustering", paramPane.root)
                 tab("DBSCAN", dbscan.root)
+            }
+
+            separator()
+            form {
+                fieldset("Block classification") {
+                    field("k") {
+                        textfield(model.k)
+                    }
+
+                    field("Vectorizer") {
+                        combobox(model.kVect, values = vectorizeOptions)
+                    }
+
+                    button("Classify") {
+                        action {
+                            model.commit()
+                            controller.labelClusters()
+                        }
+                    }
+                }
             }
         }
 
