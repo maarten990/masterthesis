@@ -20,6 +20,7 @@ class ClusterView: View() {
     val controller: ClusterController by inject()
 
     val vectorizeOptions = Vectorizer.values().toList().observable()
+    val labelerOptions = BlockLabeler.values().toList().observable()
     var pageNums: ObservableList<Int> = mutableListOf<Int>().observable()
 
     override val root = borderpane {
@@ -73,6 +74,10 @@ class ClusterView: View() {
             separator()
             form {
                 fieldset("Block classification") {
+                    field("Method") {
+                        combobox(model.labeler, values = labelerOptions)
+                    }
+
                     field("k") {
                         textfield(model.k)
                     }

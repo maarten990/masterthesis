@@ -122,7 +122,10 @@ class ClusterController: Controller() {
                 val page = doc.getPage(item.pagenum)
                 clusterer.vectorizer = item.kVect
 
-                val labeled = clusterer.kmeans(item.blocks.map(clusterer::getBoundingRect), model.item.k)
+                val labeled = when (model.item.labeler) {
+                        BlockLabeler.KMEANS -> clusterer.kmeans(item.blocks.map(clusterer::getBoundingRect), model.item.k)
+                        BlockLabeler.DBSCAN -> clusterer.dbscan(item.blocks.map(clusterer::getBoundingRect), model.item.epsilon, model.item.minSamples)
+                }
 
                 COLORS.zip(labeled).forEach { (color, clusters) ->
                     clusters.map { doc.drawRect(page, it, color=color) }

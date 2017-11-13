@@ -57,9 +57,13 @@ class ProgramState {
     val kProperty = SimpleIntegerProperty(3)
     var k by kProperty
 
-    // vectorizer for kmeans block labeling
+    // vectorizer for block labeling
     val kVectProperty = SimpleObjectProperty<Vectorizer>(Vectorizer.ONLY_DIMS)
     var kVect by kVectProperty
+
+    // block labeling method
+    val labelerProperty = SimpleObjectProperty<BlockLabeler>(BlockLabeler.KMEANS)
+    val labeler by labelerProperty
 }
 
 class StateModel : ItemViewModel<ProgramState>() {
@@ -76,6 +80,7 @@ class StateModel : ItemViewModel<ProgramState>() {
     val minSamples = bind(ProgramState::minSamplesProperty)
     val k = bind(ProgramState::kProperty)
     val kVect = bind(ProgramState::kVectProperty)
+    val labeler = bind(ProgramState::labelerProperty)
 
     // program status
     val docLoaded = bind { SimpleBooleanProperty() }
@@ -116,4 +121,9 @@ enum class Collector {
 
     abstract val function: (Dendrogram, Int) -> List<List<CharData>>
     abstract val desc: String
+}
+
+enum class BlockLabeler {
+    KMEANS,
+    DBSCAN;
 }
