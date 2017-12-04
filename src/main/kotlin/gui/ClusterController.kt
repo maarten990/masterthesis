@@ -1,7 +1,8 @@
 package gui
 
+import clustering.CharData
 import clustering.Clusterer
-import clustering.LeafNode
+import clustering.Dendrogram
 import clustering.drawRect
 import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
@@ -18,126 +19,154 @@ class ClusterController: Controller() {
     private val clusterer = Clusterer()
 
     fun cluster() {
-        model.running.value = true
-        var image: BufferedImage? = null
+        model.progress.value = 0.0f
 
         runAsync {
-            model.apply {
-                val doc = PDDocument.load(File(item.path))
-                clusterer.vectorizer = item.vectorizer
-                dendrogram.value = clusterer.clusterFilePage(doc, item.pagenum)
+            val item = model.item
+            val doc = PDDocument.load(File(item.path))
+            val dendrograms = mutableListOf<Dendrogram>()
 
-                image = PDFRenderer(doc).renderImage(item.pagenum)
-                doc.close()
+            for (pagenum in 0 until doc.numberOfPages) {
+                model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
+                clusterer.vectorizer = item.vectorizer
+                dendrograms.add(clusterer.clusterFilePage(doc, item.pagenum))
             }
+
+            model.dendrogram.value = dendrograms.observable()
+            doc.close()
         } ui {
-            model.image.value = SwingFXUtils.toFXImage(image, null)
-            model.running.value = false
+            model.progress.value = 1.0f
             model.commit()
         }
     }
 
     fun cluster_dbscan() {
-        model.running.value = true
-        var image: BufferedImage? = null
+        model.progress.value = 0.0f
 
         runAsync {
-            model.apply {
-                val doc = PDDocument.load(File(item.path))
-                val page = doc.getPage(item.pagenum)
+            val item = model.item
+            val merged = mutableListOf<Map<CharData, Int>>()
+            val doc = PDDocument.load(File(item.path))
+
+            for (pagenum in 0 until doc.numberOfPages) {
+                model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
                 clusterer.vectorizer = item.vectorizer
-                val merged = clusterer.clusterFilePageDbscan(doc, item.pagenum, item.epsilon, item.minSamples)
-                val bboxes = merged.map(clusterer::getBoundingRect)
-                bboxes.forEach { doc.drawRect(page, it) }
-
-                image = PDFRenderer(doc).renderImage(item.pagenum)
-                doc.close()
-
-                blocks.value = merged.observable()
+                merged.add(clusterer.clusterFilePageDbscan(doc, pagenum, item.epsilon, item.minSamples))
             }
+
+            doc.close()
+            model.blocks.value = merged.observable()
         } ui {
-            model.image.value = SwingFXUtils.toFXImage(image, null)
-            model.running.value = false
+            model.progress.value = 1.0f
             model.commit()
+            drawBlocks()
         }
     }
 
     fun merge() {
-        model.running.value = true
-        var image: BufferedImage? = null
+        model.progress.value = 0.0f
 
         runAsync {
-            model.apply {
-                val doc = PDDocument.load(File(item.path))
-                val page = doc.getPage(item.pagenum)
-                val merged = item.collector.function(item.dendrogram, item.threshold)
-                val bboxes = merged.map(clusterer::getBoundingRect)
-                bboxes.forEach { doc.drawRect(page, it) }
-
-                image = PDFRenderer(doc).renderImage(item.pagenum)
-                doc.close()
-
-                blocks.value = merged.observable()
-            }
+            val item = model.item
+            model.blocks.value = item.dendrogram.map { item.collector.function(it, item.threshold) }.observable()
         } ui {
-            model.image.value = SwingFXUtils.toFXImage(image, null)
-            model.running.value = false
+            model.progress.value = 1.0f
             model.merged.value = true
             model.commit()
+            drawBlocks()
         }
     }
 
+    /*
     fun kmeans() {
         val centroids = clusterer.clusterDistances(model.item.dendrogram, model.item.threshold)
         println(centroids)
     }
+    */
 
     fun recluster() {
-        model.running.value = true
-        var image: BufferedImage? = null
+        /*
+        model.progress.value = 0.0f
 
         runAsync {
-            model.apply {
-                val doc = PDDocument.load(File(item.path))
-                clusterer.vectorizer = item.vectorizer
-                dendrogram.value = clusterer.recluster(item.blocks)
+            val item = model.item
+            clusterer.vectorizer = item.vectorizer
+            model.dendrogram.value = item.blocks.map { clusterer.recluster(it) }.observable()
+        } ui {
+            model.progress.value = 1.0f
+            model.commit()
+        }
+        */
+    }
 
-                image = PDFRenderer(doc).renderImage(item.pagenum)
-                doc.close()
+    fun labelClusters() {
+        model.progress.value = 0.0f
+        val colormap = mutableMapOf<CharData, Color>()
+
+        runAsync {
+            val item = model.item
+            clusterer.vectorizer = item.kVect
+
+            // group the data into lists of chardata objects belonging to the same cluster, for the document as a whole
+            val clusterGroups = item.blocks.flatMap { labelMappingToLists(it) }
+
+            val labeled = when (model.item.labeler) {
+                BlockLabeler.KMEANS -> clusterer.kmeans(clusterGroups.map(clusterer::getBoundingRect), model.item.k)
+                BlockLabeler.DBSCAN -> clusterer.dbscan(clusterGroups.map(clusterer::getBoundingRect), model.item.epsilon, model.item.minSamples)
+                null -> mapOf()
+            }
+
+            // create a colormap
+            for ((color, clusters) in COLORS.zip(labelMappingToLists(labeled))) {
+                clusters.forEach { colormap[it] = color }
             }
         } ui {
-            model.image.value = SwingFXUtils.toFXImage(image, null)
-            model.running.value = false
+            model.progress.value = 1.0f
+            model.colormap.value = colormap.observable()
+            model.commit()
+            drawBlocks()
+        }
+    }
+
+    fun drawBlocks() {
+        if (model.item.blocks == null) {
+            return
+        }
+
+        var image: BufferedImage? = null
+        val doc = PDDocument.load(File(model.item.path))
+
+        runAsync {
+            val page = doc.getPage(model.item.pagenum)
+            val bboxes = labelMappingToLists(model.item.blocks[model.item.pagenum]).map(clusterer::getBoundingRect)
+            bboxes.forEach { doc.drawRect(page, it, color = model.item.colormap?.get(it) ?: Color.BLACK) }
+            image = PDFRenderer(doc).renderImage(model.item.pagenum)
+            doc.close()
+        } ui {
+            if (image != null)
+                model.image.value = SwingFXUtils.toFXImage(image, null)
+            else
+                println("Warning: could not render image")
+
             model.commit()
         }
     }
 
-    fun labelClusters() {
-        model.running.value = true
-        var image: BufferedImage? = null
-
-        runAsync {
-            model.apply {
-                val doc = PDDocument.load(File(item.path))
-                val page = doc.getPage(item.pagenum)
-                clusterer.vectorizer = item.kVect
-
-                val labeled = when (model.item.labeler) {
-                        BlockLabeler.KMEANS -> clusterer.kmeans(item.blocks.map(clusterer::getBoundingRect), model.item.k)
-                        BlockLabeler.DBSCAN -> clusterer.dbscan(item.blocks.map(clusterer::getBoundingRect), model.item.epsilon, model.item.minSamples)
-                }
-
-                COLORS.zip(labeled).forEach { (color, clusters) ->
-                    clusters.map { doc.drawRect(page, it, color=color) }
-                }
-
-                image = PDFRenderer(doc).renderImage(item.pagenum)
-                doc.close()
+    /**
+     * Convert a mapping to cluster labels to a list of items belong to the same clustering. For example:
+     * Input: {a: 1, b: 1, c: 2}
+     * Output: [[a, b], [c]]
+     */
+    private fun labelMappingToLists(mapping: Map<CharData, Int>): List<List<CharData>> {
+        val clusterGroups = mutableMapOf<Int, MutableList<CharData>>()
+        for ((data, id) in mapping) {
+            if (clusterGroups.containsKey(id)) {
+                clusterGroups[id]?.add(data)
+            } else {
+                clusterGroups[id] = mutableListOf(data)
             }
-        } ui {
-            model.image.value = SwingFXUtils.toFXImage(image, null)
-            model.running.value = false
-            model.commit()
         }
+
+        return clusterGroups.values.toList()
     }
 }

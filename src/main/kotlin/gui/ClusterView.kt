@@ -56,6 +56,10 @@ class ClusterView: View() {
                     field("Page number") {
                         combobox(model.pagenum, values = pageNums) {
                             enableWhen { model.docLoaded }
+                            setOnAction {
+                                model.commit()
+                                controller.drawBlocks()
+                            }
                         }
                     }
 
@@ -96,9 +100,8 @@ class ClusterView: View() {
             }
         }
 
-        bottom = progressbar(-1.0) {
+        bottom = progressbar(model.progress) {
                 useMaxWidth = true
-                visibleWhen { model.running }
         }
 
         center = vbox {
@@ -151,7 +154,7 @@ class ParamTab : View() {
 
         button("Print centroids") {
             action {
-                controller.kmeans()
+                // controller.kmeans()
             }
         }
     }

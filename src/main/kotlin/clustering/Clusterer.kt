@@ -25,14 +25,14 @@ class Clusterer {
     /**
      * Cluster a collection of items using DBSCAN.
      */
-    fun dbscan(chars: List<CharData>, epsilon: Float, minSamples: Int): List<List<CharData>> {
+    fun dbscan(chars: List<CharData>, epsilon: Float, minSamples: Int): Map<CharData, Int> {
         return python.dbscan(chars, vectorizer, epsilon, minSamples)
     }
 
     /**
      * Cluster a collection of items using KMeans.
      */
-    fun kmeans(chars: List<CharData>, k: Int): List<List<CharData>> {
+    fun kmeans(chars: List<CharData>, k: Int): Map<CharData, Int> {
         return python.kmeans(chars, vectorizer, k)
     }
 
@@ -75,7 +75,7 @@ class Clusterer {
     /**
      * Cluster the text on a PDF page using DBSCAN.
      */
-    fun clusterFilePageDbscan(document: PDDocument, pagenum: Int, epsilon: Float, minSamples: Int): List<List<CharData>> {
+    fun clusterFilePageDbscan(document: PDDocument, pagenum: Int, epsilon: Float, minSamples: Int): Map<CharData, Int> {
         val parser = TextRectParser()
         val chars = parser.getCharsOnPage(document, pagenum)
         return dbscan(chars, epsilon, minSamples)

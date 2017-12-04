@@ -4,14 +4,26 @@ sealed class Dendrogram {
     abstract fun leafNodes(): List<LeafNode>
     abstract fun childDistances(): List<Double>
 
-    fun collectBelowCutoff(cutoff: Int): List<List<CharData>> {
+    fun collectBelowCutoff(cutoff: Int): Map<CharData, Int> {
+        val blocks = collectBlocksBelowCutoff(cutoff)
+        val indices = blocks.indices
+        val out = mutableMapOf<CharData, Int>()
+
+        for ((i, cluster) in indices.zip(blocks)) {
+            cluster.forEach { out[it] = i }
+        }
+
+        return out
+    }
+
+    private fun collectBlocksBelowCutoff(cutoff: Int): List<List<CharData>> {
         return if (this is LeafNode) {
             listOf(listOf(this.data))
         } else if (this is MergeNode && dist <= cutoff) {
             listOf(leafNodes().map(LeafNode::data))
         } else {
             this as MergeNode
-            listOf(left, right).flatMap { it.collectBelowCutoff(cutoff)}
+            listOf(left, right).flatMap { it.collectBlocksBelowCutoff(cutoff)}
         }
     }
 

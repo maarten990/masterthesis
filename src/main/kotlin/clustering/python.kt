@@ -32,26 +32,26 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
         return callPython("kmeans.py")[0]
     }
 
-    fun dbscan(data: List<CharData>, vectorizer: Vectorizer, epsilon: Float, minSamples: Int): List<List<CharData>> {
+    fun dbscan(data: List<CharData>, vectorizer: Vectorizer, epsilon: Float, minSamples: Int): Map<CharData, Int> {
         saveChardata(data, vectorizer)
-        val clusters = callPython("dbscan.py", epsilon.toString(), minSamples.toString())[0]
+        val result = callPython("dbscan.py", epsilon.toString(), minSamples.toString())
 
-        return (0 until data.size)
-                .groupBy(clusters::get)
-                .filterKeys { it >= 0.0 }
-                .values
-                .map { it.map(data::get) }
+        return if (result.isNotEmpty()) {
+            data.zip(result[0]).toMap().mapValues { it.value.toInt() }
+        } else {
+            mapOf()
+        }
     }
 
-    fun kmeans(data: List<CharData>, vectorizer: Vectorizer, k: Int): List<List<CharData>> {
+    fun kmeans(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, Int> {
         saveChardata(data, vectorizer)
-        val clusters = callPython("kmeans.py", k.toString())[0]
+        val result = callPython("kmeans.py", k.toString())
 
-        return (0 until data.size)
-                .groupBy(clusters::get)
-                .filterKeys { it >= 0.0 }
-                .values
-                .map { it.map(data::get) }
+        return if (result.isNotEmpty()) {
+            data.zip(result[0]).toMap().mapValues { it.value.toInt() }
+        } else {
+            mapOf()
+        }
     }
 
     private fun callPython(script: String, vararg args: String): List<List<Double>> {

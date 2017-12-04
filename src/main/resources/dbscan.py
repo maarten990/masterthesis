@@ -14,10 +14,13 @@ def main():
     print('Received {} points, clustering with eps={}, min_samples={}'.format(
     	data.shape[0], epsilon, min_samples))
 
-    clusterer = DBSCAN(eps=epsilon, min_samples=min_samples)
-    labels = clusterer.fit_predict(data)
-
-    print('Finished clustering')
+    if data.size > 0:
+        clusterer = DBSCAN(eps=epsilon, min_samples=min_samples)
+        labels = clusterer.fit_predict(data)
+        print('Finished clustering')
+    else:
+        labels = []
+        print('Insufficient data to cluster')
 
     with open(outfile, 'w') as f:
         f.write(','.join(map(str, labels)))

@@ -7,14 +7,15 @@ import org.apache.pdfbox.pdmodel.PDDocument
 import tornadofx.*
 import tornadofx.getValue
 import tornadofx.setValue
+import java.awt.Color
 
 class ProgramState {
-    // the blocks of text found on a page
-    val blocksProperty = SimpleListProperty<List<CharData>>()
+    // the blocks of text found on a page, per page
+    val blocksProperty = SimpleListProperty<Map<CharData, Int>>()
     var blocks by blocksProperty
 
     // a dendrogram clustering all the chars on a page
-    val dendrogramProperty = SimpleObjectProperty<Dendrogram>()
+    val dendrogramProperty = SimpleListProperty<Dendrogram>()
     var dendrogram by dendrogramProperty
 
     // the image to display
@@ -37,7 +38,7 @@ class ProgramState {
     val documentProperty = SimpleObjectProperty<PDDocument>()
     var document by documentProperty
 
-    // the page to cluster
+    // the page to display
     val pagenumProperty = SimpleIntegerProperty(0)
     var pagenum by pagenumProperty
 
@@ -64,6 +65,10 @@ class ProgramState {
     // block labeling method
     val labelerProperty = SimpleObjectProperty<BlockLabeler>(BlockLabeler.KMEANS)
     val labeler by labelerProperty
+
+    // mapping of blocks to their clustercolor
+    val colormapProperty = SimpleMapProperty<CharData, Color>()
+    val colormap by colormapProperty
 }
 
 class StateModel : ItemViewModel<ProgramState>() {
@@ -81,17 +86,18 @@ class StateModel : ItemViewModel<ProgramState>() {
     val k = bind(ProgramState::kProperty)
     val kVect = bind(ProgramState::kVectProperty)
     val labeler = bind(ProgramState::labelerProperty)
+    val colormap = bind(ProgramState::colormapProperty)
 
     // program status
     val docLoaded = bind { SimpleBooleanProperty() }
-    val running = bind { SimpleBooleanProperty() }
+    val progress = bind { SimpleFloatProperty() }
     val merged = bind { SimpleBooleanProperty() }
 
     init {
         item = ProgramState()
 
         docLoaded.value = false
-        running.value = false
+        progress.value = 0.0f
         merged.value = false
     }
 }
@@ -119,7 +125,7 @@ enum class Collector {
         override val desc = "Threshold"
     };
 
-    abstract val function: (Dendrogram, Int) -> List<List<CharData>>
+    abstract val function: (Dendrogram, Int) -> Map<CharData, Int>
     abstract val desc: String
 }
 
