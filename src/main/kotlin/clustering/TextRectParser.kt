@@ -62,9 +62,16 @@ data class CharData(val left: Float, val bottom: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
                     val fontID: Float) {
     val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
+    val vecLabels: List<String> = listOf("left", "bottom", "width", "height", "fontsize", "fontID")
+
     val asGeomVec: List<Float> = listOf(left, left + width, bottom, bottom + height, fontSize, fontID)
+    val geomLabels: List<String> = listOf("left", "right", "bottom", "top", "fontsize", "fontID")
+
     val asCentroidVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
+    val centroidLabels: List<String> = listOf("x_coord", "y_coord", "fontsize", "fontID")
+
     val asDims: List<Float> = listOf(width, height, fontSize, fontID)
+    val dimsLabels: List<String> = listOf("width", "height", "fontsize", "fontID")
 }
 
 // extend TextPosition to get the y coordinate relative to a bottom-left origin
