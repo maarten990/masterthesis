@@ -1,0 +1,10 @@
+supervised/*.pyc
+supervised/__pycache__/
+supervised/tests/__pycache__/
+supervised/.vscode/
+supervised/.gitignore
+supervised/.cache
+supervised/*.txt
+supervised/training_data
+supervised/period_17
+supervised/pickle
