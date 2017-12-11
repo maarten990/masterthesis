@@ -8,3 +8,8 @@ supervised/*.txt
 supervised/training_data
 supervised/period_17
 supervised/pickle
+clusterer/build
+clusterer/out
+clusterer/.idea
+clusterer/*.iml
+clusterer/*.pdf
