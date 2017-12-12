@@ -13,3 +13,4 @@ clusterer/out
 clusterer/.idea
 clusterer/*.iml
 clusterer/*.pdf
+clusterer/.gradle
