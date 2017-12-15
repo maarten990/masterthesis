@@ -1,16 +1,16 @@
 package clustering
 
 import gui.Vectorizer
-import java.io.File
-import java.io.FileReader
 import com.opencsv.CSVReader
-import java.io.IOException
+import java.io.*
 import java.nio.file.Files
 import java.nio.file.Paths
 
-class PythonEnv(private var inPath: String="in.numpy", private var outPath: String="out.numpy") {
+class PythonEnv {
+    private var inPath = "in.numpy"
+    private var outPath = "out.numpy"
+    private var scriptPath = "tmp_script.py"
     private var interpreterPath: String
-    private var scriptFolder = "src/main/resources/"
 
     init {
         interpreterPath = when {
@@ -55,13 +55,19 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
     }
 
     private fun callPython(script: String, vararg args: String): List<List<Double>> {
-        val builder = ProcessBuilder(interpreterPath, scriptFolder + script, inPath, outPath, *args)
+        val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(script)
+        val contents = String(stream.readAllBytes())
+
+        File(scriptPath).printWriter().use {
+            it.printf(contents)
+        }
+
+        val builder = ProcessBuilder(interpreterPath, scriptPath, inPath, outPath, *args)
         val process = builder.inheritIO().start()
         process.waitFor()
 
         val output = loadCsv()
         cleanup()
-
         return output
     }
 
@@ -87,6 +93,7 @@ class PythonEnv(private var inPath: String="in.numpy", private var outPath: Stri
     private fun cleanup() {
         Files.deleteIfExists(Paths.get(inPath))
         Files.deleteIfExists(Paths.get(outPath))
+        Files.deleteIfExists(Paths.get(scriptPath))
     }
 
     private fun saveChardata(data: List<CharData>, vectorizer: Vectorizer) {
