@@ -56,7 +56,7 @@ class PythonEnv {
 
     private fun callPython(script: String, vararg args: String): List<List<Double>> {
         val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(script)
-        val contents = String(stream.readAllBytes())
+        val contents = stream.bufferedReader().use { it.readText() }
 
         File(scriptPath).printWriter().use {
             it.printf(contents)
