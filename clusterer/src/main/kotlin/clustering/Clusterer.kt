@@ -40,27 +40,8 @@ class Clusterer {
      * Recluster hierarchically based on the bounding rectangles of each cluster.
      */
     fun recluster(clusters: Collection<List<CharData>>): Dendrogram {
-        val bboxes = clusters.map(this::getBoundingRect)
+        val bboxes = clusters.map(::getBoundingRect)
         return cluster(bboxes)
-    }
-
-    /**
-     * Return the bounding rectangle of a collection of nodes.
-     */
-    fun getBoundingRect(chars: Collection<CharData>): CharData {
-        // get the bounding rectangles for each clusters and recluster based on them
-        val leftMost = chars.map(CharData::left).min() ?: 0.0f
-        val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
-        val botMost = chars.map { it.bottom }.min() ?: 0.0f
-        val topMost = chars.map{ it.bottom + it.height }.max() ?: 0.0f
-
-        // collect all characters sequentially inside the bounding box
-        val clusterText = chars.sortedBy(CharData::left).joinToString("", transform=CharData::ch)
-        val fontSize = getMode(chars.map(CharData::fontSize)) ?: 0.0f
-        val fontID = getMode(chars.map(CharData::fontID)) ?: 0.0f
-
-        return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
-                clusterText, fontSize, fontID)
     }
 
     /**
@@ -83,6 +64,34 @@ class Clusterer {
 }
 
 /**
+ * Return the bounding rectangle of a collection of nodes.
+ */
+fun getBoundingRect(chars: Collection<CharData>): CharData {
+    // get the bounding rectangles for each clusters and recluster based on them
+    val leftMost = chars.map(CharData::left).min() ?: 0.0f
+    val rightMost = chars.map { it.left + it.width }.max() ?: 0.0f
+    val botMost = chars.map { it.bottom }.min() ?: 0.0f
+    val topMost = chars.map{ it.bottom + it.height }.max() ?: 0.0f
+
+    val fontSize = getMode(chars.map(CharData::fontSize)) ?: 0.0f
+    val fontID = getMode(chars.map(CharData::fontID)) ?: 0.0f
+    val clusterText = chars
+            // group clusters on the same line
+            .groupBy { it.bottom }
+            .merge({ a, b -> Math.abs(a - b) < 3 }, { a, b -> a + b })
+            .entries
+            // sort them from left to right and join the whole thing into a string
+            .sortedByDescending { it.key }
+            .map { it.value }
+            .map { it.sortedBy(CharData::left) }
+            .joinToString("", transform={ it.joinToString("", transform=CharData::ch) })
+
+    return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
+            clusterText, fontSize, fontID)
+}
+
+
+/**
  * Return the mode (most common element) of a list.
  */
 fun<T> getMode(items: Collection<T>): T? {
@@ -91,4 +100,19 @@ fun<T> getMode(items: Collection<T>): T? {
             .entries
             .maxBy { it.value.size }
             ?.key
+}
+
+fun<K, V> Map<K, V>.merge(pred: (K, K) -> Boolean, mergeFunc: (V, V) -> V): Map<K, V> {
+    val out = mutableMapOf<K, V>()
+
+    // TODO: multiple passes or just a better algorithm for this
+    for ((k, v) in this) {
+        for ((k2, v2) in this) {
+            if (k != k2 && pred(k, k2)) {
+                out[k] = mergeFunc(v, v2)
+            }
+        }
+    }
+
+    return out
 }

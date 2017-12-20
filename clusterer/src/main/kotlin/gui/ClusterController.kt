@@ -1,9 +1,6 @@
 package gui
 
-import clustering.CharData
-import clustering.Clusterer
-import clustering.Dendrogram
-import clustering.drawRect
+import clustering.*
 import javafx.embed.swing.SwingFXUtils
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.rendering.PDFRenderer
@@ -111,8 +108,8 @@ class ClusterController: Controller() {
             val clusterGroups = item.blocks.flatMap { labelMappingToLists(it) }
 
             val labeled = when (model.item.labeler) {
-                BlockLabeler.KMEANS -> clusterer.kmeans(clusterGroups.map(clusterer::getBoundingRect), model.item.k)
-                BlockLabeler.DBSCAN -> clusterer.dbscan(clusterGroups.map(clusterer::getBoundingRect), model.item.epsilon, model.item.minSamples)
+                BlockLabeler.KMEANS -> clusterer.kmeans(clusterGroups.map(::getBoundingRect), model.item.k)
+                BlockLabeler.DBSCAN -> clusterer.dbscan(clusterGroups.map(::getBoundingRect), model.item.epsilon, model.item.minSamples)
                 null -> mapOf()
             }
 
@@ -138,7 +135,7 @@ class ClusterController: Controller() {
 
         runAsync {
             val page = doc.getPage(model.item.pagenum)
-            val bboxes = labelMappingToLists(model.item.blocks[model.item.pagenum]).map(clusterer::getBoundingRect)
+            val bboxes = labelMappingToLists(model.item.blocks[model.item.pagenum]).map(::getBoundingRect)
             bboxes.forEach { doc.drawRect(page, it, color = model.item.colormap?.get(it) ?: Color.BLACK) }
             image = PDFRenderer(doc).renderImage(model.item.pagenum)
             doc.close()
@@ -151,22 +148,22 @@ class ClusterController: Controller() {
             model.commit()
         }
     }
+}
 
-    /**
-     * Convert a mapping to cluster labels to a list of items belong to the same clustering. For example:
-     * Input: {a: 1, b: 1, c: 2}
-     * Output: [[a, b], [c]]
-     */
-    private fun labelMappingToLists(mapping: Map<CharData, Int>): List<List<CharData>> {
-        val clusterGroups = mutableMapOf<Int, MutableList<CharData>>()
-        for ((data, id) in mapping) {
-            if (clusterGroups.containsKey(id)) {
-                clusterGroups[id]?.add(data)
-            } else {
-                clusterGroups[id] = mutableListOf(data)
-            }
+/**
+ * Convert a mapping to cluster labels to a list of items belong to the same clustering. For example:
+ * Input: {a: 1, b: 1, c: 2}
+ * Output: [[a, b], [c]]
+ */
+fun labelMappingToLists(mapping: Map<CharData, Int>): List<List<CharData>> {
+    val clusterGroups = mutableMapOf<Int, MutableList<CharData>>()
+    for ((data, id) in mapping) {
+        if (clusterGroups.containsKey(id)) {
+            clusterGroups[id]?.add(data)
+        } else {
+            clusterGroups[id] = mutableListOf(data)
         }
-
-        return clusterGroups.values.toList()
     }
+
+    return clusterGroups.values.toList()
 }
