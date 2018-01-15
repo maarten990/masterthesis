@@ -84,7 +84,7 @@ fun getBoundingRect(chars: Collection<CharData>): CharData {
             .sortedByDescending { it.key }
             .map { it.value }
             .map { it.sortedBy(CharData::left) }
-            .joinToString("", transform={ it.joinToString("", transform=CharData::ch) })
+            .joinToString("\n", transform={ it.joinToString("", transform=CharData::ch) })
 
     return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
             clusterText, fontSize, fontID)
@@ -102,17 +102,29 @@ fun<T> getMode(items: Collection<T>): T? {
             ?.key
 }
 
-fun<K, V> Map<K, V>.merge(pred: (K, K) -> Boolean, mergeFunc: (V, V) -> V): Map<K, V> {
-    val out = mutableMapOf<K, V>()
+/**
+ * Merge items that are close enough together to be essentially equal.
+ *
+ * @pred: Predicate that checks keys for equality.
+ * @mergeFunc: Function that merges two values.
+ */
+fun<V> Map<Float, V>.merge(pred: (Float, Float) -> Boolean, mergeFunc: (V, V) -> V): Map<Float, V> {
+    val s = this.entries.sortedBy { it.key }.map { Pair(it.key, it.value) }.toMutableList()
+    var done = false
 
-    // TODO: multiple passes or just a better algorithm for this
-    for ((k, v) in this) {
-        for ((k2, v2) in this) {
-            if (k != k2 && pred(k, k2)) {
-                out[k] = mergeFunc(v, v2)
+    // TODO: maybe not use basically bubblesort
+    while (done) {
+        var changed = false
+        for (i in 0 until s.size - 1) {
+            if (pred(s[i].first, s[i + 1].first)) {
+                s[i] = Pair(s[i].first, mergeFunc(s[i].second, s[i + 1].second))
+                s.drop(i + 1)
+                changed = true
             }
         }
+
+        done = !changed
     }
 
-    return out
+    return s.toMap()
 }

@@ -40,9 +40,9 @@ fun main(args: Array<String>) {
 
     for (page in blocks) {
         for (block in labelMappingToLists(page).map(::getBoundingRect)) {
-            println(block.ch)
-            println(labeled[block])
-            println("---\n")
+            for (line in block.ch.split("\n")) {
+                println("${labeled[block]}: $line")
+            }
         }
     }
 }
