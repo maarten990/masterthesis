@@ -14,21 +14,18 @@ val usage = """
 Text block clustering.
 Usage:
   clusterer gui
-  clusterer dbscan <eps> <min_pts> [options] <files>...
-  clusterer kmeans <k> [options] <files>...
-
-Options:
-  -b <value>  The algorithm to use for block clustering [default: dbscan]
+  clusterer <param_file> <files>...
 """
 
 fun main(args: Array<String>) {
     val opts = Docopt(usage).withHelp(true).parse(*args)
-    println(opts)
 
     if (opts["gui"] == true) {
         return Application.launch(gui.ClusterApp::class.java, *args)
     }
 
+    parseConfig(opts["<param_file>"] as String)
+    /*
     val blocks = when {
         opts["dbscan"] == true -> cluster_dbscan(opts["<files>"] as List<String>, (opts["<eps>"] as String).toFloat(),
                 (opts["<min_pts>"] as String).toInt())
@@ -45,6 +42,7 @@ fun main(args: Array<String>) {
             }
         }
     }
+    */
 }
 
 fun cluster_dbscan(paths: List<String>, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
