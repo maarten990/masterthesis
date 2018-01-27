@@ -9,12 +9,13 @@ import javafx.application.Application
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.docopt.Docopt
 import java.io.File
+import javax.xml.parsers.DocumentBuilderFactory
 
 val usage = """
 Text block clustering.
 Usage:
   clusterer gui
-  clusterer <param_file> <files>...
+  clusterer <param_file> <xml> <files>...
 """
 
 fun main(args: Array<String>) {
@@ -25,7 +26,6 @@ fun main(args: Array<String>) {
     }
 
     parseConfig(opts["<param_file>"] as String)
-    /*
     val blocks = when {
         opts["dbscan"] == true -> cluster_dbscan(opts["<files>"] as List<String>, (opts["<eps>"] as String).toFloat(),
                 (opts["<min_pts>"] as String).toInt())
@@ -34,6 +34,8 @@ fun main(args: Array<String>) {
     }
 
     val labeled = labelClusters(blocks, 3)
+    insertIntoXml(opts["<xml>"] as String, labeled)
+    return
 
     for (page in blocks) {
         for (block in labelMappingToLists(page).map(::getBoundingRect)) {
@@ -42,7 +44,6 @@ fun main(args: Array<String>) {
             }
         }
     }
-    */
 }
 
 fun cluster_dbscan(paths: List<String>, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
@@ -70,3 +71,14 @@ fun labelClusters(blocks: List<Map<CharData, Int>>, k: Int): Map<CharData, Int> 
 
     return clusterer.kmeans(clusterGroups.map(::getBoundingRect), k)
 }
+
+fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
+    val parser = DocumentBuilderFactory.newInstance().newDocumentBuilder()
+    val dom = parser.parse(File(path))
+    val elements = dom.getElementsByTagName("text")
+
+    (0 until elements.length)
+            .map { elements.item(it) }
+            .forEach { println("${it.attributes.getNamedItem("top")}: ${it.textContent}") }
+}
+
