@@ -3,6 +3,5 @@ clustering:
     cutoff: 16
 
 labeling:
-  dbscan:
-    epsilon: 16.0
-    min_pts: 1
+  kmeans:
+    k: 3
