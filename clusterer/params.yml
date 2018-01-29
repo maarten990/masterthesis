@@ -4,5 +4,5 @@ clustering:
 
 labeling:
   dbscan:
-    epsilon: 30
+    epsilon: 16.0
     min_pts: 1
