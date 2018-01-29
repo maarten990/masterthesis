@@ -4,11 +4,18 @@ import numpy as np
 
 
 def main():
-    data = np.genfromtxt(sys.argv[1], delimiter=',')
+    infile = sys.argv[1]
+    outfile = sys.argv[2]
 
+    data = np.genfromtxt(infile, delimiter=',')
     print('Received {} points, clustering...'.format(data.shape[0]))
-    clusters = fastcluster.single(data)
-    print('Finished clustering')
+
+    if data.size > 0:
+        clusters = fastcluster.single(data)
+        print('Finished clustering')
+    else:
+        clusters = []
+        print('Insufficient data to cluster')
 
     # from of the output: an (N-1)*4 matrix where each row is the 2 joined
     # indices along with the distance and number of points

@@ -46,7 +46,10 @@ sealed class Dendrogram {
                 nodes.add(MergeNode(nodes[left.toInt()], nodes[right.toInt()], dist))
             }
 
-            return nodes.last()
+            if (nodes.isNotEmpty())
+                return nodes.last()
+            else
+                return LeafNode(CharData(0.0f, 0.0f, 0.0f, 0.0f, "", 0.0f, 0.0f))
         }
     }
 }
