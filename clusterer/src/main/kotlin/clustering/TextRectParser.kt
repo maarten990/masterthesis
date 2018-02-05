@@ -18,6 +18,7 @@ class TextRectParser : PDFTextStripper() {
     private val chars = mutableListOf<CharData>()
     private var fontID = 0
     private var fontToID = mutableMapOf<String, Int>()
+    private var currentPage = 0
 
 
     init {
@@ -33,6 +34,7 @@ class TextRectParser : PDFTextStripper() {
         fontToID.clear()
         this.startPage = page + 1
         this.endPage = page + 1
+        currentPage = page
         val dummy = OutputStreamWriter(ByteArrayOutputStream())
         writeText(doc, dummy)
 
@@ -49,7 +51,8 @@ class TextRectParser : PDFTextStripper() {
             }
 
             val data = CharData(it.xDirAdj, it.yBottom(), it.widthDirAdj,
-                    it.heightDir, it.unicode, it.fontSize, fontToID[fontStr]?.toFloat()!!)
+                    it.heightDir, it.unicode, it.fontSize, fontToID[fontStr]?.toFloat()!!,
+                    it.pageHeight, currentPage)
             chars.add(data)
         }
     }
@@ -60,7 +63,7 @@ class TextRectParser : PDFTextStripper() {
  */
 data class CharData(val left: Float, val bottom: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
-                    val fontID: Float) {
+                    val fontID: Float, val pageHeight: Float, val page: Int) {
     val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
     val vecLabels: List<String> = listOf("left", "bottom", "width", "height", "fontsize", "fontID")
 
@@ -72,6 +75,18 @@ data class CharData(val left: Float, val bottom: Float, val width: Float,
 
     val asDims: List<Float> = listOf(width, height, fontSize, fontID)
     val dimsLabels: List<String> = listOf("width", "height", "fontsize", "fontID")
+
+    /**
+     * Convert the coordinates to the system used by the output of pdf2html.
+     */
+    fun toPdfToHtmlCoords(): Map<String, Float> {
+        val top = (this.pageHeight - (this.bottom + this.height)) * 1.5f
+        val bottom = (this.pageHeight - this.bottom) * 1.5f
+        val left = this.left * 1.5f
+        val right = (this.left + this.width) * 1.5f
+
+        return mapOf("top" to top, "bottom" to bottom, "left" to left, "right" to right)
+    }
 }
 
 // extend TextPosition to get the y coordinate relative to a bottom-left origin

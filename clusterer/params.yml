@@ -1,6 +1,7 @@
 clustering:
-  hac:
-    cutoff: 16
+  dbscan:
+    epsilon: 16
+    min_pts: 1
 
 labeling:
   kmeans:
