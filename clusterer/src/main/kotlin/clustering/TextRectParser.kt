@@ -34,7 +34,7 @@ class TextRectParser : PDFTextStripper() {
         fontToID.clear()
         this.startPage = page + 1
         this.endPage = page + 1
-        currentPage = page
+        currentPage = page + 1
         val dummy = OutputStreamWriter(ByteArrayOutputStream())
         writeText(doc, dummy)
 

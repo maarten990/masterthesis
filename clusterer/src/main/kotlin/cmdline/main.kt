@@ -8,10 +8,14 @@ import gui.labelMappingToLists
 import javafx.application.Application
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.docopt.Docopt
+import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
+import javax.xml.transform.TransformerFactory
+import javax.xml.transform.dom.DOMSource
+import javax.xml.transform.stream.StreamResult
 
 val usage = """
 Text block clustering.
@@ -105,13 +109,20 @@ fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
 
     val parser = DocumentBuilderFactory.newInstance().newDocumentBuilder()
     val dom = parser.parse(File(path))
-    val pages = dom.getElementsByTagName("number")
+    val pages = dom.getElementsByTagName("page")
+
+    var correct = 0.0
+    var total = 0.0
+    var unmatched = 0
 
     for (page in pages.iterator()) {
-        val pageNum = page.attributes.getNamedItem("page").textContent.toInt()
+        val pageNum = page.attributes.getNamedItem("number").textContent.toInt()
         val children = page.childNodes
 
         for (text in children.iterator()) {
+            if (text.nodeName != "text" || !text.hasAttributes())
+                continue
+
             val top = text.attributes.getNamedItem("top").textContent.toFloat()
             val left = text.attributes.getNamedItem("left").textContent.toFloat()
             val width = text.attributes.getNamedItem("width").textContent.toFloat()
@@ -126,11 +137,28 @@ fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
                         && left >= coords["left"]!!
                         && top - height <= coords["bottom"]!!
                         && left + width <= coords["right"]!!) {
-                    println("Found match")
+                    total += 1
+                    if (block.key.ch.contains(text.textContent)) {
+                        correct += 1
+                    }
+
+                    (text as Element).setAttribute("clusterLabel", block.value.toString())
+                    break
                 }
+
+                unmatched += 1
             }
         }
     }
+
+    println("Matched $total text elements, $correct correct (${(correct / total) * 100}%).")
+    println("Failed to match $unmatched text elements.")
+
+    // save the result as xml
+    val transformer = TransformerFactory.newInstance().newTransformer()
+    val source = DOMSource(dom)
+    val result = StreamResult(File("labeled.xml"))
+    transformer.transform(source, result)
 }
 
 class NodeListIterator(val list: NodeList): Iterator<Node> {
