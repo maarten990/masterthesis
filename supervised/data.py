@@ -13,10 +13,20 @@ XMLNS = {'pm': 'http://www.politicalmashup.nl',
          'dc': 'http://purl.org/dc/elements/1.1'}
 
 
-class Vocab(object):
+class Vocab:
     def __init__(self, token_to_idx, idx_to_token):
         self.token_to_idx = token_to_idx
         self.idx_to_token = idx_to_token
+
+
+class Data:
+    def __init__(self, X=None, y=None, speakers=None, vocab=None,
+                 clusterLabels=None):
+        self.X = X
+        self.y = y
+        self.speakers = speakers
+        self.vocab = vocab
+        self.clusterLabels = clusterLabels
 
 
 def pickler(func):
@@ -83,7 +93,8 @@ def create_dictionary(folder, pattern):
     return Vocab(word_to_idx, idx_to_word)
 
 
-def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
+def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None,
+                   withClusterLabels=False):
     """
     Return a sliding window representation over the documents with the
     given feature transformation.
@@ -96,6 +107,7 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
     inputs = []
     is_speech = []
     speakers = []
+    clusterLabels = []
 
     for xml in load_from_disk(folder, pattern):
         nodes = xml.xpath('//text')
@@ -119,7 +131,12 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None):
             is_speech.append(y)
             speakers.append([1 if token in speaker_tokens else 0 for token in tokens])
 
-    return inputs, np.array(is_speech), speakers, vocab
+            if withClusterLabels:
+                clusterLabels.append([int(node.attrib['clusterLabel'])
+                                      for node in window])
+
+    return Data(X=inputs, y=np.array(is_speech), speakers=speakers, vocab=vocab,
+                clusterLabels=clusterLabels)
 
 
 def token_featurizer(nodes, tokenizer):

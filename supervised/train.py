@@ -3,13 +3,14 @@ Train the neural networks.
 
 Usage:
 train.py (rnn | cnn | speaker) <folder> <trainpattern> <testpattern>
-    [--epochs=<n>] [--dropout=<ratio>]
+    [--epochs=<n>] [--dropout=<ratio>] [--with-labels]
 train.py (-h | --help)
 
 Options:
     -h --help          Show this screen
     --epochs=<n>       Number of epochs to train for [default: 100]
     --dropout=<ratio>  The dropout ratio between 0 and 1 [default: 0.5]
+    --with-labels      Include computed cluster labels.
 
 """
 
@@ -88,10 +89,14 @@ def get_clf_data(folder, trainpattern, testpattern, buckets):
     The samples and labels are lists of numpy arrays, each array representing
     a bucket.
     """
-    X, y, _, vocab = sliding_window(folder, trainpattern, 2, 0.1)
+    data = sliding_window(folder, trainpattern, 2, 0.1)
+    X, y = data.X, data.y
+    vocab = data.vocab
+
     Xb, yb = pad_sequences(X, y, buckets)
 
-    Xt, yt, _, _ = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
+    data = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
+    Xt, yt = data.X, data.y
     Xtb, ytb = pad_sequences(Xt, yt, buckets)
 
     for i, X in enumerate(Xb):
@@ -120,10 +125,13 @@ def get_speaker_data(folder, trainpattern, testpattern, seqlen):
     The samples and labels are wrapped in a single-element list for
     compatibility with the functions expecting bucketed data.
     """
-    X, y, Y, vocab = sliding_window(folder, trainpattern, 2, 0.1)
+    # X, y, Y, vocab = sliding_window(folder, trainpattern, 2, 0.1)
+    data = sliding_window(folder, trainpattern, 2, 0.1)
+    X, y, Y, vocab = data.X, data.y, data.speakers, data.vocab
     X, Y = pad_sequences(X, Y, [seqlen])
 
-    Xt, yt, Yt, _ = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
+    data = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
+    Xt, yt, Yt = data.X, data.y, data.speakers
     Xt, Yt = pad_sequences(Xt, Yt, [seqlen])
 
     # remove the bucketing since we don't use it for this network

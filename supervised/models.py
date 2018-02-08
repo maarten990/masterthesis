@@ -151,3 +151,17 @@ class LSTMClassifier(nn.Module):
 
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
+
+
+class WithClusterLabels(nn.Module):
+    def __init__(self, recurrent_clf, n_labels):
+        self.recurrent_clf = recurrent_clf
+        self.linear = nn.Linear(n_labels, 1)
+
+    def forward(self, inputs, labels):
+        recurrent_output =  self.recurrent_clf(y_pred, y_true)
+        combined = torch.cat(recurrent_output, labels)
+        return F.sigmoid(self.linear(combined))
+
+    def loss(self, y_pred, y_true):
+        return self.recurrent_clf.loss(y_pred, y_true)
