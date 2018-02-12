@@ -7,6 +7,7 @@ import gui.Vectorizer
 import gui.labelMappingToLists
 import javafx.application.Application
 import org.apache.pdfbox.pdmodel.PDDocument
+import org.apache.pdfbox.pdmodel.PDPage
 import org.docopt.Docopt
 import org.w3c.dom.Element
 import org.w3c.dom.Node
@@ -173,4 +174,17 @@ class NodeListIterator(val list: NodeList): Iterator<Node> {
 
 fun NodeList.iterator(): Iterator<Node> {
     return NodeListIterator(this)
+}
+
+/**
+ * Convert from a top-left to a bottom-left origin and divide by 1.5 to compensate for the scale.
+ */
+fun xmlCoordsToPdfBox(left: Float, top: Float, width: Float, height: Float,
+                      pageHeight: Float, page: PDPage): Map<String, Float> {
+    val leftT = (left / 1.5f) - page.cropBox.lowerLeftX
+    val topT = ((pageHeight - top) / 1.5f) - page.cropBox.lowerLeftY
+    val widthT = width / 1.5f
+    val heightT = height / 1.5f
+
+    return mapOf("left" to leftT, "top" to topT, "width" to  widthT, "height" to heightT)
 }
