@@ -33,6 +33,10 @@ class Encoder(nn.Module):
         "Initialize a zero hidden state with the appropriate dimensions."
         hidden = Variable(torch.zeros(1, self.hidden_size))
         hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
+        
+        if torch.cuda.is_available():
+            hidden = hidden.cuda()
+
         return hidden
 
 
@@ -147,6 +151,10 @@ class LSTMClassifier(nn.Module):
         "Initialize a zero hidden state with the appropriate dimensions."
         hidden = Variable(torch.zeros(1, self.hidden_size))
         hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
+
+        if torch.cuda.is_available():
+            hidden = hidden.cuda()
+
         return hidden
 
     def loss(self, y_pred, y_true):

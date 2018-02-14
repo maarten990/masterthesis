@@ -49,16 +49,16 @@ def main():
     spkr_path = get_filename('speaker', args['--dictpattern'])
     clf_model, _ = load_model(clf_path)
     spkr_model, _ = load_model(spkr_path)
-    clf_model.eval()
-    spkr_model.eval()
+    clf_model = clf_model.eval().cuda()
+    spkr_model = spkr_model.eval().cuda()
 
     # classify the speeches and get the speakers for the positive classifications
-    pred_is_speech = clf_model(Variable(torch.from_numpy(X).long()))
-    pred_is_speech = pred_is_speech.squeeze().data.numpy()
+    pred_is_speech = clf_model(Variable(torch.from_numpy(X).long().cuda()))
+    pred_is_speech = pred_is_speech.cpu().squeeze().data.numpy()
     pred_speeches = X[pred_is_speech > 0.5, :]
 
-    pred_speakers = spkr_model(Variable(torch.from_numpy(X[pred_is_speech > 0.5, :]).long()))
-    pred_speakers = pred_speakers.data.numpy()
+    pred_speakers = spkr_model(Variable(torch.from_numpy(X[pred_is_speech > 0.5, :]).long().cuda()))
+    pred_speakers = pred_speakers.cpu().data.numpy()
 
     pred_speeches_binary = np.where(pred_is_speech > 0.5, 1, 0)
     print('---')
