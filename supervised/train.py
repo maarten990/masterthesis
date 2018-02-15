@@ -28,7 +28,7 @@ from torch.autograd import Variable
 from tqdm import trange
 
 from data import sliding_window, pad_sequences
-from models import LSTMClassifier, CNNClassifier, NameClassifier
+from models import LSTMClassifier, CNNClassifier, NameClassifier, WithClusterLabels
 
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
 
@@ -89,15 +89,16 @@ def get_clf_data(folder, trainpattern, testpattern, buckets):
     The samples and labels are lists of numpy arrays, each array representing
     a bucket.
     """
-    data = sliding_window(folder, trainpattern, 2, 0.1)
+    data = sliding_window(folder, trainpattern, 2, 0.1, withClusterLabels=True)
     X, y = data.X, data.y
     vocab = data.vocab
+    cluster_labels = data.clusterLabels
+    Xb, yb, cb = pad_sequences(X, y, buckets, cluster_labels=cluster_labels)
 
-    Xb, yb = pad_sequences(X, y, buckets)
-
-    data = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab)
+    data = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab, withClusterLabels=True)
     Xt, yt = data.X, data.y
-    Xtb, ytb = pad_sequences(Xt, yt, buckets)
+    cluster_labels = data.clusterLabels
+    Xtb, ytb, ctb = pad_sequences(Xt, yt, buckets, cluster_labels=cluster_labels)
 
     for i, X in enumerate(Xb):
         train_samples = X.shape[0] if len(X) > 0 else 0
@@ -106,7 +107,7 @@ def get_clf_data(folder, trainpattern, testpattern, buckets):
         print('Speech classifier bucket {}: {} training samples, {} testing samples, sequence length {}'.format(
             i, train_samples, test_samples, seqlen))
 
-    return Xb, Xtb, yb, ytb, vocab
+    return Xb, Xtb, yb, ytb, cb, ctb, vocab
 
 
 def get_speaker_data(folder, trainpattern, testpattern, seqlen):
@@ -149,7 +150,7 @@ def get_speaker_data(folder, trainpattern, testpattern, seqlen):
     return [X], [Xt], [Y], [Yt], vocab
 
 
-def train(model, optimizer, X_buckets, y_buckets, epochs=100, batch_size=32):
+def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, batch_size=32):
     model.train()
     model.cuda()
 
@@ -159,12 +160,13 @@ def train(model, optimizer, X_buckets, y_buckets, epochs=100, batch_size=32):
     for _ in t:
         epoch_loss = torch.zeros(1).float()
 
-        for X_train, y_train in zip(X_buckets, y_buckets):
+        for X_train, y_train, c_train in zip(X_buckets, y_buckets, cluster_buckets):
             for i in range(0, X_train.shape[0], batch_size):
                 X = Variable(torch.from_numpy(X_train[i:i+32, :])).long().cuda()
                 y = Variable(torch.from_numpy(y_train[i:i+32])).float().cuda()
+                c = Variable(torch.from_numpy(c_train[i:i+32])).float().cuda()
 
-                y_pred = model(X)
+                y_pred = model(X, c)
                 loss = model.loss(y_pred, y)
                 optimizer.zero_grad()
                 loss.backward()
@@ -240,8 +242,8 @@ def main():
 
     if args['rnn']:
         buckets = [5, 10, 15, 25, 40, -1]
-        Xb, Xtb, yb, ytb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
-                                               args['<testpattern>'], buckets)
+        Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
+                                                        args['<testpattern>'], buckets)
 
         pkl_path = get_filename('rnn', args['<trainpattern>'])
         argdict = {'input_size': len(vocab.token_to_idx) + 1,
@@ -249,11 +251,11 @@ def main():
                    'hidden_size': 32,
                    'num_layers': 1,
                    'dropout': dropout}
-        modelfn = LSTMClassifier
+        modelfn = lambda: WithClusterLabels(LSTMClassifier(**argdict), 3)
 
     elif args['cnn']:
-        Xb, Xtb, yb, ytb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
-                                               args['<testpattern>'], [40])
+        Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
+                                                        args['<testpattern>'], [40])
 
         pkl_path = get_filename('cnn', args['<trainpattern>'])
         argdict = {'input_size': len(vocab.token_to_idx) + 1,
@@ -261,7 +263,7 @@ def main():
                    'embed_size': 128,
                    'num_filters': 32,
                    'dropout': dropout}
-        modelfn = CNNClassifier
+        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 3)
 
     elif args['speaker']:
         Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],
@@ -281,12 +283,12 @@ def main():
     # construct the model and optimizer
     loaded = load_model(pkl_path)
     if loaded is None:
-        model = modelfn(**argdict)
+        model = modelfn()
         optim = optimfn(model.parameters())
     else:
         model, optim = loaded
 
-    losses, optim = train(model, optim, Xb, yb, epochs)
+    losses, optim = train(model, optim, Xb, yb, cb, epochs)
     torch.save((modelfn, argdict, optimfn, model.state_dict(), optim.state_dict()),
                pkl_path)
 

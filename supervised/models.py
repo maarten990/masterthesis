@@ -163,6 +163,7 @@ class LSTMClassifier(nn.Module):
 
 class WithClusterLabels(nn.Module):
     def __init__(self, recurrent_clf, n_labels):
+        super().__init__()
         self.recurrent_clf = recurrent_clf
         self.linear = nn.Linear(n_labels, 1)
 

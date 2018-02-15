@@ -132,8 +132,7 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None,
             speakers.append([1 if token in speaker_tokens else 0 for token in tokens])
 
             if withClusterLabels:
-                clusterLabels.append([int(node.attrib['clusterLabel'])
-                                      for node in window])
+                clusterLabels.append(int(window[label_pos].attrib['clusterLabel']))
 
     return Data(X=inputs, y=np.array(is_speech), speakers=speakers, vocab=vocab,
                 clusterLabels=clusterLabels)
@@ -149,7 +148,7 @@ def token_featurizer(nodes, tokenizer):
     return out
 
 
-def pad_sequences(X, y, bucket_sizes):
+def pad_sequences(X, y, bucket_sizes, cluster_labels=None):
     """
     Pad the list of variable-length sequences X to arrays with widths
     corresponding to the specified buckets.
@@ -163,8 +162,11 @@ def pad_sequences(X, y, bucket_sizes):
 
     buckets = [[] for _ in bucket_sizes]
     labels = [[] for _ in bucket_sizes]
-    for seq, label in zip(X, y):
-        for bucket_size, bucket, label_bucket in zip(bucket_sizes, buckets, labels):
+    clusters = [[] for _ in bucket_sizes]
+
+    it = zip(X, y, cluster_labels) if cluster_labels else zip(X, y)
+    for seq, label, cluster in it:
+        for bucket_size, bucket, label_bucket, cluster_bucket in zip(bucket_sizes, buckets, labels, clusters):
             if len(seq) <= bucket_size:
                 diff = bucket_size - len(seq)
                 bucket.append(np.pad(seq, (0, diff), 'constant'))
@@ -173,6 +175,9 @@ def pad_sequences(X, y, bucket_sizes):
                     label_bucket.append(np.pad(label, (0, diff), 'constant'))
                 else:
                     label_bucket.append(label)
+
+                if cluster_labels:
+                    cluster_bucket.append(cluster)
 
                 break
         else:
@@ -184,5 +189,9 @@ def pad_sequences(X, y, bucket_sizes):
             else:
                 labels[-1].append(label)
 
+            if cluster_labels:
+                clusters[-1].append(cluster)
+
     return ([np.array(bucket) for bucket in buckets],
-            [np.array(label_bucket) for label_bucket in labels])
+            [np.array(label_bucket) for label_bucket in labels],
+            [np.array(cluster_bucket) for cluster_bucket in clusters])
