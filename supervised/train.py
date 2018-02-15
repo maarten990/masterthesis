@@ -185,18 +185,21 @@ def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, b
     return (batch_losses, epoch_losses), optimizer
 
 
-def evaluate_clf(model, Xb, yb):
+def evaluate_clf(model, Xb, cb, yb):
     """
     Evaluate the trained model.
-    Xb, yb: bucketed lists of training and test data
+    Xb, cb, yb: bucketed lists of training, cluster and test data
     """
     model = model.eval().cuda()
     predictions = []
     true = []
 
-    for X, y in zip(Xb, yb):
+    for X, c, y in zip(Xb, cb, yb):
         Xvar = Variable(torch.from_numpy(X)).long().cuda()
-        pred = model(Xvar)
+        cvar = Variable(torch.from_numpy(c)).long().cuda()
+        print(Xvar)
+        print(cvar)
+        pred = model(Xvar, cvar)
         pred = pred.cpu().squeeze().data.numpy()
         pred = np.where(pred > 0.5, 1, 0)
         predictions.extend(pred)
@@ -251,7 +254,7 @@ def main():
                    'hidden_size': 32,
                    'num_layers': 1,
                    'dropout': dropout}
-        modelfn = lambda: WithClusterLabels(LSTMClassifier(**argdict), 3)
+        modelfn = lambda: WithClusterLabels(LSTMClassifier(**argdict), 1)
 
     elif args['cnn']:
         Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
@@ -263,7 +266,7 @@ def main():
                    'embed_size': 128,
                    'num_filters': 32,
                    'dropout': dropout}
-        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 3)
+        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 1)
 
     elif args['speaker']:
         Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],
@@ -289,11 +292,11 @@ def main():
         model, optim = loaded
 
     losses, optim = train(model, optim, Xb, yb, cb, epochs)
-    torch.save((modelfn, argdict, optimfn, model.state_dict(), optim.state_dict()),
-               pkl_path)
+    # torch.save((modelfn, argdict, optimfn, model.state_dict(), optim.state_dict()),
+               # pkl_path)
 
     if args['rnn'] or args['cnn']:
-        evaluate_clf(model, Xtb, ytb)
+        evaluate_clf(model, Xtb, ctb, ytb)
         write_losses(losses, 'clf_losses.txt')
     else:
         evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)

@@ -165,11 +165,13 @@ class WithClusterLabels(nn.Module):
     def __init__(self, recurrent_clf, n_labels):
         super().__init__()
         self.recurrent_clf = recurrent_clf
-        self.linear = nn.Linear(n_labels, 1)
+
+        # inputs: number of labels plus one for the recurrent output
+        self.linear = nn.Linear(1 + n_labels, 1)
 
     def forward(self, inputs, labels):
-        recurrent_output =  self.recurrent_clf(y_pred, y_true)
-        combined = torch.cat(recurrent_output, labels)
+        recurrent_output = self.recurrent_clf(inputs)
+        combined = torch.cat([recurrent_output, labels.unsqueeze(1)], 1)
         return F.sigmoid(self.linear(combined))
 
     def loss(self, y_pred, y_true):
