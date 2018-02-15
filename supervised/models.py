@@ -87,6 +87,7 @@ class NameClassifier(nn.Module):
 
         return out
 
+    @with_cuda
     def loss(self, y_pred, y_true):
         # calculate the loss as the binary cross entropy between the
         # flattened versions of the arrays
@@ -130,6 +131,7 @@ class CNNClassifier(nn.Module):
 
         return out
 
+    @with_cuda
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
 
@@ -184,6 +186,7 @@ class LSTMClassifier(nn.Module):
 
         return hidden
 
+    @with_cuda
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
 
@@ -205,5 +208,6 @@ class WithClusterLabels(nn.Module):
         combined = torch.cat([recurrent_output, labels.unsqueeze(1)], 1)
         return F.sigmoid(self.linear(combined))
 
+    @with_cuda
     def loss(self, y_pred, y_true):
         return self.recurrent_clf.loss(y_pred, y_true)
