@@ -5,6 +5,17 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
+def with_cuda(func):
+    'Decorator to automatically move variables to the gpu if possible.'
+    def out(self, *args):
+        if torch.cuda.is_available():
+            return func(self, *[arg.cuda() for arg in args])
+        else:
+            return func(self, *args)
+
+    return out
+
+
 class Encoder(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
         super().__init__()
@@ -19,6 +30,10 @@ class Encoder(nn.Module):
                            bidirectional=True, batch_first=True,
                            dropout=dropout)
 
+        if torch.cuda.is_available():
+            self.cuda()
+
+    @with_cuda
     def forward(self, inputs):
         "Perform a full pass of the encoder over the entire input."
         hidden = self.init_hidden(inputs.size()[0])
@@ -55,6 +70,10 @@ class NameClassifier(nn.Module):
         self.out_hidden = nn.Linear(2 * encoder_hidden, n_classif_hidden)
         self.out_classif = nn.Linear(n_classif_hidden, seq_length)
 
+        if torch.cuda.is_available():
+            self.cuda()
+
+    @with_cuda
     def forward(self, input, force_teacher=False):
         # first encode the input sequence and get the output of the final layer
         hidden_enc = self.encoder(input)
@@ -92,6 +111,10 @@ class CNNClassifier(nn.Module):
         self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
 
+        if torch.cuda.is_available():
+            self.cuda()
+
+    @with_cuda
     def forward(self, inputs):
         embedded = self.embedding(inputs)
 
@@ -130,6 +153,10 @@ class LSTMClassifier(nn.Module):
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
         self.clf_out = nn.Linear(hidden_size, 1)
 
+        if torch.cuda.is_available():
+            self.cuda()
+
+    @with_cuda
     def forward(self, inputs):
         # initialize the lstm hidden states
         hidden = self.init_hidden(inputs.size(0))
@@ -169,6 +196,10 @@ class WithClusterLabels(nn.Module):
         # inputs: number of labels plus one for the recurrent output
         self.linear = nn.Linear(1 + n_labels, 1)
 
+        if torch.cuda.is_available():
+            self.cuda()
+
+    @with_cuda
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
         combined = torch.cat([recurrent_output, labels.unsqueeze(1)], 1)

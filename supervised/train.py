@@ -152,7 +152,6 @@ def get_speaker_data(folder, trainpattern, testpattern, seqlen):
 
 def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, batch_size=32):
     model.train()
-    model.cuda()
 
     batch_losses = []
     epoch_losses = []
@@ -162,9 +161,9 @@ def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, b
 
         for X_train, y_train, c_train in zip(X_buckets, y_buckets, cluster_buckets):
             for i in range(0, X_train.shape[0], batch_size):
-                X = Variable(torch.from_numpy(X_train[i:i+32, :])).long().cuda()
-                y = Variable(torch.from_numpy(y_train[i:i+32])).float().cuda()
-                c = Variable(torch.from_numpy(c_train[i:i+32])).float().cuda()
+                X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
+                y = Variable(torch.from_numpy(y_train[i:i+32])).float()
+                c = Variable(torch.from_numpy(c_train[i:i+32])).float()
 
                 y_pred = model(X, c)
                 loss = model.loss(y_pred, y)
@@ -190,15 +189,13 @@ def evaluate_clf(model, Xb, cb, yb):
     Evaluate the trained model.
     Xb, cb, yb: bucketed lists of training, cluster and test data
     """
-    model = model.eval().cuda()
+    model = model.eval()
     predictions = []
     true = []
 
     for X, c, y in zip(Xb, cb, yb):
-        Xvar = Variable(torch.from_numpy(X)).long().cuda()
-        cvar = Variable(torch.from_numpy(c)).long().cuda()
-        print(Xvar)
-        print(cvar)
+        Xvar = Variable(torch.from_numpy(X)).long()
+        cvar = Variable(torch.from_numpy(c)).float()
         pred = model(Xvar, cvar)
         pred = pred.cpu().squeeze().data.numpy()
         pred = np.where(pred > 0.5, 1, 0)
@@ -216,11 +213,10 @@ def evaluate_clf(model, Xb, cb, yb):
 
 def evaluate_spkr(model, Xb, yb, idx_to_token):
     model.eval()
-    model.cuda()
 
     correct = 0
     for X, y in zip(Xb, yb):
-        Xvar = Variable(torch.from_numpy(X)).long().cuda()
+        Xvar = Variable(torch.from_numpy(X)).long()
         predictions = model(Xvar)
 
         for i in range(X.shape[0]):
