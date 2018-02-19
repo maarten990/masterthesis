@@ -1,4 +1,3 @@
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -7,13 +6,13 @@ from torch.autograd import Variable
 
 def with_cuda(func):
     'Decorator to automatically move variables to the gpu if possible.'
-    def out(self, *args):
+    def wrapper(self, *args):
         if torch.cuda.is_available():
             return func(self, *[arg.cuda() for arg in args])
         else:
             return func(self, *args)
 
-    return out
+    return wrapper
 
 
 class Encoder(nn.Module):
@@ -96,7 +95,8 @@ class NameClassifier(nn.Module):
 
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
-    def __init__(self, input_size, seq_len, embed_size, num_filters, dropout):
+    def __init__(self, input_size, seq_len, embed_size, num_filters, dropout,
+                 use_final_layer=True):
         super().__init__()
 
         self.dropout = nn.Dropout(dropout)
@@ -112,6 +112,9 @@ class CNNClassifier(nn.Module):
         self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
 
+        self.use_final_layer = use_final_layer
+        self.output_size = 1 if self.use_final_layer else clf_size
+
         if torch.cuda.is_available():
             self.cuda()
 
@@ -126,10 +129,12 @@ class CNNClassifier(nn.Module):
 
         batch_size = inputs.size(0)
         clf_in = l2.view(batch_size, -1)
-        h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
-        out = F.sigmoid(self.clf_out(h))
 
-        return out
+        if self.use_final_layer:
+            h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
+            return F.sigmoid(self.clf_out(h))
+        else:
+            return F.relu(clf_in)
 
     @with_cuda
     def loss(self, y_pred, y_true):
@@ -138,7 +143,8 @@ class CNNClassifier(nn.Module):
 
 class LSTMClassifier(nn.Module):
     """ LSTM-based speech classifier. """
-    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
+    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout,
+                 use_final_layer=True):
         super().__init__()
 
         self.input_size = input_size
@@ -155,6 +161,9 @@ class LSTMClassifier(nn.Module):
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
         self.clf_out = nn.Linear(hidden_size, 1)
 
+        self.use_final_layer = use_final_layer
+        self.output_size = 1 if self.use_final_layer else hidden_size * 2
+
         if torch.cuda.is_available():
             self.cuda()
 
@@ -170,11 +179,12 @@ class LSTMClassifier(nn.Module):
         outputs, _ = self.rnn(embedded, (hidden, cell))
         averaged = torch.mean(outputs, dim=1).squeeze()
 
-        # sigmoid classification with 1 hidden layer in between
-        hiddenlayer = self.dropout(F.sigmoid(self.clf_h(averaged)))
-        out = F.sigmoid(self.clf_out(hiddenlayer))
-
-        return out
+        if self.use_final_layer:
+            # sigmoid classification with 1 hidden layer in between
+            hiddenlayer = self.dropout(F.sigmoid(self.clf_h(averaged)))
+            return F.sigmoid(self.clf_out(hiddenlayer))
+        else:
+            return averaged
 
     def init_hidden(self, batch_size):
         "Initialize a zero hidden state with the appropriate dimensions."
@@ -192,12 +202,16 @@ class LSTMClassifier(nn.Module):
 
 
 class WithClusterLabels(nn.Module):
-    def __init__(self, recurrent_clf, n_labels):
+    def __init__(self, recurrent_clf, n_labels, use_labels):
         super().__init__()
         self.recurrent_clf = recurrent_clf
+        self.use_labels = use_labels
 
-        # inputs: number of labels plus one for the recurrent output
-        self.linear = nn.Linear(1 + n_labels, 1)
+        # inputs: number of labels plus size of the recurrent output
+        if use_labels:
+            output_size = self.recurrent_clf.output_size
+            self.linear1 = nn.Linear(output_size + n_labels, int(output_size / 2))
+            self.linear2 = nn.Linear(int(output_size / 2), 1)
 
         if torch.cuda.is_available():
             self.cuda()
@@ -205,8 +219,14 @@ class WithClusterLabels(nn.Module):
     @with_cuda
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
-        combined = torch.cat([recurrent_output, labels.unsqueeze(1)], 1)
-        return F.sigmoid(self.linear(combined))
+
+        if not self.use_labels:
+            return recurrent_output
+        else:
+            combined = torch.cat([recurrent_output, labels.unsqueeze(1)], 1)
+            h = self.linear1(combined)
+            out = self.linear2(h)
+            return F.sigmoid(out)
 
     @with_cuda
     def loss(self, y_pred, y_true):

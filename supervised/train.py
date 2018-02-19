@@ -3,14 +3,14 @@ Train the neural networks.
 
 Usage:
 train.py (rnn | cnn | speaker) <folder> <trainpattern> <testpattern>
-    [--epochs=<n>] [--dropout=<ratio>] [--with-labels]
+    [--epochs=<n>] [--dropout=<ratio>] [--with_labels]
 train.py (-h | --help)
 
 Options:
     -h --help          Show this screen
     --epochs=<n>       Number of epochs to train for [default: 100]
     --dropout=<ratio>  The dropout ratio between 0 and 1 [default: 0.5]
-    --with-labels      Include computed cluster labels.
+    --with_labels      Include computed cluster labels.
 
 """
 
@@ -238,6 +238,7 @@ def main():
     args = docopt(__doc__)
     dropout = float(args['--dropout'])
     epochs = int(args['--epochs'])
+    with_labels = args['--with_labels']
 
     if args['rnn']:
         buckets = [5, 10, 15, 25, 40, -1]
@@ -249,8 +250,9 @@ def main():
                    'embed_size': 128,
                    'hidden_size': 32,
                    'num_layers': 1,
-                   'dropout': dropout}
-        modelfn = lambda: WithClusterLabels(LSTMClassifier(**argdict), 1)
+                   'dropout': dropout,
+                   'use_final_layer': not with_labels}
+        modelfn = lambda: WithClusterLabels(LSTMClassifier(**argdict), 1, with_labels)
 
     elif args['cnn']:
         Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
@@ -261,8 +263,9 @@ def main():
                    'seq_len': Xb[0].shape[1],
                    'embed_size': 128,
                    'num_filters': 32,
-                   'dropout': dropout}
-        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 1)
+                   'dropout': dropout,
+                   'use_final_layer': not with_labels}
+        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 1, with_labels)
 
     elif args['speaker']:
         Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],
