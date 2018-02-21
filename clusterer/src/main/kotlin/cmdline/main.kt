@@ -25,7 +25,7 @@ val usage = """
 Text block clustering.
 Usage:
   clusterer gui
-  clusterer <param_file> <xml> <files>...
+  clusterer <param_file> <xml> <file>
 """
 
 fun main(args: Array<String>) {
@@ -36,26 +36,16 @@ fun main(args: Array<String>) {
     }
 
     val conf = parseConfig(opts["<param_file>"] as String)
-    val blocks = conf.clusteringFunc(opts["<files>"] as List<String>)
+    val blocks = conf.clusteringFunc(opts["<file>"] as String)
     val labeled = conf.labelingFunc(blocks)
 
     insertIntoXml(opts["<xml>"] as String, labeled)
-
-    /*
-    for (page in blocks) {
-        for (block in labelMappingToLists(page).map(::getBoundingRect)) {
-            for (line in block.ch.split("\n")) {
-                println("(${(block.pageHeight - (block.bottom + block.height)) * 1.5}, ${block.left * 1.5}) ${labeled[block]}: $line")
-            }
-        }
-    }
-    */
 }
 
-fun cluster_dbscan(paths: List<String>, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
+fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
     val blocks = mutableListOf<Map<CharData, Int>>()
     // TODO: use all files
-    val doc = PDDocument.load(File(paths[0]))
+    val doc = PDDocument.load(File(path))
     val clusterer = Clusterer()
 
     for (pagenum in 0 until doc.numberOfPages) {
@@ -68,10 +58,10 @@ fun cluster_dbscan(paths: List<String>, epsilon: Float, minSamples: Int): List<M
     return blocks
 }
 
-fun cluster_hac(paths: List<String>, cutoff: Int): List<Map<CharData, Int>> {
+fun cluster_hac(path: String, cutoff: Int): List<Map<CharData, Int>> {
     val blocks = mutableListOf<Map<CharData, Int>>()
     // TODO: use all files
-    val doc = PDDocument.load(File(paths[0]))
+    val doc = PDDocument.load(File(path))
     val clusterer = Clusterer()
 
     for (pagenum in 0 until doc.numberOfPages) {
@@ -137,18 +127,18 @@ fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
             val height = text.attributes.getNamedItem("height").textContent.toFloat()
 
             val coords = xmlCoordsToPdfBox(left, top, width, height, pageHeight, pdfPage)
-            pdf.drawRect(pdfPage, CharData(coords.x.toFloat(), (coords.y - coords.height).toFloat(),
-                    coords.width.toFloat(), coords.height.toFloat(),
-                    text.textContent, 0.0f, 0.0f, pageNum))
+            // pdf.drawRect(pdfPage, CharData(coords.x.toFloat(), (coords.y - coords.height).toFloat(),
+            //         coords.width.toFloat(), coords.height.toFloat(),
+            //         text.textContent, 0.0f, 0.0f, pageNum))
 
             // for each block, check if the element's coords are within the block's
             val bestMatch = grouped[pageNum]!!.maxBy { block ->
                 val blockCoords = Rectangle(block.key.left.toInt(), (block.key.bottom - block.key.height).toInt(),
                         block.key.width.toInt(), block.key.height.toInt())
-                pdf.drawRect(pdfPage, block.key, Color.GREEN)
+                // pdf.drawRect(pdfPage, block.key, Color.GREEN)
 
                 val intersection = blockCoords.intersection(coords)
-                if (intersection.isEmpty) {
+                return@maxBy if (intersection.isEmpty) {
                     0
                 } else {
                     intersection.area()
@@ -162,7 +152,7 @@ fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
             }
         }
 
-        pdf.save(File("debug_output.pdf"))
+        // pdf.save(File("debug_output.pdf"))
     }
 
     println("Matched $total text elements, $correct correct (${(correct / total) * 100}%).")

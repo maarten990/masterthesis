@@ -46,7 +46,7 @@ class ConfigFormat {
     var clustering: ClusteringMethod? = null
 }
 
-data class Config(var clusteringFunc: (List<String>) -> List<Map<CharData, Int>> = { _ -> listOf(mapOf()) },
+data class Config(var clusteringFunc: (String) -> List<Map<CharData, Int>> = { _ -> listOf(mapOf()) },
                   var labelingFunc: (List<Map<CharData, Int>>) -> Map<CharData, Int> = { _ -> (mapOf()) })
 
 fun parseConfig(path: String): Config {
