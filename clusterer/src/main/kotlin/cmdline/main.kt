@@ -25,7 +25,7 @@ val usage = """
 Text block clustering.
 Usage:
   clusterer gui
-  clusterer <param_file> <xml> <file>
+  clusterer <param_file> <xml> <file> <outpath>
 """
 
 fun main(args: Array<String>) {
@@ -39,7 +39,8 @@ fun main(args: Array<String>) {
     val blocks = conf.clusteringFunc(opts["<file>"] as String)
     val labeled = conf.labelingFunc(blocks)
 
-    insertIntoXml(opts["<xml>"] as String, labeled)
+    insertIntoXml(opts["<xml>"] as String, opts["<file>"] as String,
+            opts["<outpath>"] as String, labeled)
 }
 
 fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
@@ -94,7 +95,7 @@ fun labelDbscan(blocks: List<Map<CharData, Int>>, eps: Float, min_pts: Int): Map
     return clusterer.dbscan(clusterGroups.map(::getBoundingRect), eps, min_pts)
 }
 
-fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
+fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<CharData, Int>) {
     // group the labels by page
     val grouped = labels.entries
             .groupBy { it.key.page }
@@ -109,12 +110,13 @@ fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
     var total = 0.0
     var unmatched = 0
 
-    val pdf = PDDocument.load(File("src/main/resources/18001.pdf"))
+    val pdf = PDDocument.load(File(pdfPath))
 
     for (page in pages.iterator()) {
         val pageNum = page.attributes.getNamedItem("number").textContent.toInt()
         val pageHeight = page.attributes.getNamedItem("height").textContent.toFloat()
         val children = page.childNodes
+
         val pdfPage = pdf.getPage(pageNum - 1)
 
         for (text in children.iterator()) {
@@ -161,7 +163,7 @@ fun insertIntoXml(path: String, labels: Map<CharData, Int>) {
     // save the result as xml
     val transformer = TransformerFactory.newInstance().newTransformer()
     val source = DOMSource(dom)
-    val result = StreamResult(File("labeled.xml"))
+    val result = StreamResult(File(outPath))
     transformer.transform(source, result)
 }
 
