@@ -14,7 +14,6 @@ import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 import java.awt.Color
-import java.awt.Rectangle
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.transform.TransformerFactory
@@ -25,8 +24,13 @@ val usage = """
 Text block clustering.
 Usage:
   clusterer gui
-  clusterer <param_file> <xml> <file> <outpath>
+  clusterer [-d] <param_file> <xml> <file> <outpath>
+
+Options:
+  -d --debug  Emit a pdf with bounding box drawings.
 """
+
+var DEBUG = false
 
 fun main(args: Array<String>) {
     val opts = Docopt(usage).withHelp(true).parse(*args)
@@ -35,6 +39,7 @@ fun main(args: Array<String>) {
         return Application.launch(gui.ClusterApp::class.java, *args)
     }
 
+    DEBUG = opts["--debug"] as Boolean
     val conf = parseConfig(opts["<param_file>"] as String)
     val blocks = conf.clusteringFunc(opts["<file>"] as String)
     val labeled = conf.labelingFunc(blocks)
@@ -129,22 +134,21 @@ fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<Ch
             val height = text.attributes.getNamedItem("height").textContent.toFloat()
 
             val coords = xmlCoordsToPdfBox(left, top, width, height, pageHeight, pdfPage)
-            // pdf.drawRect(pdfPage, CharData(coords.x.toFloat(), (coords.y - coords.height).toFloat(),
-            //         coords.width.toFloat(), coords.height.toFloat(),
-            //         text.textContent, 0.0f, 0.0f, pageNum))
+            if (DEBUG) {
+                pdf.drawRect(pdfPage, CharData(coords.left.toFloat(), (coords.bottom).toFloat(),
+                        coords.width.toFloat(), coords.height.toFloat(),
+                        text.textContent, 0.0f, 0.0f, pageNum))
+            }
 
             // for each block, check if the element's coords are within the block's
             val bestMatch = grouped[pageNum]!!.maxBy { block ->
-                val blockCoords = Rectangle(block.key.left.toInt(), (block.key.bottom - block.key.height).toInt(),
+                val blockCoords = MyRect(block.key.left.toInt(), (block.key.bottom + block.key.height).toInt(),
                         block.key.width.toInt(), block.key.height.toInt())
-                // pdf.drawRect(pdfPage, block.key, Color.GREEN)
-
-                val intersection = blockCoords.intersection(coords)
-                return@maxBy if (intersection.isEmpty) {
-                    0
-                } else {
-                    intersection.area()
+                if (DEBUG) {
+                    pdf.drawRect(pdfPage, block.key, Color.GREEN)
                 }
+
+                return@maxBy blockCoords.intersection(coords)
             }
 
             (text as Element).setAttribute("clusterLabel", bestMatch?.value.toString())
@@ -154,7 +158,9 @@ fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<Ch
             }
         }
 
-        // pdf.save(File("debug_output.pdf"))
+        if (DEBUG) {
+            pdf.save(File("debug_output.pdf"))
+        }
     }
 
     println("Matched $total text elements, $correct correct (${(correct / total) * 100}%).")
@@ -185,15 +191,22 @@ fun NodeList.iterator(): Iterator<Node> {
  * Convert from a top-left to a bottom-left origin and divide by 1.5 to compensate for the scale.
  */
 fun xmlCoordsToPdfBox(left: Float, top: Float, width: Float, height: Float,
-                      pageHeight: Float, page: PDPage): Rectangle {
-    val leftT = (left / 1.5f) - page.cropBox.lowerLeftX
-    val topT = ((pageHeight - top) / 1.5f) - page.cropBox.lowerLeftY
+                      pageHeight: Float, page: PDPage): MyRect {
+    val leftT = (left / 1.5f) - page.trimBox.lowerLeftX
+    val topT = ((pageHeight - top) / 1.5f) - page.trimBox.lowerLeftY
     val widthT = width / 1.5f
     val heightT = height / 1.5f
 
-    return Rectangle(Math.round(leftT), Math.round(topT), Math.round(widthT), Math.round(heightT))
+    return MyRect(Math.round(leftT), Math.round(topT), Math.round(widthT), Math.round(heightT))
 }
 
-fun Rectangle.area(): Int {
-    return width * height
+class MyRect(val left: Int, val top: Int, val width: Int, val height: Int) {
+    val right = left + width
+    val bottom = top - height
+
+    fun intersection(other: MyRect): Int {
+        val x_overlap = Math.max(0, Math.min(right, other.right) - Math.max(left, other.left));
+        val y_overlap = Math.max(0, Math.min(top, other.top) - Math.max(bottom, other.bottom));
+        return x_overlap * y_overlap;
+    }
 }
