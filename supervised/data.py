@@ -12,6 +12,8 @@ from tqdm import tqdm
 XMLNS = {'pm': 'http://www.politicalmashup.nl',
          'dc': 'http://purl.org/dc/elements/1.1'}
 
+random.seed(100)
+
 
 class Vocab:
     def __init__(self, token_to_idx, idx_to_token):
