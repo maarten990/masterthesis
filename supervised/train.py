@@ -3,15 +3,15 @@ Train the neural networks.
 
 Usage:
 train.py (rnn | cnn | speaker) <folder> <trainpattern> <testpattern>
-    [--epochs=<n>] [--dropout=<ratio>] [--with_labels]
+    [--epochs=<n>] [--dropout=<ratio>] [--with_labels] [--eval=<file>]
 train.py (-h | --help)
 
 Options:
-    -h --help          Show this screen
-    --epochs=<n>       Number of epochs to train for [default: 100]
-    --dropout=<ratio>  The dropout ratio between 0 and 1 [default: 0.5]
-    --with_labels      Include computed cluster labels.
-
+    -h --help                Show this screen
+    --epochs=<n>             Number of epochs to train for [default: 100]
+    --dropout=<ratio>        The dropout ratio between 0 and 1 [default: 0.5]
+    --with_labels            Include computed cluster labels.
+    -e <file> --eval=<file>  Evaluate after every epoch and write the output to <file>.
 """
 
 
@@ -66,10 +66,10 @@ def load_model(filename):
 def write_losses(losses, basename):
     batch, epoch = losses
 
-    with open('batch_' + basename, 'w') as f:
+    with open('evals_' + basename, 'w') as f:
         f.write('\n'.join([str(l) for l in batch]))
 
-    with open('epoch_' + basename, 'w') as f:
+    with open('losses_' + basename, 'w') as f:
         f.write('\n'.join([str(l) for l in epoch]))
 
 
@@ -150,11 +150,11 @@ def get_speaker_data(folder, trainpattern, testpattern, seqlen):
     return [X], [Xt], [Y], [Yt], vocab
 
 
-def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, batch_size=32):
+def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, batch_size=32, eval_fn=None):
     model.train()
 
-    batch_losses = []
     epoch_losses = []
+    epoch_evals = []
     t = trange(epochs, desc='Training')
     for _ in t:
         epoch_loss = torch.zeros(1).float()
@@ -171,17 +171,20 @@ def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, b
                 loss.backward()
                 optimizer.step()
 
-                batch_losses.append(loss.data.cpu())
-                epoch_loss += batch_losses[-1]
+                epoch_loss += loss.data.cpu()
 
-        loss = epoch_loss
+        loss = epoch_loss[0]
         epoch_losses.append(loss)
-        loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else [0]
-        t.set_postfix({'loss': loss[0],
-                       'Δloss': loss_delta[0]})
+        loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
+        t.set_postfix({'loss': loss,
+                       'Δloss': loss_delta})
+
+        if eval_fn:
+            epoch_evals.append(eval_fn(model))
+            model.train()
 
     model.eval()
-    return (batch_losses, epoch_losses), optimizer
+    return (epoch_evals, epoch_losses), optimizer
 
 
 def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
@@ -245,6 +248,7 @@ def main():
     dropout = float(args['--dropout'])
     epochs = int(args['--epochs'])
     with_labels = args['--with_labels']
+    eval_file = args['--eval']
 
     if args['rnn']:
         buckets = [5, 10, 15, 25, 40, -1]
@@ -296,13 +300,14 @@ def main():
     else:
         model, optim = loaded
 
-    losses, optim = train(model, optim, Xb, yb, cb, epochs)
+    eval_fn = lambda m: evaluate_clf(m, Xtb, ctb, ytb, silent=True) if eval_file else None
+    losses, optim = train(model, optim, Xb, yb, cb, epochs, eval_fn=eval_fn)
     # torch.save((modelfn, argdict, optimfn, model.state_dict(), optim.state_dict()),
                # pkl_path)
 
     if args['rnn'] or args['cnn']:
         evaluate_clf(model, Xtb, ctb, ytb)
-        write_losses(losses, 'clf_losses.txt')
+        write_losses(losses, eval_file)
     else:
         evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
         write_losses(losses, 'spkr_losses.txt')
