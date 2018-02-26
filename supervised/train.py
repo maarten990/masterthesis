@@ -184,7 +184,7 @@ def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, b
     return (batch_losses, epoch_losses), optimizer
 
 
-def evaluate_clf(model, Xb, cb, yb):
+def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
     """
     Evaluate the trained model.
     Xb, cb, yb: bucketed lists of training, cluster and test data
@@ -194,21 +194,27 @@ def evaluate_clf(model, Xb, cb, yb):
     true = []
 
     for X, c, y in zip(Xb, cb, yb):
-        Xvar = Variable(torch.from_numpy(X)).long()
-        cvar = Variable(torch.from_numpy(c)).float()
-        pred = model(Xvar, cvar)
-        pred = pred.cpu().squeeze().data.numpy()
-        pred = np.where(pred > 0.5, 1, 0)
-        predictions.extend(pred)
-        true.extend(y)
+        for i in range(0, X.shape[0], batch_size):
+            Xvar = Variable(torch.from_numpy(X[i:i+32, :])).long()
+            ybatch = y[i:i+32]
+            cvar = Variable(torch.from_numpy(c[i:i+32])).float()
+
+            pred = model(Xvar, cvar)
+            pred = pred.cpu().squeeze().data.numpy()
+            pred = np.where(pred > 0.5, 1, 0)
+            predictions.extend(pred)
+            true.extend(ybatch)
 
     table = []
     table.append(['f1', f1_score(true, predictions)])
     table.append(['Speech recall', recall_score(true, predictions)])
     table.append(['Speech precision', precision_score(true, predictions)])
 
-    print()
-    print(tabulate(table))
+    if not silent:
+        print()
+        print(tabulate(table))
+
+    return f1_score(true, predictions)
 
 
 def evaluate_spkr(model, Xb, yb, idx_to_token):
