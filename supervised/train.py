@@ -163,7 +163,7 @@ def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, b
             for i in range(0, X_train.shape[0], batch_size):
                 X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
                 y = Variable(torch.from_numpy(y_train[i:i+32])).float()
-                c = Variable(torch.from_numpy(c_train[i:i+32])).float()
+                c = Variable(torch.from_numpy(c_train[i:i+32, :])).float()
 
                 y_pred = model(X, c)
                 loss = model.loss(y_pred, y)
@@ -200,7 +200,7 @@ def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
         for i in range(0, X.shape[0], batch_size):
             Xvar = Variable(torch.from_numpy(X[i:i+32, :])).long()
             ybatch = y[i:i+32]
-            cvar = Variable(torch.from_numpy(c[i:i+32])).float()
+            cvar = Variable(torch.from_numpy(c[i:i+32, :])).float()
 
             pred = model(Xvar, cvar)
             pred = pred.cpu().squeeze().data.numpy()
@@ -275,7 +275,7 @@ def main():
                    'num_filters': 32,
                    'dropout': dropout,
                    'use_final_layer': not with_labels}
-        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 1, with_labels)
+        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 5, with_labels)
 
     elif args['speaker']:
         Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],

@@ -3,6 +3,7 @@ import pickle
 import random
 import re
 from glob import glob
+from typing import List
 
 import nltk
 import numpy as np
@@ -100,6 +101,8 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None,
     """
     Return a sliding window representation over the documents with the
     given feature transformation.
+    
+    withClusterlabels: False, or an integer indicating the dimensionality
     """
     if not vocab:
         vocab = create_dictionary(folder, pattern)
@@ -134,7 +137,8 @@ def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None,
             speakers.append([1 if token in speaker_tokens else 0 for token in tokens])
 
             if withClusterLabels:
-                clusterLabels.append(int(window[label_pos].attrib['clusterLabel']))
+                vec = to_onehot(int(window[label_pos].attrib['clusterLabel']), 5)
+                clusterLabels.append(vec)
 
     return Data(X=inputs, y=np.array(is_speech), speakers=speakers, vocab=vocab,
                 clusterLabels=clusterLabels)
@@ -147,6 +151,19 @@ def token_featurizer(nodes, tokenizer):
         tokens = tokenizer.tokenize(text)
         out.extend(tokens)
 
+    return out
+
+
+def to_onehot(idx: int, n: int) -> List[int]:
+    """Convert an integer into an n-dimensional one-hot vector.
+
+    For example, make_categorical(2, 5) -> [0, 0, 1, 0, 0].
+    :param idx: The non-zero index.
+    :param n: The dimensionality of the output vector.
+    :returns: A list of `n` elements.
+    """
+    out = [0] * n
+    out[idx] = 1
     return out
 
 
@@ -166,7 +183,7 @@ def pad_sequences(X, y, bucket_sizes, cluster_labels=None):
     labels = [[] for _ in bucket_sizes]
     clusters = [[] for _ in bucket_sizes]
 
-    it = zip(X, y, cluster_labels) if cluster_labels else zip(X, y)
+    it = zip(X, y, cluster_labels) if cluster_labels is not None else zip(X, y)
     for seq, label, cluster in it:
         for bucket_size, bucket, label_bucket, cluster_bucket in zip(bucket_sizes, buckets, labels, clusters):
             if len(seq) <= bucket_size:
@@ -178,7 +195,7 @@ def pad_sequences(X, y, bucket_sizes, cluster_labels=None):
                 else:
                     label_bucket.append(label)
 
-                if cluster_labels:
+                if cluster_labels is not None:
                     cluster_bucket.append(cluster)
 
                 break
@@ -191,7 +208,7 @@ def pad_sequences(X, y, bucket_sizes, cluster_labels=None):
             else:
                 labels[-1].append(label)
 
-            if cluster_labels:
+            if cluster_labels is not None:
                 clusters[-1].append(cluster)
 
     return ([np.array(bucket) for bucket in buckets],

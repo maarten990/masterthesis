@@ -132,7 +132,7 @@ class CNNClassifier(nn.Module):
 
         if self.use_final_layer:
             h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
-            return F.sigmoid(self.clf_out(h))
+            return F.sigmoid(self.dropout(self.clf_out(h)))
         else:
             return F.relu(clf_in)
 
@@ -210,6 +210,7 @@ class WithClusterLabels(nn.Module):
         # inputs: number of labels plus size of the recurrent output
         if use_labels:
             output_size = self.recurrent_clf.output_size
+            self.dropout = nn.Dropout(0.5)
             self.linear1 = nn.Linear(output_size + n_labels, int(output_size / 2))
             self.linear2 = nn.Linear(int(output_size / 2), 1)
 
@@ -223,9 +224,9 @@ class WithClusterLabels(nn.Module):
         if not self.use_labels:
             return recurrent_output
         else:
-            combined = torch.cat([recurrent_output, labels.unsqueeze(1)], 1)
-            h = self.linear1(combined)
-            out = self.linear2(h)
+            combined = torch.cat([recurrent_output, labels], 1)
+            h = F.relu(self.dropout(self.linear1(combined)))
+            out = self.dropout(self.linear2(h))
             return F.sigmoid(out)
 
     @with_cuda
