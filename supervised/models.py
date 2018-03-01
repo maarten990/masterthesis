@@ -131,7 +131,7 @@ class CNNClassifier(nn.Module):
         clf_in = l2.view(batch_size, -1)
 
         if self.use_final_layer:
-            h = self.dropout(F.sigmoid(self.clf_h(clf_in)))
+            h = F.relu(self.dropout(self.clf_h(clf_in)))
             return F.sigmoid(self.dropout(self.clf_out(h)))
         else:
             return F.relu(clf_in)
@@ -181,8 +181,8 @@ class LSTMClassifier(nn.Module):
 
         if self.use_final_layer:
             # sigmoid classification with 1 hidden layer in between
-            hiddenlayer = self.dropout(F.sigmoid(self.clf_h(averaged)))
-            return F.sigmoid(self.clf_out(hiddenlayer))
+            hiddenlayer = F.relu(self.dropout(self.clf_h(averaged)))
+            return F.sigmoid(self.dropout(self.clf_out(hiddenlayer)))
         else:
             return averaged
 
@@ -207,7 +207,6 @@ class WithClusterLabels(nn.Module):
         self.recurrent_clf = recurrent_clf
         self.use_labels = use_labels
 
-        # inputs: number of labels plus size of the recurrent output
         if use_labels:
             output_size = self.recurrent_clf.output_size
             self.dropout = nn.Dropout(0.5)
