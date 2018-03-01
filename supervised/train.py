@@ -28,7 +28,7 @@ from torch.autograd import Variable
 from tqdm import trange
 
 from data import sliding_window, pad_sequences
-from models import LSTMClassifier, CNNClassifier, NameClassifier, WithClusterLabels
+from models import LSTMClassifier, CNNClassifier, NameClassifier, cluster_factory
 
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
 
@@ -52,8 +52,8 @@ def load_model(filename):
     Load a model from the given path.
     """
     if os.path.exists(filename):
-        modelfn, kwargs, optimfn, model_state, optim_state = torch.load(filename)
-        model = modelfn(**kwargs)
+        modelfn, optimfn, model_state, optim_state = torch.load(filename)
+        model = modelfn()
         optim = optimfn(model.parameters())
 
         model.load_state_dict(model_state)
@@ -262,7 +262,7 @@ def main():
                    'num_layers': 1,
                    'dropout': dropout,
                    'use_final_layer': not with_labels}
-        modelfn = lambda: WithClusterLabels(LSTMClassifier(**argdict), 1, with_labels)
+        modelfn = cluster_factory(LSTMClassifier(**argdict), 5, with_labels)
 
     elif args['cnn']:
         Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
@@ -275,7 +275,7 @@ def main():
                    'num_filters': 32,
                    'dropout': dropout,
                    'use_final_layer': not with_labels}
-        modelfn = lambda: WithClusterLabels(CNNClassifier(**argdict), 5, with_labels)
+        modelfn = cluster_factory(CNNClassifier(**argdict), 5, with_labels)
 
     elif args['speaker']:
         Xb, Xtb, yb, ytb, vocab = get_speaker_data(args['<folder>'], args['<trainpattern>'],
@@ -302,8 +302,8 @@ def main():
 
     eval_fn = lambda m: evaluate_clf(m, Xtb, ctb, ytb, silent=True) if eval_file else None
     losses, optim = train(model, optim, Xb, yb, cb, epochs, eval_fn=eval_fn)
-    # torch.save((modelfn, argdict, optimfn, model.state_dict(), optim.state_dict()),
-               # pkl_path)
+    torch.save((modelfn, optimfn, model.state_dict(), optim.state_dict()),
+               pkl_path)
 
     if args['rnn'] or args['cnn']:
         evaluate_clf(model, Xtb, ctb, ytb)
