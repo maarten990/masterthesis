@@ -188,9 +188,13 @@ def train(model, optimizer, X_buckets, y_buckets, cluster_buckets, epochs=100, b
 
 
 def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
-    """
-    Evaluate the trained model.
-    Xb, cb, yb: bucketed lists of training, cluster and test data
+    """Evaluate the trained model.
+    
+    :param model: A trained model.
+    :param Xb: A bucketed list of input data.
+    :param cb: A bucketed list of cluster data.
+    :param yb: A bucketed list of labels.
+    :returns: A tuple of (precision, recall, f1 score).
     """
     model = model.eval()
     predictions = []
@@ -209,15 +213,18 @@ def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
             true.extend(ybatch)
 
     table = []
-    table.append(['f1', f1_score(true, predictions)])
-    table.append(['Speech recall', recall_score(true, predictions)])
-    table.append(['Speech precision', precision_score(true, predictions)])
+    f1 = f1_score(true, predictions)
+    p = precision_score(true, predictions)
+    r = recall_score(true, predictions)
+    table.append(['f1', f1])
+    table.append(['Speech recall', r])
+    table.append(['Speech precision', p])
 
     if not silent:
         print()
         print(tabulate(table))
 
-    return f1_score(true, predictions)
+    return p, r, f1
 
 
 def evaluate_spkr(model, Xb, yb, idx_to_token):
