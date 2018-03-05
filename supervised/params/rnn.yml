@@ -1,0 +1,5 @@
+embed_size: 128
+hidden_size: 32
+num_layers: 1
+dropout: 0.5
+epochs: 100

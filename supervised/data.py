@@ -3,7 +3,7 @@ import pickle
 import random
 import re
 from glob import glob
-from typing import List
+from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import nltk
 import numpy as np
@@ -17,7 +17,7 @@ random.seed(100)
 
 
 class Vocab:
-    def __init__(self, token_to_idx, idx_to_token):
+    def __init__(self, token_to_idx: Dict[str, int], idx_to_token: Dict[int, str]) -> None:
         self.token_to_idx = token_to_idx
         self.idx_to_token = idx_to_token
 
@@ -56,7 +56,7 @@ def pickler(func):
     return wrapped
 
 
-def load_from_disk(folder, pattern):
+def load_from_disk(folder: str, pattern: str = "*") -> Iterator[etree.Element]:
     """ Load each xml file for the given folder as an etree. """
     parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
 
@@ -66,12 +66,12 @@ def load_from_disk(folder, pattern):
             yield xml
 
 
-def get_label(node):
+def get_label(node: etree.Element) -> int:
     is_speech = node.attrib['is-speech']
     return 1 if is_speech == 'true' else 0
 
 
-def get_speaker(node):
+def get_speaker(node: etree.Element) -> str:
     is_speech = node.attrib['is-speech']
 
     if is_speech == 'true':
@@ -81,9 +81,9 @@ def get_speaker(node):
 
 
 @pickler
-def create_dictionary(folder, pattern):
+def create_dictionary(folder: str, pattern: str) -> Vocab:
     tokenizer = nltk.tokenize.WordPunctTokenizer()
-    all_words = set()
+    all_words = set() # type: Set[str]
 
     for xml in tqdm(load_from_disk(folder, pattern), desc='Creating dictionary'):
         text = ' '.join(xml.xpath('//text//text()')).lower()
@@ -96,8 +96,9 @@ def create_dictionary(folder, pattern):
     return Vocab(word_to_idx, idx_to_word)
 
 
-def sliding_window(folder, pattern, n, prune_ratio, label_pos=0, vocab=None,
-                   withClusterLabels=False):
+def sliding_window(folder: str, pattern: str, n: int, prune_ratio: float,
+                   label_pos: int = 0, vocab: Optional[Vocab] = None,
+                   withClusterLabels: bool = False) -> Data:
     """
     Return a sliding window representation over the documents with the
     given feature transformation.
@@ -166,8 +167,9 @@ def to_onehot(idx: int, n: int) -> List[int]:
     out[idx] = 1
     return out
 
-
-def pad_sequences(X, y, bucket_sizes, cluster_labels=None):
+BucketData = List[np.ndarray]
+def pad_sequences(X: List[List[float]], y: List[List[int]], bucket_sizes: List[int],
+                  cluster_labels: List[List[int]]) -> Tuple[BucketData, BucketData, BucketData]:
     """
     Pad the list of variable-length sequences X to arrays with widths
     corresponding to the specified buckets.
@@ -179,37 +181,32 @@ def pad_sequences(X, y, bucket_sizes, cluster_labels=None):
     if bucket_sizes[-1] == -1:
         bucket_sizes[-1] = max(len(seq) for seq in X)
 
-    buckets = [[] for _ in bucket_sizes]
-    labels = [[] for _ in bucket_sizes]
-    clusters = [[] for _ in bucket_sizes]
+    buckets = [[] for _ in bucket_sizes] # type: List[List[List[float]]]
+    labels = [[] for _ in bucket_sizes] # type: List[List[Union[List[int], int]]]
+    clusters = [[] for _ in bucket_sizes] # type: List[List[List[int]]]
 
-    it = zip(X, y, cluster_labels) if cluster_labels is not None else zip(X, y)
-    for seq, label, cluster in it:
+    for seq, label, cluster in zip(X, y, cluster_labels):
         for bucket_size, bucket, label_bucket, cluster_bucket in zip(bucket_sizes, buckets, labels, clusters):
             if len(seq) <= bucket_size:
                 diff = bucket_size - len(seq)
                 bucket.append(np.pad(seq, (0, diff), 'constant'))
+                cluster_bucket.append(cluster)
 
                 if type(label) == list:
                     label_bucket.append(np.pad(label, (0, diff), 'constant'))
                 else:
                     label_bucket.append(label)
 
-                if cluster_labels is not None:
-                    cluster_bucket.append(cluster)
-
                 break
         else:
             # If the for-loop didn't break, the sequence will need to be
             # truncated into the largest bucket.
             buckets[-1].append(seq[:bucket_sizes[-1]])
+            clusters[-1].append(cluster)
             if type(label) == list:
                 labels[-1].append(label[:bucket_sizes[-1]])
             else:
                 labels[-1].append(label)
-
-            if cluster_labels is not None:
-                clusters[-1].append(cluster)
 
     return ([np.array(bucket) for bucket in buckets],
             [np.array(label_bucket) for label_bucket in labels],

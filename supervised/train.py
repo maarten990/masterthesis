@@ -2,23 +2,21 @@
 Train the neural networks.
 
 Usage:
-train.py (rnn | cnn | speaker) <folder> <trainpattern> <testpattern>
-    [--epochs=<n>] [--dropout=<ratio>] [--with_labels] [--eval=<file>]
+train.py <paramfile> <folder> [--with_labels] 
 train.py (-h | --help)
 
 Options:
     -h --help                Show this screen
-    --epochs=<n>             Number of epochs to train for [default: 100]
-    --dropout=<ratio>        The dropout ratio between 0 and 1 [default: 0.5]
     --with_labels            Include computed cluster labels.
-    -e <file> --eval=<file>  Evaluate after every epoch and write the output to <file>.
 """
 
 
 import os.path
 import re
+import yaml
 from collections import namedtuple
 from docopt import docopt
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import torch
@@ -33,7 +31,26 @@ from models import LSTMClassifier, CNNClassifier, NameClassifier, cluster_factor
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
 
 
-def get_filename(network, pattern):
+class CNNParams:
+    def __init__(self, embed_size: int, dropout: float, epochs: int,
+                 num_filters: int) -> None:
+        self.embed_size = embed_size
+        self.dropout = dropout
+        self.epochs = epochs
+        self.num_filters = num_filters
+
+
+class RNNParams:
+    def __init__(self, embed_size: int, dropout: float, epochs: int,
+                 num_layers: int, hidden_layers: int) -> None:
+        self.embed_size = embed_size
+        self.dropout = dropout
+        self.epochs = epochs
+        self.num_layers = num_layers
+        self.hidden_layers = hidden_layers
+
+
+def get_filename(network: str, pattern: str) -> str:
     """
     Get the filename to use for pickling a classifier.
 
@@ -47,7 +64,7 @@ def get_filename(network, pattern):
     return path
 
 
-def load_model(filename):
+def load_model(filename: str) -> Tuple[torch.nn.Module, torch.optim.Optimizer]:
     """
     Load a model from the given path.
     """
@@ -63,23 +80,14 @@ def load_model(filename):
         return None
 
 
-def write_losses(losses, basename):
-    batch, epoch = losses
-
-    with open('evals_' + basename, 'w') as f:
-        f.write('\n'.join([str(l) for l in batch]))
-
-    with open('losses_' + basename, 'w') as f:
-        f.write('\n'.join([str(l) for l in epoch]))
-
-
-def get_clf_data(folder, trainpattern, testpattern, buckets):
+def get_clf_data(folder: str, trainpattern: str, buckets: List[int],
+                 testpattern: Optional[str] = None):
     """
     Return data meant for speech classification
 
     folder: the folder containing the xml files
     trainpattern: a glob pattern for selecting training files, e.g. '1800*.xml'
-    testpattern: a glob pattern for selecting training files, e.g. '1800*.xml'
+    testpattern: a glob pattern for selecting testing files, e.g. '180[12]*.xml'
     buckets: sequence length buckets to pad the data to
 
     Returns:
@@ -95,10 +103,14 @@ def get_clf_data(folder, trainpattern, testpattern, buckets):
     cluster_labels = data.clusterLabels
     Xb, yb, cb = pad_sequences(X, y, buckets, cluster_labels=cluster_labels)
 
-    data = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab, withClusterLabels=True)
-    Xt, yt = data.X, data.y
-    cluster_labels = data.clusterLabels
-    Xtb, ytb, ctb = pad_sequences(Xt, yt, buckets, cluster_labels=cluster_labels)
+    if test_pattern:
+        data = sliding_window(folder, testpattern, 2, 0.1, vocab=vocab, withClusterLabels=True)
+        Xt, yt = data.X, data.y
+        cluster_labels = data.clusterLabels
+        Xtb, ytb, ctb = pad_sequences(Xt, yt, buckets, cluster_labels=cluster_labels)
+    else:
+        # todo: cross validation or train/test split
+        pass
 
     for i, X in enumerate(Xb):
         train_samples = X.shape[0] if len(X) > 0 else 0
@@ -250,14 +262,8 @@ def evaluate_spkr(model, Xb, yb, idx_to_token):
     print(f'Speaker accuracy: {correct / X.shape[0]}')
 
 
-def main():
-    args = docopt(__doc__)
-    dropout = float(args['--dropout'])
-    epochs = int(args['--epochs'])
-    with_labels = args['--with_labels']
-    eval_file = args['--eval']
-
-    if args['rnn']:
+def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool, folder: str, pattern: str):
+    if type(params) == RNNParams:
         buckets = [5, 10, 15, 25, 40, -1]
         Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
                                                         args['<testpattern>'], buckets)
@@ -271,7 +277,7 @@ def main():
                    'use_final_layer': not with_labels}
         modelfn = cluster_factory(LSTMClassifier(**argdict), 5, with_labels)
 
-    elif args['cnn']:
+    elif type(params) == CNNParams:
         Xb, Xtb, yb, ytb, cb, ctb, vocab = get_clf_data(args['<folder>'], args['<trainpattern>'],
                                                         args['<testpattern>'], [40])
 
@@ -314,11 +320,46 @@ def main():
 
     if args['rnn'] or args['cnn']:
         evaluate_clf(model, Xtb, ctb, ytb)
-        write_losses(losses, eval_file)
+
+        if eval_file:
+            write_losses(losses, eval_file)
     else:
         evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
         write_losses(losses, 'spkr_losses.txt')
 
 
+def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
+    """Parse a parameter dictinary and ensure it's valid.
+
+    :param params: The parameter dict.
+    :returns: The parsed parameters.
+    """
+    tp = params['type']
+    del params['type']
+    if tp == 'cnn':
+        keys = ['embed_size, num_filters, dropout, epochs']
+        constructor = CNNParams # type: Type[Union[CNNParams, RNNParams]]
+    elif tp == 'rnn':
+        keys = ['embed_size, hidden_layers, num_layers, dropout, epochs']
+        constructor = RNNParams
+    else:
+        print('Error: only cnn or rnn allowed as type.')
+        return None
+
+    for key in keys:
+        if key not in params.keys():
+            print(f'Error: missing key {key}')
+            return None
+
+    return constructor(**params)
+
+
 if __name__ == '__main__':
-    main()
+    args = docopt(__doc__)
+    paramfile = args['<paramfile>']
+    folder = args['<folder>']
+    with_labels = args['--with_labels']
+
+    with open(paramfile, 'r') as f:
+        params = yaml.load(f)
+        p = parse_params(params)
