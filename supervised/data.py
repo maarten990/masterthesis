@@ -2,16 +2,15 @@ import os.path
 import pickle
 import random
 import re
+from collections import defaultdict
 from glob import glob
 from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import nltk
 import numpy as np
 from lxml import etree
+from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-
-XMLNS = {'pm': 'http://www.politicalmashup.nl',
-         'dc': 'http://purl.org/dc/elements/1.1'}
 
 random.seed(100)
 
@@ -22,56 +21,74 @@ class Vocab:
         self.idx_to_token = idx_to_token
 
 
-class Data:
-    def __init__(self, X=None, y=None, speakers=None, vocab=None,
-                 clusterLabels=None):
-        self.X = X
-        self.y = y
-        self.speakers = speakers
-        self.vocab = vocab
-        self.clusterLabels = clusterLabels
+class GermanDataset(Dataset):
+    def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
+                 window_size: int, window_label_idx: int = 0) -> None:
+        self.paths = [os.path.join(folder, fname) for fname in filenames]
+        self.vocab = create_dictionary(self.paths)
+        self.num_clusterlabels = num_clusterlabels
+        self.window_size = window_size
+        self.window_label_idx = window_label_idx
 
+        lengths = []
+        # subtract the elements that get dropped off due to the window size
+        window_loss = window_size - 1
+        for path in self.paths:
+            tree = load_xml_from_disk(path)
+            lengths.append(len(tree.xpath('/pdf2xml/page/text')) - window_loss)
 
-def pickler(func):
-    def wrapped(*args, **kwargs):
-        args_str = '_'.join(str(arg) for arg in args)
-        kwargs_str = '_'.join(f'{key}_{val}' for key, val in kwargs)
+        self.boundaries = np.cumsum(lengths)
+            
+    def __len__(self) -> int:
+        return self.boundaries[-1]
 
-        # remove any illegal/stupid characters
-        args_str = re.sub(r'[/\\\*]', '', args_str)
-        kwargs_str = re.sub(r'[/\\\*]', '', kwargs_str)
-
-        pkl_path = os.path.join('pickle', f'{func.__name__}_{args_str}_{kwargs_str}.pkl')
-
-        if os.path.exists(pkl_path):
-            with open(pkl_path, 'rb') as f:
-                return pickle.load(f)
+    def __getitem__(self, idx: int) -> Dict[str, np.ndarray]:
+        file_idx = len([b for b in self.boundaries if idx >= b])
+        if file_idx == 0:
+            file_offset = idx
         else:
-            out = func(*args, **kwargs)
-            with open(pkl_path, 'wb') as f:
-                pickle.dump(out, f)
+            file_offset = idx - self.boundaries[file_idx - 1]
+        tree = load_xml_from_disk(self.paths[file_idx])
 
-            return out
+        end = file_offset + self.window_size
+        elements = tree.xpath('/pdf2xml/page/text')[file_offset:end]
+        return self.vectorize_window(elements)
 
-    return wrapped
+    def vectorize_window(self, window: List[etree._Element]) -> Dict[str, np.ndarray]:
+        tokenizer = nltk.tokenize.WordPunctTokenizer()
+        tokens = token_featurizer(window, tokenizer)
+        y = get_label(window[self.window_label_idx])
+
+        # lowercase as the tokens will also be lowercased
+        speaker_tokens = tokenizer.tokenize(
+            get_speaker(window[self.window_label_idx]).lower())
+
+        X = [self.vocab.token_to_idx.get(token, 0) for token in tokens]
+        
+        X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
+
+        clusterlabels = to_onehot(
+            int(window[self.window_label_idx].attrib['clusterLabel']),
+            self.num_clusterlabels)
+
+        return {'data': np.array(X),
+                'speaker_data': np.array(X_speaker),
+                'cluster_data': np.array(clusterlabels),
+                'label': np.array([y])}
 
 
-def load_from_disk(folder: str, pattern: str = "*") -> Iterator[etree.Element]:
-    """ Load each xml file for the given folder as an etree. """
+def load_xml_from_disk(path: str) -> etree._Element:
     parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
+    with open(path, 'r', encoding='utf-8') as f:
+        return etree.fromstring(f.read().encode('utf-8'), parser)
+        
 
-    for file in glob(os.path.join(folder, pattern)):
-        with open(file, 'r', encoding='utf-8') as f:
-            xml = etree.fromstring(f.read().encode('utf-8'), parser)
-            yield xml
-
-
-def get_label(node: etree.Element) -> int:
+def get_label(node: etree._Element) -> int:
     is_speech = node.attrib['is-speech']
     return 1 if is_speech == 'true' else 0
 
 
-def get_speaker(node: etree.Element) -> str:
+def get_speaker(node: etree._Element) -> str:
     is_speech = node.attrib['is-speech']
 
     if is_speech == 'true':
@@ -80,13 +97,13 @@ def get_speaker(node: etree.Element) -> str:
         return ''
 
 
-@pickler
-def create_dictionary(folder: str, pattern: str) -> Vocab:
+def create_dictionary(paths: List[str]) -> Vocab:
     tokenizer = nltk.tokenize.WordPunctTokenizer()
     all_words = set() # type: Set[str]
 
-    for xml in tqdm(load_from_disk(folder, pattern), desc='Creating dictionary'):
-        text = ' '.join(xml.xpath('//text//text()')).lower()
+    for path in tqdm(paths, desc='Creating dictionary'):
+        xml = load_xml_from_disk(path)
+        text = ' '.join(xml.xpath('/pdf2xml/page/text/text()')).lower()
         tokens = tokenizer.tokenize(text)
         all_words |= set(tokens)
 
@@ -94,55 +111,6 @@ def create_dictionary(folder: str, pattern: str) -> Vocab:
     idx_to_word = {i+1: w for i, w in enumerate(all_words)}
 
     return Vocab(word_to_idx, idx_to_word)
-
-
-def sliding_window(folder: str, pattern: str, n: int, prune_ratio: float,
-                   label_pos: int = 0, vocab: Optional[Vocab] = None,
-                   withClusterLabels: bool = False) -> Data:
-    """
-    Return a sliding window representation over the documents with the
-    given feature transformation.
-    
-    withClusterlabels: False, or an integer indicating the dimensionality
-    """
-    if not vocab:
-        vocab = create_dictionary(folder, pattern)
-
-    tokenizer = nltk.tokenize.WordPunctTokenizer()
-
-    inputs = []
-    is_speech = []
-    speakers = []
-    clusterLabels = []
-
-    for xml in load_from_disk(folder, pattern):
-        nodes = xml.xpath('//text')
-        for window in zip(*(nodes[i:] for i in range(n))):
-            tokens = token_featurizer(window, tokenizer)
-            y = get_label(window[label_pos])
-
-            # lowercase as the tokens will also be lowercased
-            speaker_tokens = tokenizer.tokenize(get_speaker(window[label_pos]).lower())
-
-            # skip empty lines
-            if len(tokens) == 0:
-                continue
-
-            # random pruning for negative labels
-            if y == 0 and random.random() > prune_ratio:
-                continue
-
-            inputs.append([vocab.token_to_idx[token] if token in vocab.token_to_idx else 0
-                           for token in tokens])
-            is_speech.append(y)
-            speakers.append([1 if token in speaker_tokens else 0 for token in tokens])
-
-            if withClusterLabels:
-                vec = to_onehot(int(window[label_pos].attrib['clusterLabel']), 5)
-                clusterLabels.append(vec)
-
-    return Data(X=inputs, y=np.array(is_speech), speakers=speakers, vocab=vocab,
-                clusterLabels=clusterLabels)
 
 
 def token_featurizer(nodes, tokenizer):
@@ -167,9 +135,17 @@ def to_onehot(idx: int, n: int) -> List[int]:
     out[idx] = 1
     return out
 
-BucketData = List[np.ndarray]
-def pad_sequences(X: List[List[float]], y: List[List[int]], bucket_sizes: List[int],
-                  cluster_labels: List[List[int]]) -> Tuple[BucketData, BucketData, BucketData]:
+
+def collate(samples: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
+    out = defaultdict(list) # type: Dict[str, np.ndarray]
+    for sample in samples:
+        for key, item in sample.items():
+            out[key].append(item)
+        
+    return out
+
+'''
+def pad_sequences_to_buckets(data: Dict[str, np.ndarray], bucket_sizes: List[int]) -> Dict[str, np.ndarray]:
     """
     Pad the list of variable-length sequences X to arrays with widths
     corresponding to the specified buckets.
@@ -180,6 +156,10 @@ def pad_sequences(X: List[List[float]], y: List[List[int]], bucket_sizes: List[i
     """
     if bucket_sizes[-1] == -1:
         bucket_sizes[-1] = max(len(seq) for seq in X)
+
+    X = data['data']
+    y = data['labels']
+    cluster_labels = data['cluster_data']
 
     buckets = [[] for _ in bucket_sizes] # type: List[List[List[float]]]
     labels = [[] for _ in bucket_sizes] # type: List[List[Union[List[int], int]]]
@@ -211,3 +191,4 @@ def pad_sequences(X: List[List[float]], y: List[List[int]], bucket_sizes: List[i
     return ([np.array(bucket) for bucket in buckets],
             [np.array(label_bucket) for label_bucket in labels],
             [np.array(cluster_bucket) for cluster_bucket in clusters])
+'''
