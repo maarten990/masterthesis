@@ -231,13 +231,3 @@ class WithClusterLabels(nn.Module):
     @with_cuda
     def loss(self, y_pred, y_true):
         return self.recurrent_clf.loss(y_pred, y_true)
-
-
-class cluster_factory:
-    def __init__(self, clf, n_labels, use_labels):
-        self.clf = clf
-        self.n_labels = n_labels
-        self.use_labels = use_labels
-
-    def __call__(self):
-        return WithClusterLabels(self.clf, self.n_labels, self.use_labels)

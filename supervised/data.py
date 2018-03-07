@@ -4,7 +4,7 @@ import random
 import re
 from collections import defaultdict
 from glob import glob
-from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import nltk
 import numpy as np
@@ -20,15 +20,17 @@ class Vocab:
         self.token_to_idx = token_to_idx
         self.idx_to_token = idx_to_token
 
-
+Sample = Dict[int, List[Dict[str, np.ndarray]]]
 class GermanDataset(Dataset):
     def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
-                 window_size: int, window_label_idx: int = 0) -> None:
+                 window_size: int, window_label_idx: int = 0,
+                 transform: Optional[Callable[[Sample], Sample]] = None) -> None:
         self.paths = [os.path.join(folder, fname) for fname in filenames]
         self.vocab = create_dictionary(self.paths)
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
+        self.transform = transform
 
         lengths = []
         # subtract the elements that get dropped off due to the window size
@@ -42,7 +44,7 @@ class GermanDataset(Dataset):
     def __len__(self) -> int:
         return self.boundaries[-1]
 
-    def __getitem__(self, idx: int) -> Dict[str, np.ndarray]:
+    def __getitem__(self, idx: int) -> Sample:
         file_idx = len([b for b in self.boundaries if idx >= b])
         if file_idx == 0:
             file_offset = idx
@@ -52,9 +54,14 @@ class GermanDataset(Dataset):
 
         end = file_offset + self.window_size
         elements = tree.xpath('/pdf2xml/page/text')[file_offset:end]
-        return self.vectorize_window(elements)
+        sample = self.vectorize_window(elements)
 
-    def vectorize_window(self, window: List[etree._Element]) -> Dict[str, np.ndarray]:
+        if self.transform:
+            sample = self.transform(sample)
+
+        return sample
+
+    def vectorize_window(self, window: List[etree._Element]) -> Sample:
         tokenizer = nltk.tokenize.WordPunctTokenizer()
         tokens = token_featurizer(window, tokenizer)
         y = get_label(window[self.window_label_idx])
@@ -71,10 +78,46 @@ class GermanDataset(Dataset):
             int(window[self.window_label_idx].attrib['clusterLabel']),
             self.num_clusterlabels)
 
-        return {'data': np.array(X),
-                'speaker_data': np.array(X_speaker),
-                'cluster_data': np.array(clusterlabels),
-                'label': np.array([y])}
+        return defaultdict(list, [(len(X), {'data': np.array(X),
+                                            'speaker_data': np.array(X_speaker),
+                                            'cluster_data': np.array(clusterlabels),
+                                            'label': np.array([y])})])
+
+
+def get_iterator(dataset: Dataset, batch_size: int = 32) -> DataLoader:
+    return DataLoader(dataset, batch_size=batch_size, collate_fn=collate_dicts)
+
+
+def collate_dicts(samples: List[Sample]) -> Sample:
+    out: Sample = defaultdict(list)
+
+    for s in samples:
+        for length, item in s.items():
+            out[length].append(item)
+
+    return out
+
+class SampleToBuckets:
+    def __init__(self, buckets: List[int]) -> None:
+        self.buckets = buckets
+
+    def __call__(self, sample: Sample) -> Sample:
+        out: Sample = defaultdict(list)
+        for size, samples in sample.items():
+            for bucket_size in self.buckets:
+                if size <= bucket_size:
+                    for s in samples:
+                        out[bucket_size].append(self.pad(s, bucket_size - size))
+                        
+                    continue
+
+        return out
+
+    def pad(self, sample_dict: Dict[str, np.ndarray], amount: int) -> Dict[str, np.ndarray]:
+        return {'data': np.pad(sample_dict['data'], (0, amount), 'constant'),
+                'speaker_data': sample_dict['speaker_data'],
+                'cluster_data': sample_dict['cluster_data'],
+                'label': sample_dict['label']}
 
 
 def load_xml_from_disk(path: str) -> etree._Element:
@@ -99,7 +142,7 @@ def get_speaker(node: etree._Element) -> str:
 
 def create_dictionary(paths: List[str]) -> Vocab:
     tokenizer = nltk.tokenize.WordPunctTokenizer()
-    all_words = set() # type: Set[str]
+    all_words: Set[str] = set()
 
     for path in tqdm(paths, desc='Creating dictionary'):
         xml = load_xml_from_disk(path)
@@ -135,14 +178,6 @@ def to_onehot(idx: int, n: int) -> List[int]:
     out[idx] = 1
     return out
 
-
-def collate(samples: List[Dict[str, np.ndarray]]) -> Dict[str, np.ndarray]:
-    out = defaultdict(list) # type: Dict[str, np.ndarray]
-    for sample in samples:
-        for key, item in sample.items():
-            out[key].append(item)
-        
-    return out
 
 '''
 def pad_sequences_to_buckets(data: Dict[str, np.ndarray], bucket_sizes: List[int]) -> Dict[str, np.ndarray]:
