@@ -2,7 +2,7 @@
 Train the neural networks.
 
 Usage:
-train.py <paramfile> <folder> [--with_labels] 
+train.py [--with_labels] <paramfile> <folder> <files>...
 train.py (-h | --help)
 
 Options:
@@ -16,7 +16,7 @@ import re
 import yaml
 from collections import namedtuple
 from docopt import docopt
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 import torch
@@ -27,7 +27,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
 
-from data import collate, GermanDataset
+from data import GermanDataset, get_iterator, to_tensors
 from models import LSTMClassifier, CNNClassifier, NameClassifier, WithClusterLabels
 
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
@@ -44,12 +44,12 @@ class CNNParams:
 
 class RNNParams:
     def __init__(self, embed_size: int, dropout: float, epochs: int,
-                 num_layers: int, hidden_layers: int) -> None:
+                 num_layers: int, hidden_size: int) -> None:
         self.embed_size = embed_size
         self.dropout = dropout
         self.epochs = epochs
         self.num_layers = num_layers
-        self.hidden_layers = hidden_layers
+        self.hidden_size = hidden_size
 
 
 def get_filename(network: str, pattern: str) -> str:
@@ -87,16 +87,16 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
     model.train()
 
     epoch_losses = []
-    epoch_evals = []
     t = trange(epochs, desc='Training')
     for _ in t:
         epoch_loss = torch.zeros(1).float()
 
         for batch in dataloader:
-            for i in range(0, X_train.shape[0], batch_size):
-                X = Variable(torch.from_numpy(X_train[i:i+32, :])).long()
-                y = Variable(torch.from_numpy(y_train[i:i+32])).float()
-                c = Variable(torch.from_numpy(c_train[i:i+32, :])).float()
+            data = to_tensors(batch)
+            for size, d in data.items():
+                X = d['data']
+                c = d['cluster_data']
+                y = d['label']
 
                 y_pred = model(X, c)
                 loss = model.loss(y_pred, y)
@@ -112,12 +112,8 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
         t.set_postfix({'loss': loss,
                        'Δloss': loss_delta})
 
-        if eval_fn:
-            epoch_evals.append(eval_fn(model))
-            model.train()
-
     model.eval()
-    return (epoch_evals, epoch_losses), optimizer
+    return epoch_losses, optimizer
 
 
 def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
@@ -161,36 +157,37 @@ def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool, folder: str, files: List[str]):
+    dataset = GermanDataset(folder, files, 5, 3, 1)
+
     recurrent_model: nn.Module
     if type(params) == RNNParams:
+        cast(RNNParams, params)
         buckets = [5, 10, 15, 25, 40, -1]
-        argdict = {'input_size': len(vocab.token_to_idx) + 1,
-                   'embed_size': 128,
-                   'hidden_size': 32,
-                   'num_layers': 1,
-                   'dropout': dropout,
+        argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
+                   'embed_size': params.embed_size,
+                   'hidden_size': params.hidden_size,
+                   'num_layers': params.num_layers,
+                   'dropout': params.dropout,
                    'use_final_layer': not with_labels}
         recurrent_model = LSTMClassifier(**argdict)
     elif type(params) == CNNParams:
+        cast(CNNParams, params)
         buckets = [40]
-        argdict = {'input_size': len(vocab.token_to_idx) + 1,
-                   'seq_len': Xb[0].shape[1],
-                   'embed_size': 128,
-                   'num_filters': 32,
-                   'dropout': dropout,
+        argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
+                   'seq_len': buckets[0],
+                   'embed_size': params.embed_size,
+                   'num_filters': params.num_filters,
+                   'dropout': params.dropout,
                    'use_final_layer': not with_labels}
         recurrent_model = CNNClassifier(**argdict)
 
     model = WithClusterLabels(recurrent_model, 5, with_labels)
-    optimizer = torch.optim.Adam()
+    optimizer = torch.optim.Adam(model.parameters())
+    data = get_iterator(dataset, buckets=buckets, batch_size=32)
+    losses, optim = train(model, optimizer, data)
 
-    data = DataLoader(GermanDataset(folder, files, 5, 3, 1), batch_size=32, collate_fn=collate)
-    losses, optim = train(model, optim, data)
-
-    if args['rnn'] or args['cnn']:
-        evaluate_clf(model, Xtb, ctb, ytb)
-    else:
-        evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
+    #evaluate_clf(model, Xtb, ctb, ytb)
+    #evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
 
     return losses
 
@@ -203,12 +200,12 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     tp = params['type']
     del params['type']
 
-    constructor: Union[CNNParams, RNNParams]
+    constructor: Union[Type[CNNParams],Type[RNNParams]]
     if tp == 'cnn':
-        keys = ['embed_size, num_filters, dropout, epochs']
+        keys = ['embed_size', 'num_filters', 'dropout', 'epochs']
         constructor = CNNParams
     elif tp == 'rnn':
-        keys = ['embed_size, hidden_layers, num_layers, dropout, epochs']
+        keys = ['embed_size', 'hidden_size', 'num_layers', 'dropout', 'epochs']
         constructor = RNNParams
     else:
         print('Error: only cnn or rnn allowed as type.')
@@ -226,8 +223,12 @@ if __name__ == '__main__':
     args = docopt(__doc__)
     paramfile = args['<paramfile>']
     folder = args['<folder>']
+    files = args['<files>']
     with_labels = args['--with_labels']
 
     with open(paramfile, 'r') as f:
         params = yaml.load(f)
         p = parse_params(params)
+
+        losses = setup_and_train(p, with_labels, folder, files)
+        print(losses)

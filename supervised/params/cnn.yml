@@ -1,3 +1,4 @@
+type: cnn
 embed_size: 128
 num_filters: 32
 dropout: 0.5
