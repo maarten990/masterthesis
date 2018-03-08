@@ -2,6 +2,7 @@ import os.path
 import pickle
 import random
 import re
+from functools import lru_cache
 from glob import glob
 from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
@@ -20,6 +21,7 @@ class Vocab:
     def __init__(self, token_to_idx: Dict[str, int], idx_to_token: Dict[int, str]) -> None:
         self.token_to_idx = token_to_idx
         self.idx_to_token = idx_to_token
+
 
 Sample = Dict[int, Dict[str, np.ndarray]]
 class GermanDataset(Dataset):
@@ -149,6 +151,7 @@ def to_tensors(sample: Sample) -> Sample:
     return out
 
 
+@lru_cache(maxsize=8192)
 def load_xml_from_disk(path: str) -> etree._Element:
     parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
     with open(path, 'r', encoding='utf-8') as f:
