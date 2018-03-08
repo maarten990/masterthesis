@@ -2,12 +2,13 @@
 Train the neural networks.
 
 Usage:
-train.py [--with_labels] <paramfile> <folder> <files>...
+train.py <paramfile> <folder> <files>... [options]
 train.py (-h | --help)
 
 Options:
-    -h --help                Show this screen
-    --with_labels            Include computed cluster labels.
+    -h --help                      Show this screen
+    --with_labels                  Include computed cluster labels.
+    -b <size> --batch_size=<size>  The batch size used for training.
 """
 
 
@@ -156,7 +157,8 @@ def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
     return p, r, f1
 
 
-def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool, folder: str, files: List[str]):
+def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
+                    folder: str, files: List[str], batch_size: int = 32) -> List[float]:
     dataset = GermanDataset(folder, files, 5, 3, 1)
 
     recurrent_model: nn.Module
@@ -183,7 +185,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool, fold
 
     model = WithClusterLabels(recurrent_model, 5, with_labels)
     optimizer = torch.optim.Adam(model.parameters())
-    data = get_iterator(dataset, buckets=buckets, batch_size=32)
+    data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     losses, optim = train(model, optimizer, data)
 
     #evaluate_clf(model, Xtb, ctb, ytb)
@@ -225,10 +227,11 @@ if __name__ == '__main__':
     folder = args['<folder>']
     files = args['<files>']
     with_labels = args['--with_labels']
+    batch_size = args['--batch_size']
 
     with open(paramfile, 'r') as f:
         params = yaml.load(f)
         p = parse_params(params)
 
-        losses = setup_and_train(p, with_labels, folder, files)
+        losses = setup_and_train(p, with_labels, folder, files, int(batch_size))
         print(losses)
