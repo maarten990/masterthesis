@@ -8,6 +8,7 @@ from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 import nltk
 import numpy as np
 import torch
+from torch.autograd import Variable
 from lxml import etree
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -23,14 +24,12 @@ class Vocab:
 Sample = Dict[int, Dict[str, np.ndarray]]
 class GermanDataset(Dataset):
     def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
-                 window_size: int, window_label_idx: int = 0,
-                 transform: Optional[Callable[[Sample], Sample]] = None) -> None:
+                 window_size: int, window_label_idx: int = 0) -> None:
         self.paths = [os.path.join(folder, fname) for fname in filenames]
         self.vocab = create_dictionary(self.paths)
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
-        self.transform = transform
 
         lengths = []
         # subtract the elements that get dropped off due to the window size
@@ -55,9 +54,6 @@ class GermanDataset(Dataset):
         end = file_offset + self.window_size
         elements = tree.xpath('/pdf2xml/page/text')[file_offset:end]
         sample = self.vectorize_window(elements)
-
-        if self.transform:
-            sample = self.transform(sample)
 
         return sample
 
@@ -133,18 +129,22 @@ class CollateWithBuckets:
                     'label': sample_dict['label']}
 
     def concat_samples(self, sample1: Dict[str, np.ndarray], sample2: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        return {key: np.stack([sample1[key], sample2[key]], 0)
+        return {key: np.append(ensure_2d(sample1[key]), ensure_2d(sample2[key]), 0)
                 for key in sample1.keys()}
+
+
+def ensure_2d(arr: np.ndarray) -> np.ndarray:
+    return np.expand_dims(arr, 0) if len(arr.shape) < 2 else arr
 
 
 def to_tensors(sample: Sample) -> Sample:
     out: Sample = {}
 
     for size, sample_dict in sample.items():
-        out[size] = {'data': torch.from_numpy(sample_dict['data']).long(),
-                     'speaker_data': torch.from_numpy(sample_dict['speaker_data']).long(),
-                     'cluster_data': torch.from_numpy(sample_dict['cluster_data']).float(),
-                     'label': torch.from_numpy(sample_dict['label']).float()}
+        out[size] = {'data': Variable(torch.from_numpy(sample_dict['data'])).long(),
+                     'speaker_data': Variable(torch.from_numpy(sample_dict['speaker_data'])).long(),
+                     'cluster_data': Variable(torch.from_numpy(sample_dict['cluster_data'])).float(),
+                     'label': Variable(torch.from_numpy(sample_dict['label'])).float()}
 
     return out
 
