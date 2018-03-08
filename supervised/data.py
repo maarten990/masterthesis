@@ -2,12 +2,12 @@ import os.path
 import pickle
 import random
 import re
-from collections import defaultdict
 from glob import glob
 from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
 
 import nltk
 import numpy as np
+import torch
 from lxml import etree
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
@@ -20,7 +20,7 @@ class Vocab:
         self.token_to_idx = token_to_idx
         self.idx_to_token = idx_to_token
 
-Sample = Dict[int, List[Dict[str, np.ndarray]]]
+Sample = Dict[int, Dict[str, np.ndarray]]
 class GermanDataset(Dataset):
     def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
                  window_size: int, window_label_idx: int = 0,
@@ -78,46 +78,75 @@ class GermanDataset(Dataset):
             int(window[self.window_label_idx].attrib['clusterLabel']),
             self.num_clusterlabels)
 
-        return defaultdict(list, [(len(X), {'data': np.array(X),
-                                            'speaker_data': np.array(X_speaker),
-                                            'cluster_data': np.array(clusterlabels),
-                                            'label': np.array([y])})])
+        return {len(X): {'data': np.array(X),
+                         'speaker_data': np.array(X_speaker),
+                         'cluster_data': np.array(clusterlabels),
+                         'label': np.array([y])}}
 
 
-def get_iterator(dataset: Dataset, batch_size: int = 32) -> DataLoader:
-    return DataLoader(dataset, batch_size=batch_size, collate_fn=collate_dicts)
+def get_iterator(dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32 ) -> DataLoader:
+    return DataLoader(dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets))
 
 
-def collate_dicts(samples: List[Sample]) -> Sample:
-    out: Sample = defaultdict(list)
-
-    for s in samples:
-        for length, item in s.items():
-            out[length].append(item)
-
-    return out
-
-class SampleToBuckets:
+class CollateWithBuckets:
     def __init__(self, buckets: List[int]) -> None:
         self.buckets = buckets
 
-    def __call__(self, sample: Sample) -> Sample:
-        out: Sample = defaultdict(list)
-        for size, samples in sample.items():
-            for bucket_size in self.buckets:
-                if size <= bucket_size:
-                    for s in samples:
-                        out[bucket_size].append(self.pad(s, bucket_size - size))
-                        
-                    continue
+    def __call__(self, samples: List[Sample]) -> Sample:
+        return self.bucket(samples)
+
+    def bucket(self, samples: List[Sample]) -> Sample:
+        out: Sample = {}
+        for sample in samples:
+            for size, s in sample.items():
+                for bucket_size in self.buckets:
+                    if size <= bucket_size:
+                        if bucket_size in out:
+                            out[bucket_size] = self.concat_samples(
+                                out[bucket_size], self.pad(s, bucket_size - size))
+                        else:
+                            out[bucket_size] = self.pad(s, bucket_size - size)
+
+                        break
+                else:
+                    # truncate
+                    bucket_size = self.buckets[-1]
+                    if bucket_size in out:
+                        out[bucket_size] = self.concat_samples(
+                            out[bucket_size], self.pad(s, bucket_size - size))
+                    else:
+                        out[bucket_size] = self.pad(s, bucket_size - size)
+
 
         return out
 
     def pad(self, sample_dict: Dict[str, np.ndarray], amount: int) -> Dict[str, np.ndarray]:
-        return {'data': np.pad(sample_dict['data'], (0, amount), 'constant'),
-                'speaker_data': sample_dict['speaker_data'],
-                'cluster_data': sample_dict['cluster_data'],
-                'label': sample_dict['label']}
+        if amount >= 0:
+            return {'data': np.pad(sample_dict['data'], (0, amount), 'constant'),
+                    'speaker_data': np.pad(sample_dict['speaker_data'], (0, amount), 'constant'),
+                    'cluster_data': sample_dict['cluster_data'],
+                    'label': sample_dict['label']}
+        else:
+            return {'data': sample_dict['data'][:amount],
+                    'speaker_data': sample_dict['speaker_data'][:amount],
+                    'cluster_data': sample_dict['cluster_data'],
+                    'label': sample_dict['label']}
+
+    def concat_samples(self, sample1: Dict[str, np.ndarray], sample2: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
+        return {key: np.stack([sample1[key], sample2[key]], 0)
+                for key in sample1.keys()}
+
+
+def to_tensors(sample: Sample) -> Sample:
+    out: Sample = {}
+
+    for size, sample_dict in sample.items():
+        out[size] = {'data': torch.from_numpy(sample_dict['data']).long(),
+                     'speaker_data': torch.from_numpy(sample_dict['speaker_data']).long(),
+                     'cluster_data': torch.from_numpy(sample_dict['cluster_data']).float(),
+                     'label': torch.from_numpy(sample_dict['label']).float()}
+
+    return out
 
 
 def load_xml_from_disk(path: str) -> etree._Element:
