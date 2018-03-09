@@ -52,10 +52,11 @@ class GermanDataset(Dataset):
             file_offset = idx - self.boundaries[file_idx - 1]
         tree = load_xml_from_disk(self.paths[file_idx])
 
-        end = file_offset + self.window_size
+        end = file_offset + self.window_size + 1
         elements = tree.xpath('/pdf2xml/page/text')[file_offset:end]
         sample = self.vectorize_window(elements)
 
+        assert len(sample) == 1
         return sample
 
     def vectorize_window(self, window: List[etree._Element]) -> Sample:
