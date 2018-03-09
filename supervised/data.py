@@ -1,6 +1,5 @@
 import os.path
 import pickle
-import random
 import re
 from functools import lru_cache
 from glob import glob
@@ -14,7 +13,7 @@ from lxml import etree
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-random.seed(100)
+np.random.seed(100)
 
 
 class Vocab:
@@ -33,7 +32,7 @@ class GermanDataset(Dataset):
         self.window_size = window_size
         self.window_label_idx = window_label_idx
 
-        lengths = []
+        lengths: List[int] = []
         # subtract the elements that get dropped off due to the window size
         window_loss = window_size - 1
         for path in self.paths:
@@ -80,6 +79,40 @@ class GermanDataset(Dataset):
                          'speaker_data': np.array(X_speaker),
                          'cluster_data': np.array(clusterlabels),
                          'label': np.array([y])}}
+
+class GermanDatasetInMemory(GermanDataset):
+    def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
+                 window_size: int, window_label_idx: int = 0, subsample_negative=False) -> None:
+        super().__init__(folder, filenames, num_clusterlabels, window_size, window_label_idx)
+        self.subsample_negative = subsample_negative
+        self.samples: List[Sample] = []
+
+        for i in range(super().__len__()):
+            self.samples.append(super().__getitem__(i))
+
+        if self.subsample_negative:
+            # first, divide the samples in positive and negative samples
+            positives: List[int] = []
+            negatives: List[int] = []
+            for i, sample in enumerate(self.samples):
+                # the key (length) is not relevant, and we know there's only item
+                for _, data in sample.items():
+                    if (data['label'] == 1).all():
+                        positives.append(i)
+                    else:
+                        negatives.append(i)
+
+            # then subsample the negative samples until the amount is equal
+            diff = len(negatives) - len(positives)
+            discard = np.random.choice(negatives, diff, replace=False)
+            self.samples = [sample for i, sample in enumerate(self.samples)
+                            if i not in discard]
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, idx: int) -> Sample:
+        return self.samples[idx]
 
 
 def get_iterator(dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32 ) -> DataLoader:
