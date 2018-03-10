@@ -117,30 +117,33 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
     return epoch_losses, optimizer
 
 
-def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
+def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
+                 silent=False) -> Tuple[float, float, float]:
     """Evaluate the trained model.
     
     :param model: A trained model.
-    :param Xb: A bucketed list of input data.
-    :param cb: A bucketed list of cluster data.
-    :param yb: A bucketed list of labels.
+    :param dataloader: The input data.
+    :param cutoff: The value (between 0 and 1) from which point the neural
+        network output is considered positive.
+    :param silent: If True, don't print the scores.
     :returns: A tuple of (precision, recall, f1 score).
     """
     model = model.eval()
-    predictions = []
-    true = []
+    predictions: List[bool] = []
+    true: List[bool] = []
 
-    for X, c, y in zip(Xb, cb, yb):
-        for i in range(0, X.shape[0], batch_size):
-            Xvar = Variable(torch.from_numpy(X[i:i+32, :])).long()
-            ybatch = y[i:i+32]
-            cvar = Variable(torch.from_numpy(c[i:i+32, :])).float()
+    for batch in dataloader:
+        data = to_tensors(batch)
+        for _, d in data.items():
+            X = d['data']
+            c = d['cluster_data']
+            y = d['label']
 
-            pred = model(Xvar, cvar)
+            pred = model(X, c)
             pred = pred.cpu().squeeze().data.numpy()
-            pred = np.where(pred > 0.5, 1, 0)
+            pred = np.where(pred > cutoff, 1, 0)
             predictions.extend(pred)
-            true.extend(ybatch)
+            true.extend(y)
 
     table = []
     f1 = f1_score(true, predictions)
@@ -191,7 +194,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
     #evaluate_clf(model, Xtb, ctb, ytb)
     #evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
 
-    return losses
+    return model, losses
 
 def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     """Parse a parameter dictinary and ensure it's valid.
