@@ -2,7 +2,7 @@
 Train the neural networks.
 
 Usage:
-train.py <paramfile> <folder> <files>... [options]
+train.py <paramfile> <files>... [options]
 train.py (-h | --help)
 
 Options:
@@ -28,7 +28,7 @@ from torch.autograd import Variable
 from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
 
-from data import GermanDataset, get_iterator, to_tensors
+from data import GermanDatasetInMemory, get_iterator, to_tensors
 from models import LSTMClassifier, CNNClassifier, NameClassifier, WithClusterLabels
 
 Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
@@ -94,7 +94,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
 
         for batch in dataloader:
             data = to_tensors(batch)
-            for size, d in data.items():
+            for _, d in data.items():
                 X = d['data']
                 c = d['cluster_data']
                 y = d['label']
@@ -158,8 +158,8 @@ def evaluate_clf(model, Xb, cb, yb, batch_size=32, silent=False):
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
-                    folder: str, files: List[str], batch_size: int = 32) -> List[float]:
-    dataset = GermanDataset(folder, files, 5, 3, 1)
+                    files: List[str], batch_size: int = 32) -> Tuple[nn.Module, List[float]]:
+    dataset = GermanDatasetInMemory(files, 5, 3, 1, True)
 
     recurrent_model: nn.Module
     if type(params) == RNNParams:
@@ -224,7 +224,6 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
 if __name__ == '__main__':
     args = docopt(__doc__)
     paramfile = args['<paramfile>']
-    folder = args['<folder>']
     files = args['<files>']
     with_labels = args['--with_labels']
     batch_size = args['--batch_size']
@@ -233,5 +232,5 @@ if __name__ == '__main__':
         params = yaml.load(f)
         p = parse_params(params)
 
-        losses = setup_and_train(p, with_labels, folder, files, int(batch_size))
+        losses = setup_and_train(p, with_labels, files, int(batch_size))
         print(losses)

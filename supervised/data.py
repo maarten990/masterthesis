@@ -24,10 +24,10 @@ class Vocab:
 
 Sample = Dict[int, Dict[str, np.ndarray]]
 class GermanDataset(Dataset):
-    def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
+    def __init__(self, files: List[str], num_clusterlabels: int,
                  window_size: int, window_label_idx: int = 0) -> None:
-        self.paths = [os.path.join(folder, fname) for fname in filenames]
-        self.vocab = create_dictionary(self.paths)
+        self.files = files
+        self.vocab = create_dictionary(self.files)
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
@@ -35,7 +35,7 @@ class GermanDataset(Dataset):
         lengths: List[int] = []
         # subtract the elements that get dropped off due to the window size
         window_loss = window_size - 1
-        for path in self.paths:
+        for path in self.files:
             tree = load_xml_from_disk(path)
             lengths.append(len(tree.xpath('/pdf2xml/page/text')) - window_loss)
 
@@ -50,7 +50,7 @@ class GermanDataset(Dataset):
             file_offset = idx
         else:
             file_offset = idx - self.boundaries[file_idx - 1]
-        tree = load_xml_from_disk(self.paths[file_idx])
+        tree = load_xml_from_disk(self.files[file_idx])
 
         end = file_offset + self.window_size + 1
         elements = tree.xpath('/pdf2xml/page/text')[file_offset:end]
@@ -82,9 +82,9 @@ class GermanDataset(Dataset):
                          'label': np.array([y])}}
 
 class GermanDatasetInMemory(GermanDataset):
-    def __init__(self, folder: str, filenames: List[str], num_clusterlabels: int,
+    def __init__(self, files: List[str], num_clusterlabels: int,
                  window_size: int, window_label_idx: int = 0, subsample_negative=False) -> None:
-        super().__init__(folder, filenames, num_clusterlabels, window_size, window_label_idx)
+        super().__init__(files, num_clusterlabels, window_size, window_label_idx)
         self.subsample_negative = subsample_negative
         self.samples: List[Sample] = []
 
