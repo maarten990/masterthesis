@@ -113,7 +113,6 @@ fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<Ch
 
     var correct = 0.0
     var total = 0.0
-    var unmatched = 0
 
     val pdf = PDDocument.load(File(pdfPath))
 
@@ -163,8 +162,7 @@ fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<Ch
         }
     }
 
-    println("Matched $total text elements, $correct correct (${(correct / total) * 100}%).")
-    println("Failed to match $unmatched text elements.")
+    System.err.println("Matched $total text elements, $correct correct (${(correct / total) * 100}%).")
 
     // save the result as xml
     val transformer = TransformerFactory.newInstance().newTransformer()
