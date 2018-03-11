@@ -161,9 +161,7 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
-                    files: List[str], batch_size: int = 32) -> Tuple[nn.Module, List[float]]:
-    dataset = GermanDatasetInMemory(files, 5, 3, 1, True)
-
+                    dataset: Dataset, batch_size: int = 32) -> Tuple[nn.Module, List[float]]:
     recurrent_model: nn.Module
     if type(params) == RNNParams:
         cast(RNNParams, params)
@@ -186,9 +184,10 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                    'use_final_layer': not with_labels}
         recurrent_model = CNNClassifier(**argdict)
 
-    model = WithClusterLabels(recurrent_model, 5, with_labels)
-    optimizer = torch.optim.Adam(model.parameters())
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
+    model = WithClusterLabels(recurrent_model, data.dataset.num_clusterlabels,
+                              with_labels)
+    optimizer = torch.optim.Adam(model.parameters())
     losses, optim = train(model, optimizer, data)
 
     #evaluate_clf(model, Xtb, ctb, ytb)

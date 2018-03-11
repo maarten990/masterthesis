@@ -83,31 +83,47 @@ class GermanDataset(Dataset):
 
 class GermanDatasetInMemory(GermanDataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
-                 window_size: int, window_label_idx: int = 0, subsample_negative=False) -> None:
+                 num_positive: int, num_negative: int, window_size: int,
+                 window_label_idx: int = 0) -> None:
         super().__init__(files, num_clusterlabels, window_size, window_label_idx)
-        self.subsample_negative = subsample_negative
         self.samples: List[Sample] = []
 
-        for i in range(super().__len__()):
+        pos = 0
+        neg = 0
+        for i in tqdm(range(super().__len__()), desc='Loading samples'):
             self.samples.append(super().__getitem__(i))
+            if (list(self.samples[-1].values())[0]['label'] == 1).all():
+                pos += 1
+            else:
+                neg += 1
 
-        if self.subsample_negative:
-            # first, divide the samples in positive and negative samples
-            positives: List[int] = []
-            negatives: List[int] = []
-            for i, sample in enumerate(self.samples):
-                # the key (length) is not relevant, and we know there's only item
-                for _, data in sample.items():
-                    if (data['label'] == 1).all():
-                        positives.append(i)
-                    else:
-                        negatives.append(i)
+            if pos >= num_positive and neg >= num_negative:
+                break
 
-            # then subsample the negative samples until the amount is equal
-            diff = len(negatives) - len(positives)
-            discard = np.random.choice(negatives, diff, replace=False)
-            self.samples = [sample for i, sample in enumerate(self.samples)
-                            if i not in discard]
+        if len(self.samples) < num_positive + num_negative:
+            print(f'Warning: could only obtain {len(self.samples)} samples')
+        else:
+            self.subsample(num_positive, num_negative)
+
+    def subsample(self, num_positive: int, num_negative: int) -> None:
+        # first, divide the samples in positive and negative samples
+        positives: List[int] = []
+        negatives: List[int] = []
+        for i, sample in enumerate(self.samples):
+            # the key (length) is not relevant, and we know there's only item
+            for _, data in sample.items():
+                if (data['label'] == 1).all():
+                    positives.append(i)
+                else:
+                    negatives.append(i)
+
+        # then subsample the negative samples until the amount is equal
+        neg_diff = len(negatives) - num_negative
+        pos_diff = len(positives) - num_positive
+        neg_discard = np.random.choice(negatives, neg_diff, replace=False)
+        pos_discard = np.random.choice(positives, pos_diff, replace=False)
+        self.samples = [sample for i, sample in enumerate(self.samples)
+                        if i not in neg_discard and i not in pos_discard]
 
     def __len__(self) -> int:
         return len(self.samples)
