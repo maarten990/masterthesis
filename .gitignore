@@ -15,3 +15,7 @@ clusterer/*.iml
 clusterer/*.pdf
 clusterer/.gradle
 training_data
+clusterlabeled-*
+pdfs
+*.tar.xz
+.mypy_cache
