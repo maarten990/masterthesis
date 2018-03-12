@@ -1,6 +1,7 @@
 import os.path
 import pickle
 import re
+from copy import copy
 from functools import lru_cache
 from glob import glob
 from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
@@ -144,27 +145,30 @@ class CollateWithBuckets:
         return self.bucket(samples)
 
     def bucket(self, samples: List[Sample]) -> Sample:
+        buckets = copy(self.buckets)
+        if buckets[-1] == -1:
+            buckets[-1] = max([size for sample in samples for size in sample.keys()])
+
         out: Sample = {}
         for sample in samples:
             for size, s in sample.items():
-                for bucket_size in self.buckets:
+                for bucket_size in buckets:
                     if size <= bucket_size:
                         if bucket_size in out:
                             out[bucket_size] = self.concat_samples(
                                 out[bucket_size], self.pad(s, bucket_size - size))
                         else:
-                            out[bucket_size] = self.pad(s, bucket_size - size)
+                            out[bucket_size] = ensure_2d(self.pad(s, bucket_size - size))
 
                         break
                 else:
                     # truncate
-                    bucket_size = self.buckets[-1]
+                    bucket_size = buckets[-1]
                     if bucket_size in out:
                         out[bucket_size] = self.concat_samples(
                             out[bucket_size], self.pad(s, bucket_size - size))
                     else:
-                        out[bucket_size] = self.pad(s, bucket_size - size)
-
+                        out[bucket_size] = ensure_2d(self.pad(s, bucket_size - size))
 
         return out
 
@@ -185,8 +189,11 @@ class CollateWithBuckets:
                 for key in sample1.keys()}
 
 
-def ensure_2d(arr: np.ndarray) -> np.ndarray:
-    return np.expand_dims(arr, 0) if len(arr.shape) < 2 else arr
+def ensure_2d(arr: Union[np.ndarray, Dict[str, np.ndarray]]) -> np.ndarray:
+    if type(arr) == dict:
+        return {key: ensure_2d(value) for key, value in arr.items()}
+    else:
+        return np.expand_dims(arr, 0) if len(arr.shape) < 2 else arr
 
 
 def to_tensors(sample: Sample) -> Sample:
