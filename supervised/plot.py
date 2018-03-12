@@ -18,7 +18,3 @@ def plot(curves: Dict[str, List[float]], monotonic=False) -> None:
     plt.legend()
     plt.ylabel('loss')
     plt.xlabel('epoch')
-
-
-if __name__ == '__main__':
-    fire.Fire(main)
