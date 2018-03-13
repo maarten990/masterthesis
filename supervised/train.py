@@ -113,6 +113,8 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
         t.set_postfix({'loss': loss,
                        'Δloss': loss_delta})
 
+    t.close()
+
     model.eval()
     return epoch_losses, optimizer
 

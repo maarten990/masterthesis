@@ -91,7 +91,8 @@ class GermanDatasetInMemory(GermanDataset):
 
         pos = 0
         neg = 0
-        for i in tqdm(range(super().__len__()), desc='Loading samples'):
+        t = tqdm(range(super().__len__()), desc='Loading samples')
+        for i in t:
             self.samples.append(super().__getitem__(i))
             if (list(self.samples[-1].values())[0]['label'] == 1).all():
                 pos += 1
@@ -100,6 +101,8 @@ class GermanDatasetInMemory(GermanDataset):
 
             if pos >= num_positive and neg >= num_negative:
                 break
+
+        t.close()
 
         if len(self.samples) < num_positive + num_negative:
             print(f'Warning: could only obtain {len(self.samples)} samples')
