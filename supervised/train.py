@@ -14,27 +14,24 @@ Options:
 
 import os.path
 import re
-import yaml
-from collections import namedtuple
-from docopt import docopt
-from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Type, Union
+from typing import Any, Dict, List, Tuple, Type, Union
 
+from docopt import docopt
 import numpy as np
-import torch
-import torch.nn as nn
 from sklearn.metrics import precision_score, recall_score, f1_score
 from tabulate import tabulate
-from torch.autograd import Variable
+import torch
+import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
+import yaml
 
-from data import GermanDatasetInMemory, get_iterator, to_tensors
-from models import LSTMClassifier, CNNClassifier, NameClassifier, WithClusterLabels
-
-Datatuple = namedtuple('Datatuple', ['X_is_speech', 'X_speaker', 'y_is_speech', 'Y_speaker'])
+from data import get_iterator, to_tensors
+from models import LSTMClassifier, CNNClassifier, WithClusterLabels
 
 
 class CNNParams:
+    """Parameters for a CNNClassifier."""
     def __init__(self, embed_size: int, dropout: float, epochs: int,
                  num_filters: int) -> None:
         self.embed_size = embed_size
@@ -44,6 +41,7 @@ class CNNParams:
 
 
 class RNNParams:
+    """Parameters for an LSTMClassifier."""
     def __init__(self, embed_size: int, dropout: float, epochs: int,
                  num_layers: int, hidden_size: int) -> None:
         self.embed_size = embed_size
@@ -141,7 +139,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
 def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
                  silent=False) -> Tuple[float, float, float]:
     """Evaluate the trained model.
-    
+
     :param model: A trained model.
     :param dataloader: The input data.
     :param cutoff: The value (between 0 and 1) from which point the neural
@@ -183,9 +181,9 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                     dataset: Dataset, batch_size: int = 32) -> Tuple[nn.Module, List[float]]:
+    """Create a neural network model and train it."""
     recurrent_model: nn.Module
-    if type(params) == RNNParams:
-        cast(RNNParams, params)
+    if isinstance(params, RNNParams):
         buckets = [5, 10, 15, 25, 40, -1]
         argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
                    'embed_size': params.embed_size,
@@ -194,8 +192,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                    'dropout': params.dropout,
                    'use_final_layer': not with_labels}
         recurrent_model = LSTMClassifier(**argdict)
-    elif type(params) == CNNParams:
-        cast(CNNParams, params)
+    elif isinstance(params, CNNParams):
         buckets = [40]
         argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
                    'seq_len': buckets[0],
@@ -222,7 +219,7 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     tp = params['type']
     del params['type']
 
-    constructor: Union[Type[CNNParams],Type[RNNParams]]
+    constructor: Union[Type[CNNParams], Type[RNNParams]]
     if tp == 'cnn':
         keys = ['embed_size', 'num_filters', 'dropout', 'epochs']
         constructor = CNNParams
@@ -241,7 +238,7 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     return constructor(**params)
 
 
-if __name__ == '__main__':
+def main():
     args = docopt(__doc__)
     paramfile = args['<paramfile>']
     files = args['<files>']
@@ -254,3 +251,7 @@ if __name__ == '__main__':
 
         losses = setup_and_train(p, with_labels, files, int(batch_size))
         print(losses)
+
+
+if __name__ == '__main__':
+    main()

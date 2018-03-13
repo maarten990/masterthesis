@@ -1,17 +1,16 @@
-import os.path
-import pickle
-import re
+"""Contains functions for loading and manipulating training data."""
+
+
 from copy import copy
 from functools import lru_cache
-from glob import glob
-from typing import Callable, Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import Dict, List, Set, Union
 
+from lxml import etree
 import nltk
 import numpy as np
 import torch
-from torch.autograd import Variable
-from lxml import etree
 from torch.utils.data import DataLoader, Dataset
+from torch.autograd import Variable
 from tqdm import tqdm
 
 np.random.seed(100)
@@ -41,7 +40,7 @@ class GermanDataset(Dataset):
             lengths.append(len(tree.xpath('/pdf2xml/page/text')) - window_loss)
 
         self.boundaries = np.cumsum(lengths)
-            
+
     def __len__(self) -> int:
         return self.boundaries[-1]
 
@@ -70,7 +69,7 @@ class GermanDataset(Dataset):
             get_speaker(window[self.window_label_idx]).lower())
 
         X = [self.vocab.token_to_idx.get(token, 0) for token in tokens]
-        
+
         X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
 
         clusterlabels = to_onehot(
@@ -136,7 +135,7 @@ class GermanDatasetInMemory(GermanDataset):
         return self.samples[idx]
 
 
-def get_iterator(dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32 ) -> DataLoader:
+def get_iterator(dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32) -> DataLoader:
     return DataLoader(dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets))
 
 
@@ -193,7 +192,7 @@ class CollateWithBuckets:
 
 
 def ensure_2d(arr: Union[np.ndarray, Dict[str, np.ndarray]]) -> np.ndarray:
-    if type(arr) == dict:
+    if isinstance(arr, dict):
         return {key: ensure_2d(value) for key, value in arr.items()}
     else:
         return np.expand_dims(arr, 0) if len(arr.shape) < 2 else arr
@@ -216,7 +215,7 @@ def load_xml_from_disk(path: str) -> etree._Element:
     parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
     with open(path, 'r', encoding='utf-8') as f:
         return etree.fromstring(f.read().encode('utf-8'), parser)
-        
+
 
 def get_label(node: etree._Element) -> int:
     is_speech = node.attrib['is-speech']
@@ -269,53 +268,3 @@ def to_onehot(idx: int, n: int) -> List[int]:
     out = [0] * n
     out[idx] = 1
     return out
-
-
-'''
-def pad_sequences_to_buckets(data: Dict[str, np.ndarray], bucket_sizes: List[int]) -> Dict[str, np.ndarray]:
-    """
-    Pad the list of variable-length sequences X to arrays with widths
-    corresponding to the specified buckets.
-    If the last bucket is -1, it will be set to the largest occurring sequence
-    length.
-
-    Returns a list of n arrays, n being the number of buckets.
-    """
-    if bucket_sizes[-1] == -1:
-        bucket_sizes[-1] = max(len(seq) for seq in X)
-
-    X = data['data']
-    y = data['labels']
-    cluster_labels = data['cluster_data']
-
-    buckets = [[] for _ in bucket_sizes] # type: List[List[List[float]]]
-    labels = [[] for _ in bucket_sizes] # type: List[List[Union[List[int], int]]]
-    clusters = [[] for _ in bucket_sizes] # type: List[List[List[int]]]
-
-    for seq, label, cluster in zip(X, y, cluster_labels):
-        for bucket_size, bucket, label_bucket, cluster_bucket in zip(bucket_sizes, buckets, labels, clusters):
-            if len(seq) <= bucket_size:
-                diff = bucket_size - len(seq)
-                bucket.append(np.pad(seq, (0, diff), 'constant'))
-                cluster_bucket.append(cluster)
-
-                if type(label) == list:
-                    label_bucket.append(np.pad(label, (0, diff), 'constant'))
-                else:
-                    label_bucket.append(label)
-
-                break
-        else:
-            # If the for-loop didn't break, the sequence will need to be
-            # truncated into the largest bucket.
-            buckets[-1].append(seq[:bucket_sizes[-1]])
-            clusters[-1].append(cluster)
-            if type(label) == list:
-                labels[-1].append(label[:bucket_sizes[-1]])
-            else:
-                labels[-1].append(label)
-
-    return ([np.array(bucket) for bucket in buckets],
-            [np.array(label_bucket) for label_bucket in labels],
-            [np.array(cluster_bucket) for cluster_bucket in clusters])
-'''
