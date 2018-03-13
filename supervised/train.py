@@ -145,7 +145,7 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
             pred = pred.cpu().squeeze().data.numpy()
             pred = np.where(pred > cutoff, 1, 0)
             predictions.extend(pred)
-            true.extend(y)
+            true.extend(y.data.numpy())
 
     table = []
     f1 = f1_score(true, predictions)
