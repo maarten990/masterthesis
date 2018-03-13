@@ -14,7 +14,7 @@ Options:
 
 import os.path
 import re
-from typing import Any, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from docopt import docopt
 import numpy as np
@@ -182,7 +182,8 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
-                    dataset: Dataset, epochs: int = 100, batch_size: int = 32
+                    dataset: Dataset, epochs: int = 100, batch_size: int = 32,
+                    optim_fm: Callable[[Any], torch.optim.Optimizer] = torch.optim.RMSProp,
                     ) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
@@ -208,7 +209,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     model = WithClusterLabels(recurrent_model, data.dataset.num_clusterlabels,
                               with_labels, params.dropout)
-    optimizer = torch.optim.Adam(model.parameters())
+    optimizer = optim_fn(model.parameters())
     losses = train(model, optimizer, data, epochs)
 
     return model, losses
