@@ -84,10 +84,21 @@ def load_model(filename: str) -> Tuple[nn.Module, torch.optim.Optimizer]:
 
 
 def train(model: nn.Module, optimizer: torch.optim.Optimizer,
-          dataloader: DataLoader, epochs: int = 100):
+          dataloader: DataLoader, epochs: int = 100) -> List[float]:
+    """Train a Pytorch model.
+
+    :param model: A Pytorch model.
+    :param optimizer: A Pytorch optimizer for the model.
+    :param dataloader: An iterator returning batches.
+    :param epochs: The number of epochs to train for.
+    :returns: The value of the model's loss function at every epoch.
+    """
     model.train()
 
-    epoch_losses = []
+    epoch_losses: List[float] = []
+    best_params: Dict[str, Any] = {}
+    best_loss = 99999
+
     t = trange(epochs, desc='Training')
     for _ in t:
         epoch_loss = torch.zeros(1).float()
@@ -109,14 +120,22 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
 
         loss = epoch_loss[0]
         epoch_losses.append(loss)
+
+        # check if the model is the best yet
+        if loss < best_loss:
+            best_loss = loss
+            best_params = model.state_dict()
+
+        # update the progress bar
         loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
         t.set_postfix({'loss': loss,
                        'Δloss': loss_delta})
 
     t.close()
 
+    model.load_state_dict(best_params)
     model.eval()
-    return epoch_losses, optimizer
+    return epoch_losses
 
 
 def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
@@ -190,10 +209,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
     model = WithClusterLabels(recurrent_model, data.dataset.num_clusterlabels,
                               with_labels)
     optimizer = torch.optim.Adam(model.parameters())
-    losses, optim = train(model, optimizer, data)
-
-    #evaluate_clf(model, Xtb, ctb, ytb)
-    #evaluate_spkr(model, Xtb, ytb, vocab.idx_to_token)
+    losses = train(model, optimizer, data)
 
     return model, losses
 
