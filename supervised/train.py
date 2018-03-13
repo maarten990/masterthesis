@@ -180,7 +180,8 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
-                    dataset: Dataset, batch_size: int = 32) -> Tuple[nn.Module, List[float]]:
+                    dataset: Dataset, epochs: int = 100, batch_size: int = 32
+                    ) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     if isinstance(params, RNNParams):
@@ -204,9 +205,9 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
 
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     model = WithClusterLabels(recurrent_model, data.dataset.num_clusterlabels,
-                              with_labels)
+                              with_labels, params.dropout)
     optimizer = torch.optim.Adam(model.parameters())
-    losses = train(model, optimizer, data)
+    losses = train(model, optimizer, data, epochs)
 
     return model, losses
 
@@ -249,7 +250,7 @@ def main():
         params = yaml.load(f)
         p = parse_params(params)
 
-        losses = setup_and_train(p, with_labels, files, int(batch_size))
+        losses = setup_and_train(p, with_labels, files, 100, int(batch_size))
         print(losses)
 
 

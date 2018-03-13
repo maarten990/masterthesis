@@ -202,14 +202,14 @@ class LSTMClassifier(nn.Module):
 
 
 class WithClusterLabels(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, use_labels):
+    def __init__(self, recurrent_clf, n_labels, use_labels, dropout):
         super().__init__()
         self.recurrent_clf = recurrent_clf
         self.use_labels = use_labels
 
         if use_labels:
             output_size = self.recurrent_clf.output_size
-            self.dropout = nn.Dropout(0.5)
+            self.dropout = nn.Dropout(dropout)
             self.linear1 = nn.Linear(output_size + n_labels, int(output_size / 2))
             self.linear2 = nn.Linear(int(output_size / 2), 1)
 
