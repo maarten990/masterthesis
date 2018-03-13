@@ -26,7 +26,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
 import yaml
 
-from data import get_iterator, to_tensors
+from data import get_iterator, to_cpu, to_gpu, to_tensors
 from models import LSTMClassifier, CNNClassifier, WithClusterLabels
 
 
@@ -102,7 +102,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
         epoch_loss = torch.zeros(1).float()
 
         for batch in dataloader:
-            data = to_tensors(batch)
+            data = to_gpu(to_tensors(batch))
             for _, d in data.items():
                 X = d['data']
                 c = d['cluster_data']
@@ -115,6 +115,8 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
                 optimizer.step()
 
                 epoch_loss += loss.data.cpu()
+
+            to_cpu(data)
 
         loss = epoch_loss[0]
         epoch_losses.append(loss)

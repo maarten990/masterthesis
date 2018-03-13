@@ -210,6 +210,31 @@ def to_tensors(sample: Sample) -> Sample:
     return out
 
 
+def to_gpu(sample: Sample) -> Sample:
+    if torch.cuda.is_available():
+        out: Sample = {}
+        for size, sample_dict in sample.items():
+            out[size] = {'data': sample_dict['data'].gpu(),
+                        'speaker_data': sample_dict['speaker_data'].gpu(),
+                        'cluster_data': sample_dict['cluster_data'].gpu(),
+                        'label': sample_dict['label'].gpu()}
+
+        return out
+    else:
+        return sample
+
+
+def to_cpu(sample: Sample) -> Sample:
+    out: Sample = {}
+    for size, sample_dict in sample.items():
+        out[size] = {'data': sample_dict['data'].cpu(),
+                    'speaker_data': sample_dict['speaker_data'].cpu(),
+                    'cluster_data': sample_dict['cluster_data'].cpu(),
+                    'label': sample_dict['label'].cpu()}
+
+    return out
+
+
 @lru_cache(maxsize=8192)
 def load_xml_from_disk(path: str) -> etree._Element:
     parser = etree.XMLParser(ns_clean=True, encoding='utf-8')

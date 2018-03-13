@@ -4,17 +4,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
-def with_cuda(func):
-    'Decorator to automatically move variables to the gpu if possible.'
-    def wrapper(self, *args):
-        if torch.cuda.is_available():
-            return func(self, *[arg.cuda() for arg in args])
-        else:
-            return func(self, *args)
-
-    return wrapper
-
-
 class Encoder(nn.Module):
     def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
         super().__init__()
@@ -32,7 +21,6 @@ class Encoder(nn.Module):
         if torch.cuda.is_available():
             self.cuda()
 
-    @with_cuda
     def forward(self, inputs):
         "Perform a full pass of the encoder over the entire input."
         hidden = self.init_hidden(inputs.size()[0])
@@ -72,7 +60,6 @@ class NameClassifier(nn.Module):
         if torch.cuda.is_available():
             self.cuda()
 
-    @with_cuda
     def forward(self, input, force_teacher=False):
         # first encode the input sequence and get the output of the final layer
         hidden_enc = self.encoder(input)
@@ -86,7 +73,6 @@ class NameClassifier(nn.Module):
 
         return out
 
-    @with_cuda
     def loss(self, y_pred, y_true):
         # calculate the loss as the binary cross entropy between the
         # flattened versions of the arrays
@@ -118,7 +104,6 @@ class CNNClassifier(nn.Module):
         if torch.cuda.is_available():
             self.cuda()
 
-    @with_cuda
     def forward(self, inputs):
         embedded = self.embedding(inputs)
 
@@ -136,7 +121,6 @@ class CNNClassifier(nn.Module):
         else:
             return F.relu(clf_in)
 
-    @with_cuda
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
 
@@ -167,7 +151,6 @@ class LSTMClassifier(nn.Module):
         if torch.cuda.is_available():
             self.cuda()
 
-    @with_cuda
     def forward(self, inputs):
         # initialize the lstm hidden states
         hidden = self.init_hidden(inputs.size(0))
@@ -196,7 +179,6 @@ class LSTMClassifier(nn.Module):
 
         return hidden
 
-    @with_cuda
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
 
@@ -216,7 +198,6 @@ class WithClusterLabels(nn.Module):
         if torch.cuda.is_available():
             self.cuda()
 
-    @with_cuda
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
 
@@ -228,6 +209,5 @@ class WithClusterLabels(nn.Module):
             out = self.dropout(self.linear2(h))
             return F.sigmoid(out)
 
-    @with_cuda
     def loss(self, y_pred, y_true):
         return self.recurrent_clf.loss(y_pred, y_true)
