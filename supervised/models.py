@@ -177,7 +177,7 @@ class LSTMClassifier(nn.Module):
         # all the outputs
         embedded = self.embedding(inputs)
         outputs, _ = self.rnn(embedded, (hidden, cell))
-        averaged = torch.mean(outputs, dim=1).squeeze()
+        averaged = torch.mean(outputs, dim=1)
 
         if self.use_final_layer:
             # sigmoid classification with 1 hidden layer in between
