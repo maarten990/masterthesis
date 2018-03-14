@@ -118,7 +118,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
 
             to_cpu(data)
 
-        loss = epoch_loss[0] / len(dataloader.dataset)
+        loss = epoch_loss[0] / len(dataloader)
         epoch_losses.append(loss)
 
         # check if the model is the best yet
@@ -154,7 +154,7 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
     true: List[bool] = []
 
     for batch in dataloader:
-        data = to_tensors(batch)
+        data = to_gpu(to_tensors(batch))
         for _, d in data.items():
             X = d['data']
             c = d['cluster_data']
@@ -164,7 +164,7 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
             pred = pred.cpu().squeeze().data.numpy()
             pred = np.where(pred > cutoff, 1, 0)
             predictions.extend(pred)
-            true.extend(y.data.numpy())
+            true.extend(y.data.cpu().numpy())
 
     table = []
     f1 = f1_score(true, predictions)
