@@ -214,10 +214,10 @@ def to_gpu(sample: Sample) -> Sample:
     if torch.cuda.is_available():
         out: Sample = {}
         for size, sample_dict in sample.items():
-            out[size] = {'data': sample_dict['data'].gpu(),
-                        'speaker_data': sample_dict['speaker_data'].gpu(),
-                        'cluster_data': sample_dict['cluster_data'].gpu(),
-                        'label': sample_dict['label'].gpu()}
+            out[size] = {'data': sample_dict['data'].cuda(),
+                        'speaker_data': sample_dict['speaker_data'].cuda(),
+                        'cluster_data': sample_dict['cluster_data'].cuda(),
+                        'label': sample_dict['label'].cuda()}
 
         return out
     else:

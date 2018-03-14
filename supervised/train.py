@@ -183,7 +183,7 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                     dataset: Dataset, epochs: int = 100, batch_size: int = 32,
-                    optim_fm: Callable[[Any], torch.optim.Optimizer] = torch.optim.RMSProp,
+                    optim_fn: Callable[[Any], torch.optim.Optimizer] = torch.optim.RMSprop,
                     ) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
