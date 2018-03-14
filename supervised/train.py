@@ -118,7 +118,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
 
             to_cpu(data)
 
-        loss = epoch_loss[0]
+        loss = epoch_loss[0] / len(dataloader.dataset)
         epoch_losses.append(loss)
 
         # check if the model is the best yet
