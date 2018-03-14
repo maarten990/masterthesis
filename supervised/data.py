@@ -3,7 +3,7 @@
 
 from copy import copy
 from functools import lru_cache
-from typing import Dict, List, Set, Union
+from typing import Dict, List, Set, Tuple, Union
 
 from lxml import etree
 import nltk
@@ -23,6 +23,18 @@ class Vocab:
 
 
 Sample = Dict[int, Dict[str, np.ndarray]]
+
+class DataSubset(Dataset):
+    def __init__(self, data: Dataset, indices: List[int]) -> None:
+        self.data = data
+        self.indices = indices
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, idx: int) -> Sample:
+        return self.data[self.indices[idx]]
+
 class GermanDataset(Dataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
                  window_size: int, window_label_idx: int = 0) -> None:
@@ -81,6 +93,14 @@ class GermanDataset(Dataset):
                          'cluster_data': np.array(clusterlabels),
                          'label': np.array([y])}}
 
+    def split(self, test_ratio: float = 0.25) -> Tuple[DataSubset, DataSubset]:
+        num_test = int(test_ratio * len(self))
+        test_indices = np.random.choice(len(self), num_test, replace=False)
+        train_indices = [i for i in range(len(self)) if i not in test_indices]
+
+        return DataSubset(self, train_indices), DataSubset(self, test_indices)
+
+
 class GermanDatasetInMemory(GermanDataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
                  num_positive: int, num_negative: int, window_size: int,
@@ -120,7 +140,6 @@ class GermanDatasetInMemory(GermanDataset):
                 else:
                     negatives.append(i)
 
-        # then subsample the negative samples until the amount is equal
         neg_diff = len(negatives) - num_negative
         pos_diff = len(positives) - num_positive
         neg_discard = np.random.choice(negatives, neg_diff, replace=False)
