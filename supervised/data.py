@@ -61,7 +61,7 @@ class GermanDataset(Dataset):
         return sample
 
     def vectorize_window(self, window: List[etree._Element]) -> Sample:
-        tokenizer = nltk.tokenize.WordPunctTokenizer()
+        tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+|[^\w\s]')
         tokens = token_featurizer(window, tokenizer)
         y = get_label(window[self.window_label_idx])
 
