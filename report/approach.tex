@@ -1,0 +1,35 @@
+\section*{Approach}
+%\FloatBarrier
+
+The system consists of two separate parts; an unsupervised algorithm for
+augmenting data, and a supervised algorithm for classifying the data (Figure
+\ref{fig:overview}). The unsupervised portion attempts to augment the data with
+additional structural information. It could be considered a preprocessing step,
+with the choice of parameters acting as a way to inject some amount of domain
+knowledge into the data. The supervised portion consists of a regular
+classification algorithm.
+
+\begin{figure}[htbp]
+  \centering
+  \missingfigure[figwidth=\textwidth]{Layout of the system}
+  \caption{A high-level overview of the system}
+  \label{fig:overview}
+\end{figure}
+
+\subsection*{Unsupervised}
+The unsupervised algorithm attempts to detect blocks of text in the PDF file,
+and then clusters those blocks by their similarity (see Figure
+\ref{fig:clustered} for an example). This approach is based on work by
+\textcite{klampfl2014unsupervised}.
+\todo{Explain hierarchical agglomerative clustering and why single-linkage is
+  being used}
+
+\begin{figure}[htbp]
+  \centering
+  \missingfigure[figwidth=\textwidth]{Screenshot of clustered pdf}
+  \caption{An example of clustered blocks of text, blocks with the same outline
+    color belonging to the same cluster.}
+  \label{fig:clustered}
+\end{figure}
+
+\subsection*{Supervised}
