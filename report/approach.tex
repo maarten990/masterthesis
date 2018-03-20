@@ -17,12 +17,15 @@ classification algorithm.
 \end{figure}
 
 \subsection*{Unsupervised}
-The unsupervised algorithm attempts to detect blocks of text in the PDF file,
-and then clusters those blocks by their similarity (see Figure
-\ref{fig:clustered} for an example). This approach is based on work by
-\textcite{klampfl2014unsupervised}.
-\todo{Explain hierarchical agglomerative clustering and why single-linkage is
-  being used}
+The unsupervised algorithm attempts to detect and label blocks of text in the
+PDF file, as shown in Figure \ref{fig:clustered} for an example). This approach
+is based on work by \textcite{klampfl2014unsupervised}, and consists of two
+clustering steps:
+\begin{enumerate}
+\item Individual letters are clustered together into blocks of semantically
+  relevant text (e.g. a full paragraph, or a section header).
+\item These blocks are labeled by a different clustering algorithm.
+\end{enumerate}
 
 \begin{figure}[htbp]
   \centering
@@ -30,6 +33,49 @@ and then clusters those blocks by their similarity (see Figure
   \caption{An example of clustered blocks of text, blocks with the same outline
     color belonging to the same cluster.}
   \label{fig:clustered}
+\end{figure}
+
+\subsubsection*{Agglomerative Hierarchical Clustering}
+The first step is performed using agglomerative hierarchical clustering (HAC),
+an unsupervised bottom-up clustering algorithm that constructs a hierarchical
+tree of clusters (in this context referred to as a \emph{dendrogram}). An
+example is shown in Figure \ref{fig:hac}. The algorithm gets fed the individual
+characters present in the PDF files, then iteratively groups the two closests
+clusters (the initial inputs being regarded as clusters of one element) together
+until only a single cluster remains. This process involves two parameters:
+\begin{enumerate}
+\item The distance function between two characters.
+\item The distance function between two groups of characters.
+\end{enumerate}
+The first parameter is trivially chosen to be the Euclidian distance between the
+coordinates of the two characters. The second parameter is called the
+\emph{linkage} and has several common options, the most basic of which are:
+\begin{itemize}
+\item Single-linkage: The distance between groups is based on the closest two
+  elements: \[ d(A, B) = \min \{ d(a, b) : a \in A, b \in B \} \]
+\item Maximum-linkage: The distance between groups is based on the furthest two
+  elements: \[ d(A, B) = \max \{ d(a, b) : a \in A, b \in B \} \]
+\item Average-linkage: The distance between groups is based on the furthest two
+  elements: \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
+\end{itemize}
+As per \cite{klampfl2014unsupervised}, single-linkage clustering performs best
+for this task due to its tendency to form long thin clusters, mimicking the
+structure of sentences.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[b]{0.49\textwidth} 
+    \centering
+    \includegraphics[width=\textwidth]{figures/dendrogram1.png}
+    \caption{Before}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.49\textwidth}
+	\centering
+    \includegraphics[width=\textwidth]{figures/dendrogram2.png}
+    \caption{After}
+  \end{subfigure}
+  \caption{An example of hierarical agglomerative clustering.}
+  \label{fig:hac}
 \end{figure}
 
 \subsection*{Supervised}
