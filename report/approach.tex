@@ -27,16 +27,16 @@ clustering steps:
 \item These blocks are labeled by a different clustering algorithm.
 \end{enumerate}
 
-\begin{figure}[htbp]
+\begin{figure}[htb]
   \centering
-  \missingfigure[figwidth=\textwidth]{Screenshot of clustered pdf}
+  \includegraphics[height=0.5\textheight]{figures/cluster_example.png}
   \caption{An example of clustered blocks of text, blocks with the same outline
     color belonging to the same cluster.}
   \label{fig:clustered}
 \end{figure}
 
-\subsubsection*{Agglomerative Hierarchical Clustering}
-The first step is performed using agglomerative hierarchical clustering (HAC),
+\subsubsection*{Hierarchical Agglomerative Clustering}
+The first step is performed using hierarchical agglomerative clustering (HAC),
 an unsupervised bottom-up clustering algorithm that constructs a hierarchical
 tree of clusters (in this context referred to as a \emph{dendrogram}). An
 example is shown in Figure \ref{fig:hac}. The algorithm gets fed the individual
@@ -58,11 +58,14 @@ coordinates of the two characters. The second parameter is called the
 \item Average-linkage: The distance between groups is based on the furthest two
   elements: \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
 \end{itemize}
-As per \cite{klampfl2014unsupervised}, single-linkage clustering performs best
-for this task due to its tendency to form long thin clusters, mimicking the
-structure of sentences.
+As per \textcite{klampfl2014unsupervised}, single-linkage clustering performs
+best for this task due to its tendency to form long thin clusters, mimicking the
+structure of sentences. As an additional bonus, while the general time
+complexity for HAC is in $\mathcal{O}(n^3)$, single-linkage clustering can be
+done in $\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more usable on
+medium-sized datasets.
 
-\begin{figure}[htbp]
+\begin{figure}[htb]
   \centering
   \begin{subfigure}[b]{0.49\textwidth} 
     \centering
@@ -78,4 +81,14 @@ structure of sentences.
   \label{fig:hac}
 \end{figure}
 
+After the dendrogram is concstructed, the only choice left is at which level to
+cut the tree to obtain the desired blocks of text. This is left as a parameter
+to be manually finetuned.
+
+\subsubsection*{Classical Clustering}
+The extracted blocks from the previous step are then clustered according to
+the similarity of their shapes (width and height). This is done using K-means
+clustering for some chosen $K$, or with the DBSCAN algorithm.
+\todo{Either expand this section or integrate it with the previous subsubsection
+and just remove the subsubsection header.}
 \subsection*{Supervised}
