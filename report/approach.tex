@@ -91,4 +91,17 @@ the similarity of their shapes (width and height). This is done using K-means
 clustering for some chosen $K$, or with the DBSCAN algorithm.
 \todo{Either expand this section or integrate it with the previous subsubsection
 and just remove the subsubsection header.}
+
 \subsection*{Supervised}
+After the data is augmented by the previously described clustering algorithm,
+it's fed into a supervised classifier, more specifically a convolutional neural
+network (CNN). The decision to use a CNN was motivated by both its
+performance\textcite{kim2014conv} and, for practical reasons, its superior
+training speed compared to recurrent neural networks.
+
+\todo{Explain CNNs}
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "report"
+%%% End:
