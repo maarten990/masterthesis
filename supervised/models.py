@@ -88,14 +88,11 @@ class CNNClassifier(nn.Module):
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.pool = nn.MaxPool1d(2)
-        self.conv1 = nn.Conv1d(embed_size, num_filters, 3)
-
-        c2_size = self.pool(self.conv1(Variable(torch.zeros(32, embed_size, seq_len)))).size(2)
-        self.conv2 = nn.Conv1d(c2_size, num_filters, 3)
+        self.conv = nn.Conv1d(embed_size, num_filters, 3)
 
         clf_size = self.pool(
-            self.conv2(Variable(torch.zeros(32, c2_size, num_filters)))).size(2) * num_filters
-        self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
+            self.conv(Variable(torch.zeros(32, embed_size, seq_len)))).size(2) * num_filters
+        self.clf_h = nn.Linear(1900, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
 
         self.use_final_layer = use_final_layer
@@ -109,11 +106,10 @@ class CNNClassifier(nn.Module):
 
         # permute from [batch, seq_len, input_size] to [batch, input_size, seq_len]
         embedded = embedded.permute(0, 2, 1)
-        l1 = self.dropout(self.pool(self.conv1(embedded)))
-        l2 = self.dropout(self.pool(self.conv2(l1.permute(0, 2, 1))))
+        pooled = self.pool(self.conv(embedded))
 
         batch_size = inputs.size(0)
-        clf_in = l2.view(batch_size, -1)
+        clf_in = pooled.view(batch_size, -1)
 
         if self.use_final_layer:
             h = F.relu(self.dropout(self.clf_h(clf_in)))
