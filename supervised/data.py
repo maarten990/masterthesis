@@ -24,6 +24,7 @@ class Vocab:
 
 Sample = Dict[int, Dict[str, np.ndarray]]
 
+
 class GermanDataset(Dataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
                  window_size: int, window_label_idx: int = 0) -> None:
@@ -110,33 +111,29 @@ class GermanDatasetInMemory(GermanDataset):
                  window_label_idx: int = 0) -> None:
         super().__init__(files, num_clusterlabels, window_size, window_label_idx)
         self.samples: List[Sample] = []
+        n_pos = 0
+        n_neg = 0
 
-        pos = 0
-        neg = 0
-        t = tqdm(range(super().__len__()), desc='Loading samples')
-        for i in t:
-            self.samples.append(super().__getitem__(i))
-            if (list(self.samples[-1].values())[0]['label'] == 1).all():
-                pos += 1
-            else:
-                neg += 1
+        with tqdm(total=num_positive) as pbar:
+            for file in files:
+                xml = load_xml_from_disk(file)
+                pos = xml.xpath('/pdf2xml/page/text[@is-speech="true"]')
+                neg = xml.xpath('/pdf2xml/page/text[@is-speech="false"]')
 
-            if pos >= num_positive and neg >= num_negative:
-                break
+                for p in pos:
+                    self.samples.append(self.vectorize_window(xml_window(p, window_label_idx, window_size)))
+                    pbar.update(1)
+                for n in neg:
+                    self.samples.append(self.vectorize_window(xml_window(n, window_label_idx, window_size)))
 
-        t.close()
-
-        if len(self.samples) < num_positive + num_negative:
-            print(f'Warning: could only obtain {len(self.samples)} samples')
-        else:
-            self.subsample(num_positive, num_negative)
+        self.subsample(num_positive, num_negative)
 
     def subsample(self, num_positive: int, num_negative: int) -> None:
         # first, divide the samples in positive and negative samples
         positives: List[int] = []
         negatives: List[int] = []
         for i, sample in enumerate(self.samples):
-            # the key (length) is not relevant, and we know there's only item
+            # the key (length) is not relevant, and we know there's only one item
             for _, data in sample.items():
                 if (data['label'] == 1).all():
                     positives.append(i)
@@ -155,6 +152,18 @@ class GermanDatasetInMemory(GermanDataset):
 
     def __getitem__(self, idx: int) -> Sample:
         return self.samples[idx]
+
+
+def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:
+    start = node
+    for _ in range(n_before):
+        start = start.previous()
+
+    out = []
+    for _ in range(size):
+        out.append(node)
+
+    return out
 
 
 def get_iterator(dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32) -> DataLoader:
