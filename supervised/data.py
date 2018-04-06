@@ -3,7 +3,7 @@
 
 from copy import copy
 from functools import lru_cache
-from typing import Dict, List, Set, Tuple, Union
+from typing import Dict, List, Optional, Set, Tuple, Union
 
 from lxml import etree
 import nltk
@@ -27,9 +27,10 @@ Sample = Dict[int, Dict[str, np.ndarray]]
 
 class GermanDataset(Dataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
-                 window_size: int, window_label_idx: int = 0) -> None:
+                 window_size: int, window_label_idx: int = 0,
+                 vocab: Optional[Vocab] = None) -> None:
         self.files = files
-        self.vocab = create_dictionary(self.files)
+        self.vocab = create_dictionary(self.files) if not vocab else vocab
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
@@ -108,8 +109,9 @@ class DataSubset(GermanDataset):
 class GermanDatasetInMemory(GermanDataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
                  num_positive: int, num_negative: int, window_size: int,
-                 window_label_idx: int = 0) -> None:
-        super().__init__(files, num_clusterlabels, window_size, window_label_idx)
+                 window_label_idx: int = 0, vocab: Optional[Vocab]=None) -> None:
+        super().__init__(files, num_clusterlabels, window_size, window_label_idx,
+                         vocab)
         self.samples: List[Sample] = []
         n_pos = 0
         n_neg = 0
