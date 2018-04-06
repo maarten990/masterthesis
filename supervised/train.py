@@ -81,17 +81,19 @@ def load_model(filename: str) -> Tuple[nn.Module, torch.optim.Optimizer]:
         return None
 
 
-def train(model: nn.Module, optimizer: torch.optim.Optimizer,
-          dataloader: DataLoader, epochs: int = 100) -> List[float]:
+def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLoader,
+          epochs: int = 100, gpu: bool=True) -> List[float]:
     """Train a Pytorch model.
 
     :param model: A Pytorch model.
     :param optimizer: A Pytorch optimizer for the model.
     :param dataloader: An iterator returning batches.
     :param epochs: The number of epochs to train for.
+    :param gpu: If true, train on the gpu. Otherwise use the cpu.
     :returns: The value of the model's loss function at every epoch.
     """
     model.train()
+    model.cuda() if gpu else model.cpu()
 
     epoch_losses: List[float] = []
     best_params: Dict[str, Any] = {}
@@ -102,7 +104,10 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
         epoch_loss = torch.zeros(1).float()
 
         for batch in dataloader:
-            data = to_gpu(to_tensors(batch))
+            data = to_tensors(batch)
+            if gpu:
+                data = to_gpu(data)
+
             for _, d in data.items():
                 X = d['data']
                 c = d['cluster_data']
@@ -139,7 +144,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer,
 
 
 def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
-                 silent=False) -> Tuple[float, float, float]:
+                 silent: bool=False, gpu: bool=True) -> Tuple[float, float, float]:
     """Evaluate the trained model.
 
     :param model: A trained model.
@@ -147,20 +152,27 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
     :param cutoff: The value (between 0 and 1) from which point the neural
         network output is considered positive.
     :param silent: If True, don't print the scores.
+    :param gpu: If true, train on the gpu. Otherwise use the cpu.
     :returns: A tuple of (precision, recall, f1 score).
     """
     model = model.eval()
+    model.cuda() if gpu else model.cpu()
+
     predictions: List[bool] = []
     true: List[bool] = []
 
     for batch in dataloader:
-        data = to_gpu(to_tensors(batch))
+        data = to_tensors(batch)
+        if gpu:
+            data = to_gpu(data)
+
         for _, d in data.items():
             X = d['data']
             c = d['cluster_data']
             y = d['label']
 
             pred = model(X, c)
+            print(f'prediction: {pred}')
             pred = pred.cpu().squeeze().data.numpy()
             pred = np.where(pred > cutoff, 1, 0)
             predictions.extend(pred)

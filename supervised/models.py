@@ -98,9 +98,6 @@ class CNNClassifier(nn.Module):
         self.use_final_layer = use_final_layer
         self.output_size = 1 if self.use_final_layer else clf_size
 
-        if torch.cuda.is_available():
-            self.cuda()
-
     def forward(self, inputs):
         embedded = self.embedding(inputs)
 
@@ -190,9 +187,6 @@ class WithClusterLabels(nn.Module):
             self.dropout = nn.Dropout(dropout)
             self.linear1 = nn.Linear(output_size + n_labels, int(output_size / 2))
             self.linear2 = nn.Linear(int(output_size / 2), 1)
-
-        if torch.cuda.is_available():
-            self.cuda()
 
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
