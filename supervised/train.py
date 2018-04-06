@@ -172,7 +172,6 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
             y = d['label']
 
             pred = model(X, c)
-            print(f'prediction: {pred}')
             pred = pred.cpu().squeeze().data.numpy()
             pred = np.where(pred > cutoff, 1, 0)
             predictions.extend(pred)
