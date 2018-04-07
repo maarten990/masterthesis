@@ -192,6 +192,22 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
     return p, r, f1
 
 
+def pr_curve(model: nn.Module, dataloader: DataLoader, gpu: bool=True):
+    """Calculate a precision-recall curve by varying the classification cutoff.
+
+    :param model: A trained model.
+    :param dataloader: The input data.
+    :param gpu: If true, train on the gpu. Otherwise use the cpu.
+    :returns: A list of (precision, recall) tuples.
+    """
+    pr: List[Tuple[float, float]] = []
+    for cutoff in np.linspace(0, 1):
+        p, r, _ = evaluate_clf(model, dataloader, cutoff, silent=True, gpu=gpu)
+        pr.append((p, r))
+
+    return pr
+
+
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                     dataset: Dataset, epochs: int = 100, batch_size: int = 32,
                     optim_fn: Callable[[Any], torch.optim.Optimizer] = torch.optim.RMSprop,
