@@ -7,7 +7,8 @@ import seaborn as sns
 sns.set()
 
 
-def plot(curves: Dict[str, List[float]], monotonic=False) -> None:
+def plot(curves: Dict[str, List[float]], monotonic: bool = False,
+         title: str = '') -> None:
     for label, data in curves.items():
         if monotonic:
             for i in range(1, len(data)):
@@ -18,3 +19,6 @@ def plot(curves: Dict[str, List[float]], monotonic=False) -> None:
     plt.legend()
     plt.ylabel('loss')
     plt.xlabel('epoch')
+
+    if title:
+        plt.title(title)
