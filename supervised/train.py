@@ -18,8 +18,6 @@ from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from docopt import docopt
 import numpy as np
-from sklearn.metrics import precision_score, recall_score, f1_score
-from tabulate import tabulate
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
@@ -141,71 +139,6 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
     model.load_state_dict(best_params)
     model.eval()
     return epoch_losses
-
-
-def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
-                 silent: bool=False, gpu: bool=True) -> Tuple[float, float, float]:
-    """Evaluate the trained model.
-
-    :param model: A trained model.
-    :param dataloader: The input data.
-    :param cutoff: The value (between 0 and 1) from which point the neural
-        network output is considered positive.
-    :param silent: If True, don't print the scores.
-    :param gpu: If true, train on the gpu. Otherwise use the cpu.
-    :returns: A tuple of (precision, recall, f1 score).
-    """
-    model = model.eval()
-    model.cuda() if gpu else model.cpu()
-
-    predictions: List[bool] = []
-    true: List[bool] = []
-
-    for batch in dataloader:
-        data = to_tensors(batch)
-        if gpu:
-            data = to_gpu(data)
-
-        for _, d in data.items():
-            X = d['data']
-            c = d['cluster_data']
-            y = d['label']
-
-            pred = model(X, c)
-            pred = pred.cpu().squeeze().data.numpy()
-            pred = np.where(pred > cutoff, 1, 0)
-            predictions.extend(pred)
-            true.extend(y.data.cpu().numpy())
-
-    table = []
-    f1 = f1_score(true, predictions)
-    p = precision_score(true, predictions)
-    r = recall_score(true, predictions)
-    table.append(['f1', f1])
-    table.append(['Speech recall', r])
-    table.append(['Speech precision', p])
-
-    if not silent:
-        print()
-        print(tabulate(table))
-
-    return p, r, f1
-
-
-def pr_curve(model: nn.Module, dataloader: DataLoader, gpu: bool=True):
-    """Calculate a precision-recall curve by varying the classification cutoff.
-
-    :param model: A trained model.
-    :param dataloader: The input data.
-    :param gpu: If true, train on the gpu. Otherwise use the cpu.
-    :returns: A list of (precision, recall) tuples.
-    """
-    pr: List[Tuple[float, float]] = []
-    for cutoff in np.linspace(0, 1):
-        p, r, _ = evaluate_clf(model, dataloader, cutoff, silent=True, gpu=gpu)
-        pr.append((p, r))
-
-    return pr
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
