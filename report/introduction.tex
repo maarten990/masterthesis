@@ -1,5 +1,5 @@
-\section*{Introduction}
-\todo{The introduction was written pretty long ago, maybe rewrite it to be less
+\chapter{Introduction}
+\todo[inline]{The introduction was written pretty long ago, maybe rewrite it to be less
 specifically tied to the German dataset}
 The Political Mashup
 project\footnote{http://search.politicalmashup.nl/about.html} aims to digitize
@@ -16,12 +16,27 @@ probability of false positives, or a large amount of narrow rules which can
 quickly lead to a spaghetti-like mess of special cases and is very fragile to
 unseen issues.
 
-There is a current effort to digitize German parliamentary proceedings, which
-feature the interesting quirk that the occurrence of specific issues seems to be
-clustered around certain time periods. As a result, it is relatively easy to
-create a system which handles documents from a certain election very well, but
-generalizes badly the further away you get from that period. This is the
-principal motivation for this thesis: I propose that a classifier trained on a
-portion of the data will generalize to the rest of the dataset in a robust
-manner, eliminating the need to track down the minor bugs that would trip up a
-rule-based system.
+I propose that by using a small number of manually annotated documents as a
+dataset, a machine learning algorithm can learn to classify sentences in a way
+that allows it to segment a document into its constituent parts, while being
+more robust to noise than its rule-based counterpart. The common ways to do
+sentence classification (e.g. convolutional neural networks \citep{kim2014conv}
+, recurrent neural networks or the simpler bag-of-words models) operate on
+sentences in a vacuum, considering only their linguistic contents and ignoring
+any contextual information that might be present. This is to be expected
+considering that most of the common datasets in this area really \emph{are} just
+small bits of text in a vacuum --- often-used datasets involve Twitter messages
+or short product reviews. In this case however, the sentences come from a
+document with a rich structure providing a lot of context. Anecdotally, as a
+human it is trivial to discern section headers in a document even when the
+document is in a foreign language; simply the fact that the section header might
+be printed in bold and centered rather than left-aligned gives it away.
+Incorporating this structural data into the learning propose will hopefully
+increase the performance of the system, either by simply scoring better on the
+used metrics, or perhaps more indirectly by requiring less data or training time
+to achieve the same score.
+
+%%% Local Variables:
+%%% mode: latex
+%%% TeX-master: "report"
+%%% End:

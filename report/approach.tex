@@ -1,4 +1,4 @@
-\section*{Approach}
+\chapter{Approach}
 %\FloatBarrier
 
 The system consists of two separate parts; an unsupervised algorithm for
@@ -8,6 +8,8 @@ additional structural information. It could be considered a preprocessing step,
 with the choice of parameters acting as a way to inject some amount of domain
 knowledge into the data. The supervised portion consists of a regular
 classification algorithm.
+\todo[inline]{Rewrite this and add all the details about how the data is used
+  (sliding window, etc)}
 
 \begin{figure}[htbp]
   \centering
@@ -16,7 +18,7 @@ classification algorithm.
   \label{fig:overview}
 \end{figure}
 
-\subsection*{Unsupervised}
+\section{Unsupervised}
 The unsupervised algorithm attempts to detect and label blocks of text in the
 PDF file, as shown in Figure \ref{fig:clustered} for an example). This approach
 is based on work by \textcite{klampfl2014unsupervised}, and consists of two
@@ -35,7 +37,7 @@ clustering steps:
   \label{fig:clustered}
 \end{figure}
 
-\subsubsection*{Hierarchical Agglomerative Clustering}
+\subsection{Hierarchical Agglomerative Clustering}
 The first step is performed using hierarchical agglomerative clustering (HAC),
 an unsupervised bottom-up clustering algorithm that constructs a hierarchical
 tree of clusters (in this context referred to as a \emph{dendrogram}). An
@@ -63,16 +65,17 @@ best for this task due to its tendency to form long thin clusters, mimicking the
 structure of sentences. As an additional bonus, while the general time
 complexity for HAC is in $\mathcal{O}(n^3)$, single-linkage clustering can be
 done in $\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more usable on
-medium-sized datasets.
+realistic datasets.
 
 \begin{figure}[htb]
   \centering
-  \begin{subfigure}[b]{0.49\textwidth} 
+  \begin{subfigure}[b]{0.40\textwidth} 
     \centering
     \includegraphics[width=\textwidth]{figures/dendrogram1.png}
     \caption{Before}
   \end{subfigure}
-  \begin{subfigure}[b]{0.49\textwidth}
+  \hspace{0.10\textwidth}
+  \begin{subfigure}[b]{0.40\textwidth}
 	\centering
     \includegraphics[width=\textwidth]{figures/dendrogram2.png}
     \caption{After}
@@ -85,21 +88,21 @@ After the dendrogram is concstructed, the only choice left is at which level to
 cut the tree to obtain the desired blocks of text. This is left as a parameter
 to be manually finetuned.
 
-\subsubsection*{Classical Clustering}
+\subsection{Classical Clustering}
 The extracted blocks from the previous step are then clustered according to
 the similarity of their shapes (width and height). This is done using K-means
 clustering for some chosen $K$, or with the DBSCAN algorithm.
-\todo{Either expand this section or integrate it with the previous subsubsection
-and just remove the subsubsection header.}
+\todo[inline]{Either expand this section or just integrate it with the previous subsection.}
 
-\subsection*{Supervised}
+\section{Supervised}
 After the data is augmented by the previously described clustering algorithm,
 it's fed into a supervised classifier, more specifically a convolutional neural
 network (CNN). The decision to use a CNN was motivated by both its
 performance\textcite{kim2014conv} and, for practical reasons, its superior
 training speed compared to recurrent neural networks.
 
-\todo{Explain CNNs}
+\subsection{Convolutional Neural Networks}
+\todo[inline]{Explain CNNs}
 
 %%% Local Variables:
 %%% mode: latex
