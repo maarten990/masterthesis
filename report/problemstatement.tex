@@ -1,5 +1,4 @@
 \chapter{Problem Statement}
-\todo[inline]{Todo: Expand everything in this section}
 The thesis will focus on parliamentary proceedings from the German
 \emph{Bundestag}. These proceedings are available online as PDF files dating
 back to 1949, and have used essentially the same document layout and conventions
@@ -28,7 +27,23 @@ solved is retrieving these speeches as accurately and robustly as possible.
 Luckily, in this case a rule-based system for segmenting the files already
 exists and was used to create a fairly large training set. Since in general such
 a system will not exist and annotating the data by hand is expensive, a big
-focus is on limiting the amount of required training data as much as possible.
+focus is on limiting the amount of required training data as much as possible;
+it would be preferable if the system was able to learn sufficiently from a
+handful (say, less than 5) of hand-annotated files.
+
+PDF files are unfortunately rather difficult to work with; being a vector-based
+format, they have no internal concept of words or sentences. All that's
+available are instructions for drawing a certain character at a certain
+position. This means that even something as seemingly trivial as obtaining the
+lines of text from a PDF requires some fairly involved logic and heuristics (for
+instance, one would think that simply taking all characters on a page with the
+same $y$ coordinate would be sufficient until realising that many documents have
+a layout with two columns of text). This is dealt with by using the
+\texttt{pdftohtml} script from the Poppler PDF rendering
+library\footnote{https://poppler.freedesktop.org/}. This script converts a PDF
+file to an XML file containing logical lines of text along with the coordinates
+and size of the line. Figure~\ref{fig:example} shows an example of a portion of
+a PDF file and the corresponding XML produced by \texttt{pdftohtml}.
 
 \begin{figure}[htbp]
   \centering
@@ -37,7 +52,6 @@ focus is on limiting the amount of required training data as much as possible.
     \includegraphics[width=\textwidth]{figures/source.png}
     \caption{The source PDF}
   \end{subfigure}
-  \vspace{0.10\textwidth}
   \begin{subfigure}[b]{\textwidth}
 	\centering
     \begin{lstlisting}[language=xml, morekeywords={text}]
@@ -66,9 +80,20 @@ focus is on limiting the amount of required training data as much as possible.
   \label{fig:example}
 \end{figure}
 
-The dataset, obtained through a rule-based system as described in the
-introduction, is currently complete dating back to 2005. It features 811
-documents, containing 43.252 speeches.
+The dataset was obtained through a rule-based system as described in the
+introduction, which annotates each \texttt{<text>} element of the XML files
+with a boolean flag indicating whether said element starts a new speech. The
+system was run on documents from the 18th electoral period of the
+\emph{Bundestag}, consisting of 211 documents dating from 2013 to 2017. Together
+these documents contain 43,252 \texttt{<text>} elements indicating the start of
+speeches (that is, positive training samples), and 2,602,793 other elements
+(negative samples). This adds to a total of 2,646,045 training samples, taking
+up 503 MiB. This is a rather lopsided distribution (there are roughly 60
+negative samples for each positive sample), which might have to be accounted for
+by, for instance, subsampling negative samples before training.
+Figure~\ref{fig:data_dist} shows the distribution of the number of positive
+samples per file, giving a guideline as to how many files would have to be
+annotated to reach a desired amount of positive samples.
 
 \begin{figure}[htbp]
   \centering
