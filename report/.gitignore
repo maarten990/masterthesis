@@ -4,7 +4,9 @@
 *.blg
 *.log
 *.out
-*.pdf
 *.run.xml
 *.fls
 *.fdb_latexmk
+*.toc
+_region_.tex
+report.pdf

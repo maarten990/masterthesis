@@ -56,8 +56,9 @@ coordinates of the two characters. The second parameter is called the
   elements: \[ d(A, B) = \min \{ d(a, b) : a \in A, b \in B \} \]
 \item Maximum-linkage: The distance between groups is based on the furthest two
   elements: \[ d(A, B) = \max \{ d(a, b) : a \in A, b \in B \} \]
-\item Average-linkage: The distance between groups is based on the furthest two
-  elements: \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
+\item Average-linkage: The distance between groups is based on the average
+  distance of its elements:
+  \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
 \end{itemize}
 As per \textcite{klampfl2014unsupervised}, single-linkage clustering performs
 best for this task due to its tendency to form long thin clusters, mimicking the
