@@ -31,11 +31,13 @@ from models import LSTMClassifier, CNNClassifier, WithClusterLabels
 class CNNParams:
     """Parameters for a CNNClassifier."""
     def __init__(self, embed_size: int, dropout: float, epochs: int,
-                 num_filters: int) -> None:
+                 num_filters: int, kernel_size: int, num_layers: int) -> None:
         self.embed_size = embed_size
         self.dropout = dropout
         self.epochs = epochs
         self.num_filters = num_filters
+        self.kernel_size = kernel_size
+        self.num_layers = num_layers
 
 
 class RNNParams:
@@ -144,7 +146,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                     dataset: Dataset, epochs: int = 100, batch_size: int = 32,
                     optim_fn: Callable[[Any], torch.optim.Optimizer] = torch.optim.RMSprop,
-                    ) -> Tuple[nn.Module, List[float]]:
+                    gpu: bool = True) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     if isinstance(params, RNNParams):
@@ -163,6 +165,8 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                    'embed_size': params.embed_size,
                    'num_filters': params.num_filters,
                    'dropout': params.dropout,
+                   'kernel_size': params.kernel_size,
+                   'num_layers': params.num_layers,
                    'use_final_layer': not with_labels}
         recurrent_model = CNNClassifier(**argdict)
 
@@ -170,7 +174,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
     model = WithClusterLabels(recurrent_model, data.dataset.num_clusterlabels,
                               with_labels, params.dropout)
     optimizer = optim_fn(model.parameters())
-    losses = train(model, optimizer, data, epochs)
+    losses = train(model, optimizer, data, epochs, gpu)
 
     return model, losses
 
@@ -185,7 +189,7 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
 
     constructor: Union[Type[CNNParams], Type[RNNParams]]
     if tp == 'cnn':
-        keys = ['embed_size', 'num_filters', 'dropout', 'epochs']
+        keys = ['embed_size', 'num_filters', 'dropout', 'epochs', 'kernel_size', 'num_layers']
         constructor = CNNParams
     elif tp == 'rnn':
         keys = ['embed_size', 'hidden_size', 'num_layers', 'dropout', 'epochs']

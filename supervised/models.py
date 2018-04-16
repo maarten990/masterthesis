@@ -82,17 +82,27 @@ class NameClassifier(nn.Module):
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
     def __init__(self, input_size, seq_len, embed_size, num_filters, dropout,
-                 use_final_layer=True):
+                 kernel_size=3, num_layers=2, use_final_layer=True):
         super().__init__()
 
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.pool = nn.MaxPool1d(2)
-        self.conv = nn.Conv1d(embed_size, num_filters, 3)
+        self.pool = nn.MaxPool1d(2, stride=2)
+        self.convs = nn.ModuleList([])
 
-        clf_size = self.pool(
-            self.conv(Variable(torch.zeros(32, embed_size, seq_len)))).size(2) * num_filters
-        self.clf_h = nn.Linear(1900, int(clf_size / 2))
+        self.convs.append(nn.Conv1d(embed_size, num_filters, kernel_size))
+        for i in range(num_layers - 1):
+            self.convs.append(nn.Conv1d(num_filters, num_filters, kernel_size))
+
+        for i, conv in enumerate(self.convs):
+            self.add_module("conv_{i}", conv)
+
+        # calculate classifier size
+        temp_data = Variable(torch.zeros((1, embed_size, seq_len)))
+        for conv in self.convs:
+            temp_data = self.pool(conv(temp_data))
+        clf_size = temp_data.view(1, -1).shape[1]
+        self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
 
         self.use_final_layer = use_final_layer
@@ -102,11 +112,13 @@ class CNNClassifier(nn.Module):
         embedded = self.embedding(inputs)
 
         # permute from [batch, seq_len, input_size] to [batch, input_size, seq_len]
-        embedded = embedded.permute(0, 2, 1)
-        pooled = self.pool(self.conv(embedded))
+        data = embedded.permute(0, 2, 1)
+
+        for conv in self.convs:
+            data = self.pool(conv(data))
 
         batch_size = inputs.size(0)
-        clf_in = pooled.view(batch_size, -1)
+        clf_in = data.view(batch_size, -1)
 
         if self.use_final_layer:
             h = F.relu(self.dropout(self.clf_h(clf_in)))
