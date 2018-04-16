@@ -10,9 +10,9 @@ amount of domain knowledge into the data. The supervised portion consists of a
 regular classification algorithm. \todo[inline]{Todo: Rewrite this and add all
   the details about how the data is used (sliding window, stratified sampling, etc)}
 
-\begin{figure}[htbp]
+\begin{figure}[htb]
   \centering
-  \missingfigure[figwidth=\textwidth]{Layout of the system}
+  \includegraphics[width=\textwidth]{figures/layout.pdf}
   \caption{A high-level overview of the system}
   \label{fig:overview}
 \end{figure}
@@ -95,14 +95,24 @@ clustering for some chosen $K$, or with the DBSCAN algorithm.
 \todo[inline]{Todo: Either expand this section or just integrate it with the previous subsection.}
 
 \section{Supervised}
+\todo[inline]{This is written as a draft}
 After the data is augmented by the previously described clustering algorithm,
-it's fed into a supervised classifier, more specifically a convolutional neural
-network (CNN). The decision to use a CNN was motivated by both its
-performance\textcite{kim2014conv} and, for practical reasons, its superior
-training speed compared to recurrent neural networks.
+it's fed into a supervised classifier. The common supervised methods for text
+classification are:
+\begin{itemize}
+\item Bag of words
+\item Convolutional neural networks
+\item Recurrent neural networks
+\end{itemize}
+\todo[inline]{Cite a survey mentioning these methods}
+\todo[inline]{Mention how CNN's assumption of translational invariance is not
+  strictly applicable to text but that this doesn't matter in practise to
+  justify the choice, mention using bag of words as a baseline and shortly
+  describe them all.}
 
 \subsection{Convolutional Neural Networks}
 \todo[inline]{Todo: Explain CNNs}
+ 
 
 %%% Local Variables:
 %%% mode: latex

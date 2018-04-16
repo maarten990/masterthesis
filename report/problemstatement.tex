@@ -23,8 +23,13 @@ tree:
 \end{center}
 Each document consists of a series of topics to discuss, where each topic
 contains a series of speeches made by the present politicians. The task to be
-solved is retrieving these speeches as accurately and robustly as possible.
-Luckily, in this case a rule-based system for segmenting the files already
+solved is retrieving these speeches as accurately and robustly as possible. Due
+to the shallow nature of the document's layout, marking where a new speech
+begins is sufficient for retrieving the layout to a sufficient degree. Although
+this discards information about the overarching topics, this information is both
+more difficult to extract (it is represented in a somewhat more free-form manner
+in the text) and less fundamental to what the dataset might end up being used
+for. Luckily, in this case a rule-based system for segmenting the files already
 exists and was used to create a fairly large training set. Since in general such
 a system will not exist and annotating the data by hand is expensive, a big
 focus is on limiting the amount of required training data as much as possible;

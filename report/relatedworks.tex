@@ -1,10 +1,25 @@
 \chapter{Related Works}
-\todo[inline]{Todo: Expand section} Various forms of convolutional
-neural networks are commonly used for text classification. The most classical
-architecture is described by \textcite{kim2014conv}, where the input words are
-tokenized and embedded before passing them to the convolutional neural network.
-\textcite{zhang2015character} show that comparable results can be achieved by
-operating on the character-level rather than the word-level.
+\todo[inline]{Todo: Expand section}
+
+Various forms of convolutional neural networks are commonly used for text
+classification. The most basic architecture is described by
+\textcite{kim2014conv}, where the input words are tokenized and embedded before
+passing them to the convolutional neural network. Additional exploration of the
+parameter space and its effect on various datasets is done by
+\textcite{zhang2015conv}. Comparable results are achieved by
+\textcite{zhang2015character} by operating on the character-level rather than
+the word-level, bypassing the issues overhead of using word embedding (either in
+extra training time or in finding suitable pretrained embeddings). All the
+previously mentioned architectures use a single convolutional layer; this is
+somewhat contrary to current trends in computer vision, where popular models
+such as ResNet\citep{resnet2015} go as deep as 152 layers. This difference is
+explored by \textcite{Conneau2016ldeep}, who take a character-level CNN and show
+that adding more layers improves performance, before leveling out at 29 layers.
+They hypothesize that the difference in effective depth between computer vision
+and language processing might be due to the difference in datasets. The common
+ImageNet dataset used in computer vision deals with 1000 classes; in contrast,
+sentiment analysis datasets vary between 2 and 25 classes. In addition, they
+note that the deeper networks do require a larger amount of data to train.
 
 In terms of analyzing document structure, \textcite{klampfl2014unsupervised}
 introduce a method to analyze scientific articles, detecting blocks of text,
