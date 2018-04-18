@@ -108,6 +108,12 @@ def average_precision(precision: List[float], recall: List[float]) -> float:
     return np.trapz(precision, recall)
 
 
+def max_f1(precision: List[float], recall: List[float]) -> float:
+    p = np.array(precision)
+    r = np.array(recall)
+    return np.max(2 * ((p * r) / (p + r)))
+
+
 def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]], xlabel: str, ylabel: str,
          monotonic: bool = False, title: str = ''):
     """Plot a number of curves.
