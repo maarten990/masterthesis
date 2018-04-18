@@ -3,7 +3,9 @@ from typing import Dict, List, Tuple, Union
 import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.svm import SVC
 from tabulate import tabulate
 import torch
 import torch.nn as nn
@@ -60,6 +62,23 @@ def evaluate_clf(model: nn.Module, dataloader: DataLoader, cutoff: float = 0.5,
     if not silent:
         print()
         print(tabulate(table))
+
+    return p, r
+
+
+def evaluate_bow(model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset,
+                 cutoff: float = 0.5) -> Tuple[float, float]:
+    samples = [list(entry.values())[0]['data'] for entry in dataset]
+    true = [list(entry.values())[0]['label'] for entry in dataset]
+
+    y = model.predict_proba(vectorizer.transform(samples))
+    predictions = np.where(y > cutoff, 1, 0)
+    predictions = np.argmax(predictions, axis=1)
+    if not 1 in predictions:
+        p = 1.0
+    else:
+        p = precision_score(true, predictions)
+    r = recall_score(true, predictions)
 
     return p, r
 

@@ -18,6 +18,8 @@ from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from docopt import docopt
 import numpy as np
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.svm import SVC
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
@@ -141,6 +143,19 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
     model.load_state_dict(best_params)
     model.eval()
     return epoch_losses
+
+
+def train_BoW(dataset: Dataset, vocab: Dict[str, int]) -> Tuple[SVC, TfidfVectorizer]:
+    vectorizer = TfidfVectorizer(vocabulary=vocab, token_pattern=r'\w+|[^\w\s]')
+    model = SVC(probability=True)
+
+    samples = [list(entry.values())[0]['data'] for entry in dataset]
+    labels = [list(entry.values())[0]['label'] for entry in dataset]
+    print(samples[0])
+    X = vectorizer.fit_transform(samples)
+
+    model.fit(X, labels)
+    return model, vectorizer
 
 
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,

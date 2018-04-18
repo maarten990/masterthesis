@@ -2,7 +2,6 @@
 
 
 from copy import copy
-from functools import lru_cache
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 from lxml import etree
@@ -27,92 +26,16 @@ Sample = Dict[int, Dict[str, np.ndarray]]
 
 class GermanDataset(Dataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
-                 window_size: int, window_label_idx: int = 0,
-                 vocab: Optional[Vocab] = None) -> None:
+                 num_positive: int, num_negative: int, window_size: int,
+                 window_label_idx: int = 0, vocab: Optional[Vocab]=None,
+                 bag_of_words=False) -> None:
         self.files = files
         self.vocab = create_dictionary(self.files) if not vocab else vocab
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
-
-        lengths: List[int] = []
-        # subtract the elements that get dropped off due to the window size
-        window_loss = window_size - 1
-        for path in self.files:
-            tree = load_xml_from_disk(path)
-            lengths.append(len(tree.xpath('/pdf2xml/page/text')) - window_loss)
-
-        self.boundaries = np.cumsum(lengths)
-
-    def __len__(self) -> int:
-        return self.boundaries[-1]
-
-    def __getitem__(self, idx: int) -> Sample:
-        file_idx = len([b for b in self.boundaries if idx >= b])
-        if file_idx == 0:
-            file_offset = idx
-        else:
-            file_offset = idx - self.boundaries[file_idx - 1]
-        tree = load_xml_from_disk(self.files[file_idx])
-
-        end = file_offset + self.window_size + 1
-        elements = tree.xpath('/pdf2xml/page/text')[file_offset:end]
-        sample = self.vectorize_window(elements)
-
-        assert len(sample) == 1
-        return sample
-
-    def vectorize_window(self, window: List[etree._Element]) -> Sample:
-        tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+|[^\w\s]')
-        tokens = token_featurizer(window, tokenizer)
-        y = get_label(window[self.window_label_idx])
-
-        # lowercase as the tokens will also be lowercased
-        speaker_tokens = tokenizer.tokenize(
-            get_speaker(window[self.window_label_idx]).lower())
-
-        X = [self.vocab.token_to_idx.get(token, 0) for token in tokens]
-
-        X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
-
-        clusterlabels = to_onehot(
-            int(window[self.window_label_idx].attrib['clusterLabel']),
-            self.num_clusterlabels)
-
-        return {len(X): {'data': np.array(X),
-                         'speaker_data': np.array(X_speaker),
-                         'cluster_data': np.array(clusterlabels),
-                         'label': np.array([y])}}
-
-    def split(self, test_ratio: float = 0.25) -> Tuple[Dataset, Dataset]:
-        num_test = int(test_ratio * len(self))
-        test_indices = np.random.choice(len(self), num_test, replace=False)
-        train_indices = [i for i in range(len(self)) if i not in test_indices]
-
-        return DataSubset(self, train_indices), DataSubset(self, test_indices)
-
-
-class DataSubset(GermanDataset):
-    def __init__(self, data: GermanDataset, indices: List[int]) -> None:
-        self.data = data
-        self.indices = indices
-        self.vocab = data.vocab
-        self.num_clusterlabels = data.num_clusterlabels
-
-    def __len__(self) -> int:
-        return len(self.indices)
-
-    def __getitem__(self, idx: int) -> Sample:
-        return self.data[self.indices[idx]]
-
-
-class GermanDatasetInMemory(GermanDataset):
-    def __init__(self, files: List[str], num_clusterlabels: int,
-                 num_positive: int, num_negative: int, window_size: int,
-                 window_label_idx: int = 0, vocab: Optional[Vocab]=None) -> None:
-        super().__init__(files, num_clusterlabels, window_size, window_label_idx,
-                         vocab)
         self.samples: List[Sample] = []
+        self.bag_of_words = bag_of_words
         n_pos = 0
         n_neg = 0
 
@@ -124,9 +47,14 @@ class GermanDatasetInMemory(GermanDataset):
 
                 for p in pos:
                     self.samples.append(self.vectorize_window(xml_window(p, window_label_idx, window_size)))
+                    n_pos += 1
                     pbar.update(1)
                 for n in neg:
                     self.samples.append(self.vectorize_window(xml_window(n, window_label_idx, window_size)))
+                    n_neg += 1
+
+                if n_pos >= num_positive and n_neg >= num_negative:
+                    break
 
         self.subsample(num_positive, num_negative)
 
@@ -149,11 +77,59 @@ class GermanDatasetInMemory(GermanDataset):
         self.samples = [sample for i, sample in enumerate(self.samples)
                         if i not in neg_discard and i not in pos_discard]
 
+        print(f'Retrieved {len(positives) - pos_diff} positive samples, {len(negatives) - neg_diff} negative samples.')
+
     def __len__(self) -> int:
         return len(self.samples)
 
     def __getitem__(self, idx: int) -> Sample:
         return self.samples[idx]
+
+    def split(self, test_ratio: float = 0.25) -> Tuple[Dataset, Dataset]:
+        num_test = int(test_ratio * len(self))
+        test_indices = np.random.choice(len(self), num_test, replace=False)
+        train_indices = [i for i in range(len(self)) if i not in test_indices]
+
+        return DataSubset(self, train_indices), DataSubset(self, test_indices)
+
+    def vectorize_window(self, window: List[etree._Element]) -> Sample:
+        tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+|[^\w\s]')
+        tokens = token_featurizer(window, tokenizer)
+        y = get_label(window[self.window_label_idx])
+
+        # lowercase as the tokens will also be lowercased
+        speaker_tokens = tokenizer.tokenize(
+            get_speaker(window[self.window_label_idx]).lower())
+
+        if self.bag_of_words:
+            X = ' '.join(tokens)
+        else:
+            X = np.array([self.vocab.token_to_idx.get(token, 0) for token in tokens])
+
+        X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
+
+        clusterlabels = to_onehot(
+            int(window[self.window_label_idx].attrib['clusterLabel']),
+            self.num_clusterlabels)
+
+        return {len(X): {'data': X,
+                         'speaker_data': np.array(X_speaker),
+                         'cluster_data': np.array(clusterlabels),
+                         'label': np.array([y])}}
+
+
+class DataSubset(GermanDataset):
+    def __init__(self, data: GermanDataset, indices: List[int]) -> None:
+        self.data = data
+        self.indices = indices
+        self.vocab = data.vocab
+        self.num_clusterlabels = data.num_clusterlabels
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, idx: int) -> Sample:
+        return self.data[self.indices[idx]]
 
 
 def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:
@@ -268,7 +244,6 @@ def to_cpu(sample: Sample) -> Sample:
     return out
 
 
-@lru_cache(maxsize=8192)
 def load_xml_from_disk(path: str) -> etree._Element:
     parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
     with open(path, 'r', encoding='utf-8') as f:
