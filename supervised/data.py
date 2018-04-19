@@ -46,12 +46,16 @@ class GermanDataset(Dataset):
                 neg = xml.xpath('/pdf2xml/page/text[@is-speech="false"]')
 
                 for p in pos:
-                    self.samples.append(self.vectorize_window(xml_window(p, window_label_idx, window_size)))
-                    n_pos += 1
-                    pbar.update(1)
+                    window = xml_window(p, window_label_idx, window_size)
+                    if window:
+                        self.samples.append(self.vectorize_window(window))
+                        n_pos += 1
+                        pbar.update(1)
                 for n in neg:
-                    self.samples.append(self.vectorize_window(xml_window(n, window_label_idx, window_size)))
-                    n_neg += 1
+                    window = xml_window(n, window_label_idx, window_size)
+                    if window:
+                        self.samples.append(self.vectorize_window(window))
+                        n_neg += 1
 
                 if n_pos >= num_positive and n_neg >= num_negative:
                     break
@@ -135,11 +139,14 @@ class DataSubset(GermanDataset):
 def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:
     start = node
     for _ in range(n_before):
-        start = start.previous()
+        start = start.getprevious()
 
     out = []
     for _ in range(size):
-        out.append(node)
+        if start is None:
+            return []
+        out.append(start)
+        start = start.getnext()
 
     return out
 
