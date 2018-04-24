@@ -145,8 +145,8 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
     return epoch_losses
 
 
-def train_BoW(dataset: Dataset, vocab: Dict[str, int]) -> Tuple[SVC, TfidfVectorizer]:
-    vectorizer = TfidfVectorizer(vocabulary=vocab, token_pattern=r'\w+|[^\w\s]')
+def train_BoW(dataset: Dataset, vocab: Dict[str, int], ngram_range: Tuple[int, int] = (1, 1)) -> Tuple[SVC, TfidfVectorizer]:
+    vectorizer = TfidfVectorizer(vocabulary=vocab, token_pattern=r'\w+|[^\w\s]', ngram_range=ngram_range)
     model = SVC(probability=True)
 
     samples = [list(entry.values())[0]['data'] for entry in dataset]

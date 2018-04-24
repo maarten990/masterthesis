@@ -62,8 +62,7 @@ class GermanDataset(Dataset):
 
         self.subsample(num_positive, num_negative)
 
-    def subsample(self, num_positive: int, num_negative: int) -> None:
-        # first, divide the samples in positive and negative samples
+    def get_pos_neg(self) -> Tuple[List[int], List[int]]:
         positives: List[int] = []
         negatives: List[int] = []
         for i, sample in enumerate(self.samples):
@@ -74,6 +73,10 @@ class GermanDataset(Dataset):
                 else:
                     negatives.append(i)
 
+        return positives, negatives
+
+    def subsample(self, num_positive: int, num_negative: int) -> None:
+        positives, negatives = self.get_pos_neg()
         neg_diff = len(negatives) - num_negative
         pos_diff = len(positives) - num_positive
         neg_discard = np.random.choice(negatives, neg_diff, replace=False)
@@ -89,12 +92,42 @@ class GermanDataset(Dataset):
     def __getitem__(self, idx: int) -> Sample:
         return self.samples[idx]
 
-    def split(self, test_ratio: float = 0.25) -> Tuple[Dataset, Dataset]:
-        num_test = int(test_ratio * len(self))
-        test_indices = np.random.choice(len(self), num_test, replace=False)
-        train_indices = [i for i in range(len(self)) if i not in test_indices]
+    def split(self, train: Tuple[int, int], test: Optional[Tuple[int, int]] = None) -> Tuple[Dataset, Dataset]:
+        """
+        Split the dataset into a training set and a test set.
+        :param train: A tuple indicating the number of positive and negative
+            samples in the training set.
+        :param test: An optional tuple indicating the number of positive and
+            negative samples in the test set.
+        :returns: A tuple of two new datasets.
+        """
+        if not test:
+            return_test = False
+            test = (0, 0)
+        else:
+            return_test = True
 
-        return DataSubset(self, train_indices), DataSubset(self, test_indices)
+        positives, negatives = self.get_pos_neg()
+        pos_indices = np.random.choice(positives, train[0] + test[0], replace=False)
+        neg_indices = np.random.choice(negatives, train[1] + test[1], replace=False)
+
+        train_indices = np.concatenate((pos_indices[:train[0]], neg_indices[:train[0]]))
+        test_indices = np.concatenate((pos_indices[:test[0]], neg_indices[:test[0]]))
+        np.random.shuffle(train_indices)
+        np.random.shuffle(test_indices)
+
+        if return_test:
+            return DataSubset(self, train_indices), DataSubset(self, test_indices)
+        else:
+            return DataSubset(self, train_indices)
+
+    def kfold(self, k: int = 10) -> List[Dataset]:
+        out: List[Dataset] = []
+        offset = int(len(self) / k)
+        for i in range(0, len(self), offset):
+            out.append(DataSubset(self, list(range(i, i + offset))))
+
+        return out
 
     def vectorize_window(self, window: List[etree._Element]) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+|[^\w\s]')
@@ -124,16 +157,18 @@ class GermanDataset(Dataset):
 
 class DataSubset(GermanDataset):
     def __init__(self, data: GermanDataset, indices: List[int]) -> None:
-        self.data = data
-        self.indices = indices
+        self.samples = [data.samples[i] for i in indices]
         self.vocab = data.vocab
         self.num_clusterlabels = data.num_clusterlabels
 
-    def __len__(self) -> int:
-        return len(self.indices)
 
-    def __getitem__(self, idx: int) -> Sample:
-        return self.data[self.indices[idx]]
+class ConcatDataset(GermanDataset):
+    def __init__(self, datasets: List[GermanDataset]) -> None:
+        self.samples: List[int] = []
+        for ds in datasets:
+            self.samples += ds.samples
+            self.vocab = ds.vocab
+            self.num_clusterlabels = ds.num_clusterlabels
 
 
 def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:

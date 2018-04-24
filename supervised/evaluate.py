@@ -92,7 +92,7 @@ def precision_recall_values(model: nn.Module, dataloader: DataLoader, gpu: bool=
     :returns: A list of (precision, recall) tuples, sorted by increasing recall.
     """
     pr: List[Tuple[float, float]] = []
-    for cutoff in np.linspace(0, 1):
+    for cutoff in np.linspace(0, 1, num=25):
         p, r = evaluate_clf(model, dataloader, cutoff, silent=True, gpu=gpu)
         pr.append((p, r))
 
@@ -115,7 +115,7 @@ def max_f1(precision: List[float], recall: List[float]) -> float:
 
 
 def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]], xlabel: str, ylabel: str,
-         monotonic: bool = False, title: str = ''):
+         monotonic: bool = False, title: str = '') -> plt.Figure:
     """Plot a number of curves.
 
     :param curves: A dictionary mapping the label of the plot to either its x
@@ -124,6 +124,9 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
     :param ylabel: The label for the y-axis.
     :param monotonic: Make the plot monotonically increasing.
     :param title: Optional title to add to the plot."""
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
     for label, values in curves.items():
         if isinstance(values, tuple):
             x, y = values
@@ -134,11 +137,28 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
             for i in range(1, len(y)):
                 y[i] = min(y[i], y[i-1])
 
-        plt.plot(x, y, label=label)
+        ax.plot(x, y, label=label)
 
-    plt.legend()
-    plt.xlabel(xlabel)
-    plt.ylabel(ylabel)
+    ax.legend()
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
 
     if title:
-        plt.title(title)
+        ax.set_title(title)
+
+    return fig
+
+
+def compare(plain: nn.Module, with_clusters: nn.Module, dataset: Dataset
+           ) -> Tuple[Dict[str, float], Dict[str, float], plt.Figure]:
+    plain_p, plain_r = precision_recall_values(plain, get_iterator(dataset, [40]))
+    cluster_p, cluster_r = precision_recall_values(with_clusters, get_iterator(dataset, [40]));
+
+    # fig = plot({'With clusters': (cluster_r, cluster_p), 'Without clusters': (plain_r, plain_p)},
+    #            'recall', 'precision')
+
+    plain_scores = {'F1': max_f1(plain_p, plain_r),
+                    'AoC': average_precision(plain_p, plain_r)}
+    cluster_scores = {'F1': max_f1(cluster_p, cluster_r),
+                    'AoC': average_precision(cluster_p, cluster_r)}
+    return plain_scores, cluster_scores, None
