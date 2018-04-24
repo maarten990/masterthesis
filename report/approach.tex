@@ -96,18 +96,39 @@ clustering for some chosen $K$, or with the DBSCAN algorithm.
 
 \section{Supervised}
 \todo[inline]{This is written as a draft}
+\todo[inline]{Cite a survey mentioning these methods}
+
 After the data is augmented by the previously described clustering algorithm,
-it's fed into a supervised classifier. The common supervised methods for text
-classification are:
+it's fed into a supervised classifier. For the purposes of machine learning,
+text produces 3-dimensional data: there is a feature vector for each word, and
+some (either variable or predetermined through padding) amount of words per
+text. This makes each training sample a 2-dimensional matrix, which then gets
+stacked in the depth dimension to produce 3-dimensional training data. This is
+troublesome as the standard machine learning algorithms work on 2-dimensional
+data, assuming a feature vector for each sample rather than a matrix. There are
+three common methods to deal with this:
 \begin{itemize}
 \item Bag of words
 \item Convolutional neural networks
 \item Recurrent neural networks
 \end{itemize}
-\todo[inline]{Cite a survey mentioning these methods}
+
+Aside from being completely different methods, they differ in a major way in how
+they handle the sequential nature of text. The bag of words approach is the
+simplest in that it simply disregards this sequential nature, instead creating
+what is essentially a histogram of word occurrences. This downsamples each
+sample from a feature matrix to a feature vector, allowing the use of normal
+machine learning algorithms (commonly support vector machines). While the
+sequential information can be kept to some degree by use histograms of $n$-grams
+rather than words (\emph{unigrams}), this causes the size of the data to scale
+exponentially with the value of $n$.
+
+Convolutional neural networks work by taking a number of kernels (sometimes
+called filters) of a specified size and convolving these over the input data.
+
 \todo[inline]{Mention how CNN's assumption of translational invariance is not
   strictly applicable to text but that this doesn't matter in practise to
-  justify the choice, mention using bag of words as a baseline and shortly
+  justify the choice, mention using bag of words as a baseline and briefly
   describe them all.}
 
 \subsection{Convolutional Neural Networks}
