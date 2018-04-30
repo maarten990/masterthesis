@@ -84,7 +84,7 @@ class GermanDataset(Dataset):
         self.samples = [sample for i, sample in enumerate(self.samples)
                         if i not in neg_discard and i not in pos_discard]
 
-        print(f'Retrieved {len(positives) - pos_diff} positive samples, {len(negatives) - neg_diff} negative samples.')
+        print(f'Retrieved {len(positives)} positive samples, {len(negatives)} negative samples.')
 
     def __len__(self) -> int:
         return len(self.samples)
