@@ -120,19 +120,63 @@ what is essentially a histogram of word occurrences. This downsamples each
 sample from a feature matrix to a feature vector, allowing the use of normal
 machine learning algorithms (commonly support vector machines). While the
 sequential information can be kept to some degree by use histograms of $n$-grams
-rather than words (\emph{unigrams}), this causes the size of the data to scale
+rather than words (unigrams), this causes the size of the input data to scale
 exponentially with the value of $n$.
 
-Convolutional neural networks work by taking a number of kernels (sometimes
-called filters) of a specified size and convolving these over the input data.
+Convolutional neural networks (CNNs) work by taking a number of filters
+(sometimes called kernels or feature maps) of a specified size and convolving
+these over the input data. A simplified example using one filter is shown in
+Figure~\ref{fig:cnn}.
+\begin{figure}[htb]
+  \centering
+  \includegraphics[width=\textwidth]{figures/cnn.pdf}
+  \caption{A simplified convolutional neural network}
+  \label{fig:cnn}
+\end{figure}
+In this example, the input text is convolved with a filter with a width of 3 and
+a stride of 1 --- that is, each application of the filter considers three
+subsequent input elements, after which the window is shifted one space to the
+right. This filter is essentially a small neural network mapping three items to
+one output valule, whose weights are reused for each application of the filter.
+Reusing the weights in this way (weight sharing) prevents the number of
+parameters in the network from spiraling out of control.
+\citep{lecun1995convolutional} After the application of this convolution
+layer, the responses of the filter form a new sequence of roughly the same size
+as the input (minus a few due to missing the edges). The next step is to
+downsample this sequence by means of a \emph{max pooling} layer, which maps all
+values within a window to the maximum value amongst those values. This step
+generally does not involve overlap, instead setting the stride to the same value
+as the window size (usually 2). The reason for this is twofold:
+\begin{enumerate}
+\item It downsamples the number of inputs by a factor of 2, reducing the amount
+  of parameters required further on in the network.
+\item It provides a form of translation invariance to the network. The example
+  filter of Figure~\ref{fig:cnn} appears to react strongly to the presence of
+  the word ``Hallo'' (perhaps the goal of the network is to detect wether the
+  input text was said in casual conversation or a formal setting, and this
+  filter helps by detecting the presence of a greeting). Without the pooling
+  layer, changing the location of the word ``Hallo'' in the input would
+  similarly change the location of the high activation in the intermediate
+  representation; this would be \emph{equivariance}. Leaving in the middle
+  wether equivariance or invariance is more desired, each pooling layer brings
+  the network closer to invariance (until the input is downsampled to a single
+  value, in which case full invariance is achieved).
+\end{enumerate}
+This combination of convolution followed by pooling can be repeated multiple
+times as desired or until there is only a single value left as output from the
+filter. Finally, the outputs of all filters are concatenated and fed into a
+standard feedforward neural network.
 
-\todo[inline]{Mention how CNN's assumption of translational invariance is not
-  strictly applicable to text but that this doesn't matter in practise to
-  justify the choice, mention using bag of words as a baseline and briefly
-  describe them all.}
-
-\subsection{Convolutional Neural Networks}
-\todo[inline]{Todo: Explain CNNs}
+While CNN architectures in computer vision are generally very deep, they tend to
+be very shallow (usually just a single convolution and pooling
+\citep{zhang2015conv}). This is likely (TODO: source) due to the need for
+invariance; in object recognition, the presence of a propellor is fairly
+indicative of there being an airplane, regardless of where in the image the
+propellor occurs. In natural language processing, there is a fair bit of
+information conveyed by the chosen word order. For instance, the word ``great''
+will generally be a good indication of positivity (as in ``We're going to see a
+great movie.''). Placing it at the start of the sentence however gives it a far
+more sarcastic tone (``Great, we're going to see a movie.'').
  
 
 %%% Local Variables:
