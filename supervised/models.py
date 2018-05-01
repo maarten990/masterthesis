@@ -101,6 +101,8 @@ class CNNClassifier(nn.Module):
         temp_data = Variable(torch.zeros((1, embed_size, seq_len)))
         for conv in self.convs:
             temp_data = self.pool(conv(temp_data))
+
+        temp_data = F.max_pool1d(temp_data, kernel_size=temp_data.shape[2])
         clf_size = temp_data.view(1, -1).shape[1]
         self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
         self.clf_out = nn.Linear(int(clf_size / 2), 1)
@@ -117,6 +119,7 @@ class CNNClassifier(nn.Module):
         for conv in self.convs:
             data = self.pool(conv(data))
 
+        data = F.max_pool1d(data, kernel_size=data.shape[2])
         batch_size = inputs.size(0)
         clf_in = data.view(batch_size, -1)
 
@@ -189,18 +192,28 @@ class LSTMClassifier(nn.Module):
 
 
 class WithClusterLabels(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, use_labels, dropout):
+    def __init__(self, recurrent_clf, n_labels, use_labels, dropout, only_labels=False):
         super().__init__()
         self.recurrent_clf = recurrent_clf
         self.use_labels = use_labels
+        self.only_labels = only_labels
 
-        if use_labels:
+        if only_labels:
+            self.dropout = nn.Dropout(dropout)
+            self.linear1 = nn.Linear(n_labels, int(n_labels / 2))
+            self.linear2 = nn.Linear(int(n_labels / 2), 1)
+        elif use_labels:
             output_size = self.recurrent_clf.output_size
             self.dropout = nn.Dropout(dropout)
             self.linear1 = nn.Linear(output_size + n_labels, int(output_size / 2))
             self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
+        if self.only_labels:
+            h = F.relu(self.dropout(self.linear1(labels)))
+            out = self.dropout(self.linear2(h))
+            return F.sigmoid(out)
+
         recurrent_output = self.recurrent_clf(inputs)
 
         if not self.use_labels:

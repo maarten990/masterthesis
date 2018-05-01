@@ -161,7 +161,7 @@ def train_BoW(dataset: Dataset, vocab: Dict[str, int], ngram_range: Tuple[int, i
 def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
                     dataset: Dataset, epochs: int = 100, batch_size: int = 32,
                     optim_fn: Callable[[Any], torch.optim.Optimizer] = torch.optim.RMSprop,
-                    gpu: bool = True) -> Tuple[nn.Module, List[float]]:
+                    gpu: bool = True, only_labels=False) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     if isinstance(params, RNNParams):
@@ -187,7 +187,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
 
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     model = WithClusterLabels(recurrent_model, data.dataset.num_clusterlabels,
-                              with_labels, params.dropout)
+                              with_labels, params.dropout, only_labels=only_labels)
     optimizer = optim_fn(model.parameters())
     losses = train(model, optimizer, data, epochs, gpu)
 

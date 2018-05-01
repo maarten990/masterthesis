@@ -81,12 +81,12 @@ def precision_recall_values(predicted: List[float], true: List[bool]) -> Tuple[L
 
     # a list of indices into the predicted/true lists sorted by classification value
     indices = sorted(list(range(len(predicted))), key=lambda i: predicted[i], reverse=True)
-    total_positives = [true[idx] for idx in indices].count(True)
+    total_positives = [true[idx] for idx in indices].count(1)
     previous_positives = 0
     for i in range(1, len(indices)):
         idxs = indices[:i]
         classifications = [true[idx] for idx in idxs]
-        positives = classifications.count(True)
+        positives = classifications.count(1)
         if positives > previous_positives:
             previous_positives = positives
             pr.append((positives / len(classifications), positives / total_positives))
@@ -100,7 +100,24 @@ def precision_recall_values(predicted: List[float], true: List[bool]) -> Tuple[L
 
 
 def average_precision(precision: List[float], recall: List[float]) -> float:
-    return np.trapz(precision, recall)
+    return np.mean(precision)
+
+
+def mean_of_pr(precisions, recalls):
+    buckets = np.linspace(0, 1)
+    out = {b: [] for b in buckets}
+
+    # iterate over trials
+    for ps, rs in zip(precisions, recalls):
+        for p, r in zip(ps, rs):
+            for b in buckets:
+                if r >= b:
+                    out[b].append(p)
+
+    for b in buckets:
+        out[b] = np.mean(out[b])
+
+    return out
 
 
 def max_f1(precision: List[float], recall: List[float]) -> float:
@@ -110,7 +127,7 @@ def max_f1(precision: List[float], recall: List[float]) -> float:
 
 
 def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]], xlabel: str, ylabel: str,
-         monotonic: bool = False, title: str = '') -> plt.Figure:
+         title: str = '') -> plt.Figure:
     """Plot a number of curves.
 
     :param curves: A dictionary mapping the label of the plot to either its x
@@ -125,12 +142,13 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
     for label, values in curves.items():
         if isinstance(values, tuple):
             x, y = values
+            sorted_indices = sorted(list(range(len(x))), key=lambda i: x[i])
+            x = [x[i] for i in sorted_indices]
+            y = [y[i] for i in sorted_indices]
+
         else:
             x = list(range(len(values)))
             y = values
-        if monotonic:
-            for i in range(1, len(y)):
-                y[i] = min(y[i], y[i-1])
 
         ax.plot(x, y, label=label)
 
@@ -144,18 +162,10 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
     return ax
 
 
-def compare(plain: nn.Module, with_clusters: nn.Module, dataset: Dataset
-           ) -> Tuple[Dict[str, float], Dict[str, float], plt.Figure]:
-    plain_p, plain_r = precision_recall_values(*get_values(plain, get_iterator(dataset, [40])))
-    cluster_p, cluster_r = precision_recall_values(*get_values(with_clusters, get_iterator(dataset, [40])))
+def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
+    p, r = precision_recall_values(*get_values(model, get_iterator(dataset, [40])))
 
-    fig = plot({'With clusters': (cluster_r, cluster_p), 'Without clusters': (plain_r, plain_p)},
-               'recall', 'precision')
-
-    plain_scores = {'F1': max_f1(plain_p, plain_r),
-                    'AoC': average_precision(plain_p, plain_r),
-                    'pr': (plain_p, plain_r)}
-    cluster_scores = {'F1': max_f1(cluster_p, cluster_r),
-                      'AoC': average_precision(cluster_p, cluster_r),
-                      'pr': (cluster_p, cluster_r)}
-    return plain_scores, cluster_scores, fig
+    scores = {'F1': max_f1(p, r),
+              'AoC': average_precision(p, r),
+              'pr': (p, r)}
+    return scores
