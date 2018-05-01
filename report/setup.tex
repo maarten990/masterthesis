@@ -20,14 +20,16 @@ following null hypothesis being true:
   performance of the model.
 \end{nullhypothesis}
 
-\section{Dataset size}
+\section{Dataset}
 Referring back to Figure~\ref{fig:data_dist}, the average document has between
 100 and 300 positive samples. Since a secondary concern is to minimize the
 number of documents that would have to be annotated as training data, the tested
 dataset sizes will be very low, with the number of positive samples being one of
 100, 200, 500 and 1000. Due to the relative abundance of negative samples and to
 prevent overfitting on the distribution of the labels, stratified sampling will
-be used to keep a 1:1 ratio of positive to negative samples.
+be used to keep a 1:1 ratio of positive to negative samples. In addition to the
+size, the number of cluster types (the $k$ in $k$-means) will be varied to
+examine its impact on the performance.
 
 \section{Testing performance}
 \label{sec:metrics}
