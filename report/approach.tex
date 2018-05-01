@@ -41,7 +41,7 @@ The first step is performed using hierarchical agglomerative clustering (HAC),
 an unsupervised bottom-up clustering algorithm that constructs a hierarchical
 tree of clusters (in this context referred to as a \emph{dendrogram}). An
 example is shown in Figure~\ref{fig:hac}. The algorithm gets fed the individual
-characters present in the PDF files, then iteratively groups the two closests
+characters present in the PDF files, then iteratively groups the two closest
 clusters (the initial inputs being regarded as clusters of one element) together
 until only a single cluster remains. This process involves two parameters:
 \begin{enumerate}
@@ -84,9 +84,9 @@ realistic datasets.
   \label{fig:hac}
 \end{figure}
 
-After the dendrogram is concstructed, the only choice left is at which level to
+After the dendrogram is constructed, the only choice left is at which level to
 cut the tree to obtain the desired blocks of text. This is left as a parameter
-to be manually finetuned.
+to be manually fine-tuned.
 
 \subsection{Classical Clustering}
 The extracted blocks from the previous step are then clustered according to
@@ -137,30 +137,28 @@ In this example, the input text is convolved with a filter with a width of 3 and
 a stride of 1 --- that is, each application of the filter considers three
 subsequent input elements, after which the window is shifted one space to the
 right. This filter is essentially a small neural network mapping three items to
-one output valule, whose weights are reused for each application of the filter.
+one output value, whose weights are reused for each application of the filter.
 Reusing the weights in this way (weight sharing) prevents the number of
 parameters in the network from spiraling out of control.
-\citep{lecun1995convolutional} After the application of this convolution
-layer, the responses of the filter form a new sequence of roughly the same size
-as the input (minus a few due to missing the edges). The next step is to
-downsample this sequence by means of a \emph{max pooling} layer, which maps all
-values within a window to the maximum value amongst those values. This step
-generally does not involve overlap, instead setting the stride to the same value
-as the window size (usually 2). The reason for this is twofold:
+\citep{lecun1995convolutional} After the application of this convolution layer,
+the responses of the filter form a new sequence of roughly the same size as the
+input (minus a few due to missing the edges). The next step is to downsample
+this sequence by means of a \emph{max pooling} layer, which maps all values
+within a window to the maximum value amongst those values. While conceptually
+similar to a convolution, this step generally does not involve overlap, instead
+either setting the stride to the same value as the window size (usually 2)
+reducing the entire sequence to 1 value (1-max pooling). The reason for this is
+twofold:
 \begin{enumerate}
-\item It downsamples the number of inputs by a factor of 2, reducing the amount
-  of parameters required further on in the network.
-\item It provides a form of translation invariance to the network. The example
-  filter of Figure~\ref{fig:cnn} appears to react strongly to the presence of
-  the word ``Hallo'' (perhaps the goal of the network is to detect wether the
-  input text was said in casual conversation or a formal setting, and this
-  filter helps by detecting the presence of a greeting). Without the pooling
-  layer, changing the location of the word ``Hallo'' in the input would
-  similarly change the location of the high activation in the intermediate
-  representation; this would be \emph{equivariance}. Leaving in the middle
-  wether equivariance or invariance is more desired, each pooling layer brings
-  the network closer to invariance (until the input is downsampled to a single
-  value, in which case full invariance is achieved).
+\item It downsamples the number of inputs, reducing the amount of parameters
+  required further on in the network.
+\item It adds translation invariance to the feature detected by this filter. The
+  example filter of Figure~\ref{fig:cnn} appears to react strongly to the
+  presence of the word ``Hallo''. Without the pooling layer, changing the
+  location of the word ``Hallo'' in the input would similarly change the
+  location of the high activation in the intermediate representation; this would
+  be \emph{equivariance}. The more aggressively the pooling is applied, the
+  higher the degree of invariance.
 \end{enumerate}
 This combination of convolution followed by pooling can be repeated multiple
 times as desired or until there is only a single value left as output from the
@@ -168,16 +166,31 @@ filter. Finally, the outputs of all filters are concatenated and fed into a
 standard feedforward neural network.
 
 While CNN architectures in computer vision are generally very deep, they tend to
-be very shallow (usually just a single convolution and pooling
-\citep{zhang2015conv}). This is likely (TODO: source) due to the need for
-invariance; in object recognition, the presence of a propellor is fairly
-indicative of there being an airplane, regardless of where in the image the
-propellor occurs. In natural language processing, there is a fair bit of
-information conveyed by the chosen word order. For instance, the word ``great''
-will generally be a good indication of positivity (as in ``We're going to see a
-great movie.''). Placing it at the start of the sentence however gives it a far
-more sarcastic tone (``Great, we're going to see a movie.'').
- 
+be very shallow in natural language processing; commonly just a single
+convolution followed by 1-max pooling \citep{zhang2015conv}. Since this
+particular task at first glance appears to be fairly reliant on word position
+(e.g. a colon at the end of a sentence very often indicates the start of a
+speech, a colon in the middle almost certainly does not), the degree of pooling
+will be experimented with.
+
+\subsection{Difference between convolutional and recurrent neural networks}
+Recurrent neural networks (in particular LSTMs or GRUs) are seemingly the most
+natural fit for language processing, since they process an entire sequence and
+are therefore fully conditioned on the word order (as opposed to the
+convolutional neural networks which tend to learn translation invariant ngram
+features). Regardless, convolutional neural networks will be used in this
+research. This choice is based on two factors:
+\begin{enumerate}
+\item In practise, the performance for classification tasks does not differ
+  between the two types of networks.\citep{cnnrnn}
+\item The computations in convolutional networks are highly independent of
+  each other, allowing for great paralellization (in particular with regards to
+  running on a GPU). In contrast, LSTMs are bottlenecked by the fact that each
+  calculation is dependent on the previous calculations. As a result, CNNs
+  achieve far higher training speeds.\citep{facebook}
+\end{enumerate}
+
+\todo[inline]{Diagram/description of the full model with cluster labels added}
 
 %%% Local Variables:
 %%% mode: latex

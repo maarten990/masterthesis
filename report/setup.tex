@@ -1,16 +1,65 @@
 \chapter{Experimental Setup}
+Experiments are focused on the difference in performance between the baseline
+CNN model without clustering information (referred to from here on as
+\texttt{CNN}) and the model augemented with clustering information (which will
+be reffered to as \texttt{CNN-cluster}). Performance will be measured with
+regards to the following three metrics:
+\begin{enumerate}
+\item Number of training epochs until convergence
+\item The F1 score or average precision metrics on a test set (see
+  Section~\ref{sec:metrics})
+\item The number of training samples required to attain a specific F1/average
+  precision score
+\end{enumerate}
+
+In each case, the experiment will be repeated 10 times by means of 10-fold cross
+validation followed by a Student's T-test to gauge the probability of the
+following null hypothesis being true:
 \begin{nullhypothesis}
-  Adding clustering information to the CNN model does not improve the
+  Adding clustering information to the CNN model does not change the
   performance of the model.
 \end{nullhypothesis}
-\todo[inline]{Todo: Describe what experiments will be run, varying which
-  parameters and with what purpose}
-\begin{itemize}
-  \item Difference between running with/without clustering data, vary number of clusters
-  \item vary stuff like the embedding size and number of filters
-  \item embedding on small trainset vs pretraining the embedding on the entire dataset
-  \item add tests on older data
-\end{itemize}
+
+\section{Dataset size}
+Referring back to Figure~\ref{fig:data_dist}, the average document has between
+100 and 300 positive samples. Since a secondary concern is to minimize the
+number of documents that would have to be annotated as training data, the tested
+dataset sizes will be very low, with the number of positive samples being one of
+100, 200, 500 and 1000. Due to the relative abundance of negative samples and to
+prevent overfitting on the distribution of the labels, stratified sampling will
+be used to keep a 1:1 ratio of positive to negative samples.
+
+\section{Testing performance}
+\label{sec:metrics}
+All models will be tested on a test set containing 1000 positive samples and
+10000 negative samples, all of which are guaranteed not to be in the training
+set. Performance on this set is measured by constructing a precision-recall
+curve, and calculating two values:
+\begin{enumerate}
+\item The average precision (which is equivalent to the area under the curve)
+\item The F1 score of the point on the curve maximizing the F1 score
+\end{enumerate}
+
+\section{CNN performance}
+Although less central to the thesis than the difference between the \texttt{CNN}
+and \texttt{CNN-cluster} models, some experimentation will be done with the
+parameters of the convolutional network in an attempt to optimize the
+performance. These parameters include the dimensionality of the word embeddings,
+the number of filters, the pooling strategy (1-max versus a smaller region) and
+the number of convolutional layers.
+
+\section{Generalisation}
+This particular dataset has the quirk that the performance of a rule-based
+system created based on recent documents decreases in performance when used on
+older documents, the older the document the worse it performs. This occurs
+despite the layout being visually the same all the way back to the 1950s. A
+number of files from old election periods has been labeled (and manually
+verified for correctness) in order to test
+\begin{enumerate}
+\item whether the CNN models handle this better than the rule-based system does.
+\item Whether the clustering-augmented CNN model performs better on this task
+  than the baseline CNN.
+\end{enumerate}
 
 %%% Local Variables:
 %%% mode: latex
