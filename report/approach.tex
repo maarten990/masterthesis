@@ -1,4 +1,4 @@
-\chapter{Methodology}
+\section{Methodology}
 %\FloatBarrier
 
 The system consists of two separate parts; an unsupervised algorithm for
@@ -17,7 +17,7 @@ regular classification algorithm. \todo[inline]{Todo: Rewrite this and add all
   \label{fig:overview}
 \end{figure}
 
-\section{Unsupervised}
+\subsection{Unsupervised}
 The unsupervised algorithm attempts to detect and label blocks of text in the
 PDF file, as shown in Figure~\ref{fig:clustered} for an example). This approach
 is based on work by \textcite{klampfl2014unsupervised}, and consists of two
@@ -36,7 +36,7 @@ clustering steps:
   \label{fig:clustered}
 \end{figure}
 
-\subsection{Hierarchical Agglomerative Clustering}
+\subsubsection{Hierarchical Agglomerative Clustering}
 The first step is performed using hierarchical agglomerative clustering (HAC),
 an unsupervised bottom-up clustering algorithm that constructs a hierarchical
 tree of clusters (in this context referred to as a \emph{dendrogram}). An
@@ -88,13 +88,13 @@ After the dendrogram is constructed, the only choice left is at which level to
 cut the tree to obtain the desired blocks of text. This is left as a parameter
 to be manually fine-tuned.
 
-\subsection{Classical Clustering}
+\subsubsection{Classical Clustering}
 The extracted blocks from the previous step are then clustered according to
 the similarity of their shapes (width and height). This is done using K-means
 clustering for some chosen $K$, or with the DBSCAN algorithm.
 \todo[inline]{Todo: Either expand this section or just integrate it with the previous subsection.}
 
-\section{Supervised}
+\subsection{Supervised}
 \todo[inline]{This is written as a draft}
 \todo[inline]{Cite a survey mentioning these methods}
 
@@ -173,7 +173,7 @@ particular task at first glance appears to be fairly reliant on word position
 speech, a colon in the middle almost certainly does not), the degree of pooling
 will be experimented with.
 
-\subsection{Difference between convolutional and recurrent neural networks}
+\subsubsection{Difference between convolutional and recurrent neural networks}
 Recurrent neural networks (in particular LSTMs or GRUs) are seemingly the most
 natural fit for language processing, since they process an entire sequence and
 are therefore fully conditioned on the word order (as opposed to the

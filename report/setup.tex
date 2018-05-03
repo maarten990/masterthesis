@@ -1,4 +1,4 @@
-\chapter{Experimental Setup}
+\section{Experimental Setup}
 Experiments are focused on the difference in performance between the baseline
 CNN model without clustering information (referred to from here on as
 \texttt{CNN}) and the model augemented with clustering information (which will
@@ -20,7 +20,7 @@ following null hypothesis being true:
   performance of the model.
 \end{nullhypothesis}
 
-\section{Dataset}
+\subsection{Dataset}
 Referring back to Figure~\ref{fig:data_dist}, the average document has between
 100 and 300 positive samples. Since a secondary concern is to minimize the
 number of documents that would have to be annotated as training data, the tested
@@ -31,7 +31,7 @@ be used to keep a 1:1 ratio of positive to negative samples. In addition to the
 size, the number of cluster types (the $k$ in $k$-means) will be varied to
 examine its impact on the performance.
 
-\section{Testing performance}
+\subsection{Testing performance}
 \label{sec:metrics}
 All models will be tested on a test set containing 1000 positive samples and
 10000 negative samples, all of which are guaranteed not to be in the training
@@ -42,7 +42,7 @@ curve, and calculating two values:
 \item The F1 score of the point on the curve maximizing the F1 score
 \end{enumerate}
 
-\section{CNN performance}
+\subsection{CNN performance}
 Although less central to the thesis than the difference between the \texttt{CNN}
 and \texttt{CNN-cluster} models, some experimentation will be done with the
 parameters of the convolutional network in an attempt to optimize the
@@ -50,7 +50,7 @@ performance. These parameters include the dimensionality of the word embeddings,
 the number of filters, the pooling strategy (1-max versus a smaller region) and
 the number of convolutional layers.
 
-\section{Generalisation}
+\subsection{Generalisation}
 This particular dataset has the quirk that the performance of a rule-based
 system created based on recent documents decreases in performance when used on
 older documents, the older the document the worse it performs. This occurs

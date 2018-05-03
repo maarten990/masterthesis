@@ -1,4 +1,4 @@
-\chapter{Problem Statement}
+\section{Problem Statement}
 The thesis will focus on parliamentary proceedings from the German
 \emph{Bundestag}. These proceedings are available online as PDF files dating
 back to 1949, and have used essentially the same document layout and conventions
@@ -36,7 +36,7 @@ focus is on limiting the amount of required training data as much as possible;
 it would be preferable if the system was able to learn sufficiently from a
 handful (say, less than 5) of hand-annotated files.
 
-\section{Dataset}
+\subsection{Dataset}
 PDF files are unfortunately rather difficult to work with; being a vector-based
 format, they have no internal concept of words or sentences. All that's
 available are instructions for drawing a certain character at a certain
@@ -108,7 +108,7 @@ annotated to reach a desired amount of positive samples.
   \label{fig:data_dist}
 \end{figure}
 
-\section{Research Question}
+\subsection{Research Question}
 As stated in the introduction, the research done in this thesis is about
 augmenting the data with the spatial information that is usually left out in
 sentence classification. In doing so, the following research questions will be
