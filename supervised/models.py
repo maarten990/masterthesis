@@ -81,26 +81,24 @@ class NameClassifier(nn.Module):
 
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
-    def __init__(self, input_size, seq_len, embed_size, num_filters, dropout,
-                 kernel_size=3, num_layers=2, use_final_layer=True):
+    def __init__(self, input_size, seq_len, embed_size, filters, dropout,
+                 num_layers=1, use_final_layer=True):
         super().__init__()
 
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.pool = nn.MaxPool1d(2, stride=2)
-        self.convs = nn.ModuleList([])
+        self.layers = nn.ModuleList([])
 
-        self.convs.append(nn.Conv1d(embed_size, num_filters, kernel_size))
+        self.layers.append(nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters]))
         for i in range(num_layers - 1):
-            self.convs.append(nn.Conv1d(num_filters, num_filters, kernel_size))
-
-        for i, conv in enumerate(self.convs):
-            self.add_module("conv_{i}", conv)
+            self.layers.append(nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters]))
 
         # calculate classifier size
         temp_data = Variable(torch.zeros((1, embed_size, seq_len)))
-        for conv in self.convs:
-            temp_data = self.pool(conv(temp_data))
+        for layer in self.layers:
+            d = [conv(temp_data) for conv in layer]
+            d = [F.max_pool1d(l, kernel_size=l.shape[2]) for l in d]
+            temp_data = torch.cat(d, 1)
 
         temp_data = F.max_pool1d(temp_data, kernel_size=temp_data.shape[2])
         clf_size = temp_data.view(1, -1).shape[1]
@@ -116,10 +114,12 @@ class CNNClassifier(nn.Module):
         # permute from [batch, seq_len, input_size] to [batch, input_size, seq_len]
         data = embedded.permute(0, 2, 1)
 
-        for conv in self.convs:
-            data = self.pool(conv(data))
+        for layer in self.layers:
+            d = [conv(data) for conv in layer]
+            d = [F.max_pool1d(l, kernel_size=l.shape[2]) for l in d]
+            data = torch.cat(d, 1)
 
-        data = F.max_pool1d(data, kernel_size=data.shape[2])
+        # data = F.max_pool1d(data, kernel_size=data.shape[2])
         batch_size = inputs.size(0)
         clf_in = data.view(batch_size, -1)
 
