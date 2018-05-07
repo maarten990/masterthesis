@@ -1,40 +1,51 @@
 \section{Problem Statement}
-The thesis will focus on parliamentary proceedings from the German
-\emph{Bundestag}. These proceedings are available online as PDF files dating
-back to 1949, and have used essentially the same document layout and conventions
-since the start. Semantically, the layout of these documents forms a shallow
-tree:
-\begin{center}
-  \begin{forest}
-    [root
-      [topic
-        [speech]
-        [\dots]
-        [speech]
-      ]
-      [\dots]
-      [topic
-        [speech]
-        [\dots]
-        [speech]
-      ]
-    ]
-  \end{forest}
-\end{center}
-Each document consists of a series of topics to discuss, where each topic
-contains a series of speeches made by the present politicians. The task to be
-solved is retrieving these speeches as accurately and robustly as possible. Due
-to the shallow nature of the document's layout, marking where a new speech
-begins is sufficient for retrieving the layout to a sufficient degree. Although
-this discards information about the overarching topics, this information is both
-more difficult to extract (it is represented in a somewhat more free-form manner
-in the text) and less fundamental to what the dataset might end up being used
-for. Luckily, in this case a rule-based system for segmenting the files already
-exists and was used to create a fairly large training set. Since in general such
-a system will not exist and annotating the data by hand is expensive, a big
-focus is on limiting the amount of required training data as much as possible;
-it would be preferable if the system was able to learn sufficiently from a
-handful (say, less than 5) of hand-annotated files.
+The German parliament, called the \emph{Bundestag}, publishes the proceedings of
+their meetings, as an effort to open up the political process to the common
+people. These proceedings have been continously published starting in 1949.
+Figure~\ref{fig:pdf_page} shows a sample page from one of these proceedings; the
+left column contains a continuation of a speech from the previous page as well
+as two moderately sized speeches, while the right column contains a large number
+of very short speeches. Having a large corpus of political proceedings like this
+is wonderful and opens a lot of doors for research regarding political
+discourse. Figure~\ref{fig:pdf_roi} shows the same page seen in
+Figure~\ref{fig:pdf_page}, but with a number of regions of interest (manually)
+colored in. Unfortunately this data is only available as PDF files, which in
+terms of internal representation are entirely unstructured. That means that none
+of the rich structure highlighted in Figure~\ref{fig:pdf_roi} is actually
+present in a computer-usable way.
+
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[page=16,height=0.95\textheight]{../pdfs/18001.pdf}
+  \caption{A sample page from one of the Bundestag proceedings.}
+  \label{fig:pdf_page}
+\end{figure}
+\begin{figure}[htbp]
+  \centering
+  \includegraphics[height=0.85\textheight]{figures/pdf_roi.pdf}
+  \caption{The same page as in Figure~\ref{fig:pdf_page}, hand-annotated with
+    interesting regions that play a significant role in understanding the
+    layout. The red regions are the headers the signify that someone is starting
+    a speech, and contain information about who the speakers is. The blue
+    regions are little interruptions (\emph{Heiterkeits}), often signifying
+    approval or displeasure (the regularly seen \emph{Beifall} means applause).
+    The green regions indicate plain blocks of text.}
+  \label{fig:pdf_roi}
+\end{figure}
+
+The central problem in this thesis is the extraction of speeches from the
+documents, transforming each document into a structured series of speeches that
+can be serve as a useful entry point into further research. As a first step, the
+structural layout (as in Figure~\ref{fig:pdf_roi}) will be extracted using
+unsupervised clustering algorithms. The textual contents of the document are
+then fed into supervised text classifier, where each piece of text is augmented
+with the corresponding layout information previously obtained. More details on
+this process will be supplied in Section~\ref{sec:method}.
+
+As annotating data by hand is an expensive process, a big focus is on limiting
+the amount of required training data as much as possible; it would be preferable
+if the system was able to learn sufficiently from a handful (say, less than 5)
+of hand-annotated files.
 
 \subsection{Dataset}
 PDF files are unfortunately rather difficult to work with; being a vector-based
@@ -43,20 +54,29 @@ available are instructions for drawing a certain character at a certain
 position. This means that even something as seemingly trivial as obtaining the
 lines of text from a PDF requires some fairly involved logic and heuristics (for
 instance, one would think that simply taking all characters on a page with the
-same $y$ coordinate would be sufficient until realising that many documents have
+same $y$ coordinate would be sufficient until realizing that many documents have
 a layout with two columns of text). This is dealt with by using the
 \texttt{pdftohtml} script from the Poppler PDF rendering
 library\footnote{https://poppler.freedesktop.org/}. This script converts a PDF
 file to an XML file containing logical lines of text along with the coordinates
 and size of the line. Figure~\ref{fig:example} shows an example of a portion of
-a PDF file and the corresponding XML produced by \texttt{pdftohtml}.
+a PDF file and the corresponding XML. The contents of the \texttt{text} elements
+forms the plaintext that is fed into the classification algorithm. Although the
+layout information contained in the properties (\texttt{top}, \texttt{left},
+\texttt{width}, \texttt{height} and \texttt{font}) could be used for the layout
+clustering, this would effectively tie the performance of the clustering to the
+performance of \texttt{pdftohtml}'s line-extraction heuristics. Instead, a
+separate system is used (the Apache pdfbox\footnote{https://pdfbox.apache.org/}
+library for Java). By using the bounding boxes of individual characters as the
+base for clustering, the troubles of line-extraction can be fully bypassed.
 
 \begin{figure}[htbp]
   \centering
   \begin{subfigure}[b]{0.6\textwidth} 
     \centering
     \includegraphics[width=\textwidth]{figures/source.png}
-    \caption{The source PDF}
+    \caption{A portion of the source PDF.}
+    \label{fig:source_pdf}
   \end{subfigure}
   \begin{subfigure}[b]{\textwidth}
 	\centering
@@ -80,26 +100,31 @@ a PDF file and the corresponding XML produced by \texttt{pdftohtml}.
           Fraktionen gratulieren dem Präsidenten)
       </text>
     \end{lstlisting}
-    \caption{XML}
+    \caption{XML created by running \texttt{pdftohtml}, corresponding to the PDF
+      excerpt in Figure~\ref{fig:source_pdf}. The contents of the \texttt{text}
+      elements are used as inputs for the classification algorithm; the layout
+      data contained in the properties is not used, as a separate software
+      pipeline is used for the unsupervised clustering.}
+    \label{fig:source_xml}
   \end{subfigure}
-  \caption{The data representations}
+  \caption{A sample excerpt from a source PDF, along with its XML representation
+    created by \texttt{pdftohtml}.}
   \label{fig:example}
 \end{figure}
 
 The dataset was obtained through a rule-based system as described in the
-introduction, which annotates each \texttt{<text>} element of the XML files
-with a boolean flag indicating whether said element starts a new speech. The
-system was run on documents from the 18th electoral period of the
-\emph{Bundestag}, consisting of 211 documents dating from 2013 to 2017. Together
-these documents contain 43,252 \texttt{<text>} elements indicating the start of
-speeches (that is, positive training samples), and 2,602,793 other elements
-(negative samples). This adds to a total of 2,646,045 training samples, taking
-up 503 MiB. This is a rather lopsided distribution (there are roughly 60
-negative samples for each positive sample), which might have to be accounted for
-by, for instance, subsampling negative samples before training.
-Figure~\ref{fig:data_dist} shows the distribution of the number of positive
-samples per file, giving a guideline as to how many files would have to be
-annotated to reach a desired amount of positive samples.
+introduction, which annotates each \texttt{<text>} element of the XML files with
+a boolean flag indicating whether said element starts a new speech. The system
+was run on documents from the 18th electoral period of the \emph{Bundestag},
+consisting of 211 documents dating from 2013 to 2017. Together these documents
+contain 43,252 \texttt{<text>} elements indicating the start of speeches (that
+is, positive training samples), and 2,602,793 other elements (negative samples).
+This adds to a total of 2,646,045 training samples, taking up 503 MiB. This is a
+rather lopsided distribution (there are roughly 60 negative samples for each
+positive sample), which will have to be accounted for by, for instance, using
+stratified sampling. Figure~\ref{fig:data_dist} shows the distribution of the
+number of positive samples per file, giving a guideline as to how many files
+would have to be annotated to reach a desired amount of positive samples.
 
 \begin{figure}[htbp]
   \centering
@@ -109,15 +134,30 @@ annotated to reach a desired amount of positive samples.
 \end{figure}
 
 \subsection{Research Question}
-As stated in the introduction, the research done in this thesis is about
-augmenting the data with the spatial information that is usually left out in
-sentence classification. In doing so, the following research questions will be
-considered:
-\begin{enumerate}
-\item Does this increase the learning performance?
-\item Does this allow for reaching the same performance using less data?
-\item Does this make the training converge to the optimal performance quicker?
-\end{enumerate}
+As the application of supervised text classification is fairly basic and
+well-studied, academically speaking the interesting portion of this problem is
+figuring out what benefit is added by the unsupervised layout clustering, if
+any. A potential benefit could manifest itself in a couple of different ways:
+\begin{itemize}
+\item The performance (using a metric such as the F1 score or average
+  precision, to be further elaborated on in Section~\ref{sec:method}) after
+  training is increased.
+\item The peak performance is equal, but less training data is required to reach
+  said peak.
+\item The peak performance is equal and a similar amount of training data is
+  required, but the classifier needs less iterations to reach this performance.
+\end{itemize}
+This leads to the research question that is central to this thesis:
+\begin{researchquestion}
+  Does augmenting a text classification system with layout information obtained
+  by unsupervised clustering of the input data improve the classifier with
+  regards to:
+  \begin{itemize}
+  \item F1 score and average precision
+  \item required volume of training data
+  \item training speed
+  \end{itemize}
+\end{researchquestion}
 
 %%% Local Variables:
 %%% mode: latex

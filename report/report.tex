@@ -14,7 +14,7 @@
 \usepackage{listings}
 \usepackage{color}
 \usepackage{forest}
-\usepackage[sc]{mathpazo}
+%\usepackage[sc]{mathpazo}
 \usepackage{lineno}
 \usepackage{booktabs}
 \usepackage[
@@ -38,6 +38,7 @@
 }
 
 \newtheorem{nullhypothesis}{Null Hypothesis}
+\newtheorem{researchquestion}{Research Question}
 
 \addbibresource{library.bib} 
 
@@ -45,10 +46,11 @@
 
 \import{.}{title-page-ai.tex}
 \tableofcontents
+\clearpage
 \linenumbers
 \import{.}{introduction.tex}
-\import{.}{relatedworks.tex}
 \import{.}{problemstatement.tex}
+\import{.}{relatedworks.tex}
 \import{.}{approach.tex}
 \import{.}{setup.tex}
 \import{.}{results.tex}
