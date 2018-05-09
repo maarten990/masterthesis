@@ -102,7 +102,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
 
     t = trange(epochs, desc='Training')
     for _ in t:
-        epoch_loss = torch.zeros(1).float()
+        epoch_loss = 0.0
 
         for batch in dataloader:
             data = to_tensors(batch)
@@ -120,11 +120,11 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
                 loss.backward()
                 optimizer.step()
 
-                epoch_loss += loss.data.cpu()
+                epoch_loss += loss.item()
 
             to_cpu(data)
 
-        loss = epoch_loss[0] / len(dataloader)
+        loss = epoch_loss / len(dataloader)
         epoch_losses.append(loss)
 
         # check if the model is the best yet
@@ -164,7 +164,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], with_labels: bool,
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     if isinstance(params, RNNParams):
-        buckets = [5, 10, 15, 25, 40, -1]
+        buckets = [5, 10, 15, 25, 40]
         argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
                    'embed_size': params.embed_size,
                    'hidden_size': params.hidden_size,

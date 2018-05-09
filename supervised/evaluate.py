@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import precision_score, recall_score, f1_score
+from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve
 from sklearn.svm import SVC
 from tabulate import tabulate
 import torch
@@ -17,7 +17,7 @@ sns.set()
 
 
 def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool=True
-              ) -> Tuple[List[float], List[bool]]:
+              ) -> Tuple[List[float], List[float]]:
     """Get the classification output for the given dataset.
 
     :param model: A trained model.
@@ -29,7 +29,7 @@ def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool=True
     model.cuda() if gpu else model.cpu()
 
     predictions: List[float] = []
-    true: List[bool] = []
+    true: List[float] = []
 
     for batch in dataloader:
         data = to_tensors(batch)
@@ -42,9 +42,9 @@ def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool=True
             y = d['label']
 
             pred = model(X, c)
-            pred = pred.cpu().squeeze().data.numpy()
+            pred = pred.detach().cpu().squeeze(dim=1).numpy()
             predictions.extend(pred)
-            true.extend(y.data.cpu().numpy())
+            true.extend(y.detach().cpu().squeeze(dim=1).numpy())
 
     return predictions, true
 
@@ -70,33 +70,14 @@ def evaluate_bow(model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset,
     return p, r
 
 
-def precision_recall_values(predicted: List[float], true: List[bool]) -> Tuple[List[float], List[float]]:
+def precision_recall_values(predicted: List[float], true: List[float]) -> Tuple[List[float], List[float]]:
     """Calculate the values for a  precision-recall curve.
 
     :param predicted: A list of classifier outputs.
     :param true: A list of the true classification labels.
     :returns: A list of (precision, recall) tuples, sorted by increasing recall.
     """
-    pr: List[Tuple[float, float]] = []
-
-    # a list of indices into the predicted/true lists sorted by classification value
-    indices = sorted(list(range(len(predicted))), key=lambda i: predicted[i], reverse=True)
-    total_positives = [true[idx] for idx in indices].count(1)
-    previous_positives = 0
-    for i in range(1, len(indices)):
-        idxs = indices[:i]
-        classifications = [true[idx] for idx in idxs]
-        positives = classifications.count(1)
-        if positives > previous_positives:
-            previous_positives = positives
-            pr.append((positives / len(classifications), positives / total_positives))
-
-        if positives == total_positives:
-            break
-
-    # split the tuples into the 2 lists to return
-    p, r = np.array(pr).T
-    return p, r
+    return precision_recall_curve(true, predicted)
 
 
 def average_precision(precision: List[float], recall: List[float]) -> float:
@@ -163,7 +144,7 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
 
 
 def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
-    p, r = precision_recall_values(*get_values(model, get_iterator(dataset, [40])))
+    p, r, _ = precision_recall_values(*get_values(model, get_iterator(dataset, [5, 10, 15, 25, 40])))
 
     scores = {'F1': max_f1(p, r),
               'AoC': average_precision(p, r),

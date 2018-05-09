@@ -147,7 +147,7 @@ class LSTMClassifier(nn.Module):
         self.embedding = nn.Embedding(input_size, embed_size)
         self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
                            bidirectional=True, batch_first=True,
-                           dropout=dropout)
+                           dropout=dropout if num_layers > 1 else 0)
 
         # the output size of the rnn is 2 * hidden_size because it's bidirectional
         self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
@@ -155,9 +155,6 @@ class LSTMClassifier(nn.Module):
 
         self.use_final_layer = use_final_layer
         self.output_size = 1 if self.use_final_layer else hidden_size * 2
-
-        if torch.cuda.is_available():
-            self.cuda()
 
     def forward(self, inputs):
         # initialize the lstm hidden states
