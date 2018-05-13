@@ -19,3 +19,4 @@ clusterlabeled-*
 pdfs
 *.tar.xz
 .mypy_cache
+*.swp

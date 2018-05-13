@@ -27,11 +27,10 @@ PDF file; Figure~\ref{fig:clustered} shows an example. This approach is based on
 work by \textcite{klampfl2014unsupervised}, and consists of two separate
 clustering steps. First, individual characters (the fundamental objects
 available in a PDF file) are clustered together into blocks of semantically
-relevant text. These would paragraphs, section headers, page decoration, etc. By
-using the bounding boxes of the blocks, they can be clustered based on their
-shape and some additional metadata (e.g.\ occurrence of fonts, occurring font
-sizes). The next two subsections will go into details on the two clustering
-steps.
+relevant text. These would be paragraphs, section headers, page decoration, etc.
+By using the bounding boxes of the blocks, they can be clustered based on their
+shape and some additional metadata (e.g.\ occurrence of font types and sizes).
+The next two subsections will go into details on the two clustering steps.
 
 \begin{figure}[htb]
   \centering
@@ -51,25 +50,26 @@ clusters (the initial inputs being regarded as clusters of one element) together
 until only a single cluster remains. This process involves two parameters:
 \begin{enumerate}
 \item The distance function between two characters.
-\item The distance function between two groups of characters.
+\item The distance function between two clusters of characters.
 \end{enumerate}
 The first parameter is trivially chosen to be the Euclidian distance between the
 coordinates of the two characters. The second parameter is called the
 \emph{linkage} and has several common options, the most basic of which are:
 \begin{itemize}
-\item Single-linkage: The distance between groups is based on the closest two
+\item Single-linkage: The distance between clusters is based on the closest two
   elements: \[ d(A, B) = \min \{ d(a, b) : a \in A, b \in B \} \]
-\item Maximum-linkage: The distance between groups is based on the furthest two
+\item Maximum-linkage: The distance between clusters is based on the furthest two
   elements: \[ d(A, B) = \max \{ d(a, b) : a \in A, b \in B \} \]
-\item Average-linkage: The distance between groups is based on the average
+\item Average-linkage: The distance between clusters is based on the average
   distance of its elements:
   \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
 \end{itemize}
 As per \textcite{klampfl2014unsupervised}, single-linkage clustering performs
-best for this task due to its tendency to form long thin clusters, mimicking the
-structure of sentences. As an additional bonus, while the general time
-complexity for HAC is in $\mathcal{O}(n^3)$, single-linkage clustering can be
-done in $\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more usable on
+best for this task due to its tendency to form long thin clusters. This is
+beneficial since text is somewhat long and thin in nature (especially words and
+sentences). As an additional bonus, while the general time complexity for HAC is
+in $\mathcal{O}(n^3)$, single-linkage clustering can be done in
+$\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more usable on
 realistic datasets.
 
 \begin{figure}[htb]
@@ -90,23 +90,88 @@ realistic datasets.
   \label{fig:hac}
 \end{figure}
 
-After the dendrogram is constructed, the only choice left is at which level to
-cut the tree to obtain the desired blocks of text. This is left as a parameter
-to be manually fine-tuned.
+After the dendrogram is constructed, it has to be cut at some level to obtain
+the desired blocks of text. Clustering can optionally be rerun using the newly
+found clusters as basic elements. This way, the document can incrementally be
+clustered from characters into words, words into lines, and finally lines into
+paragraphs. Both the level at which to cut the tree and the number of times to
+recluster are determined by trial and error based on the particular set of
+documents.
 
-\subsubsection{Classical Clustering}
-\label{sec:sup}
+\subsubsection{K-Means}
 The extracted blocks from the previous step are then clustered according to
-the similarity of their shapes (width and height). This is done using K-means
-clustering for some chosen $K$, or with the DBSCAN algorithm.
-\todo[inline]{Todo: Either expand this section or just integrate it with the previous subsection.}
+their similarity based on the following metrics:
+\begin{itemize}
+  \item Width of the cluster
+  \item Height of the cluster
+  \item The ID of the most common font occurring in the cluster
+  \item The size of the most common font occurring in the cluster
+\end{itemize}
+This is done using K-means clustering, with the value of $k$ being varied for
+experimental purposes.
 
 \subsection{Supervised}
-\todo[inline]{This is written as a draft}
-\todo[inline]{Cite a survey mentioning these methods}
+\label{sec:sup}
+After the data is augmented by the previously described clustering algorithms,
+it's fed into a convolutional neural network for classification. Since the
+source PDFs have a dual column layout with rather short lines, a sliding window
+is used to add valuable context, with the center element in the window supplying
+both the label (i.e.\ does or does not start a speech) and the cluster type. The
+text content of this window is then entered into a standard convolutional neural
+network architecture similar to the one proposed by \textcite{kim2014conv}.
+First an embedding layer is used to learn a high-dimensional representation of
+the words (no pre-trained embeddings were used because of both the specialized
+political domain of the data as well as a lack of pre-trained German models),
+followed by a number of Convolutional filters with max pooling. The output of
+the filters is then concatenated into a single feature vector, which is amended
+with the cluster type as an additional feature before feeding it into a standard
+fully-connected neural network. This network features one hidden layer with a
+ReLU activation ($\mathrm{relu}(x) = \max(0, x)$) and a single output node with a sigmoid
+activation. The layout of this system is detailed in Figure~\ref{fig:model_full}
+along with its parameters and their baseline value.
 
-After the data is augmented by the previously described clustering algorithm,
-it's fed into a supervised classifier. For the purposes of machine learning,
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[b]{0.45\textwidth}
+    \includegraphics[width=\textwidth]{figures/nn_layout.pdf}
+    \caption{The layout of the supervised portion of the system. The input data
+      contains text and a cluster type assigned by the unsupervised portion. The
+      text gets put into a convolutional neural network, the output of which is
+      fed together with the cluster type into a fully connected neural network.
+      The sigmoid function is applied to the output of this final neural network
+    to obtain the classification.}
+    \label{fig:nn_layout}
+  \end{subfigure}
+  \hspace{0.05\textwidth}
+  \begin{subfigure}[b]{0.45\textwidth}
+    \centering
+    \begin{tabular}{lr}
+      \toprule
+      Parameter & Default value \\
+      \midrule
+      Window size & 3 \\
+      Word embedding size & 300 \\
+      Number of convolution filters & 100 \\
+      Convolution filter sizes & 3, 5, 7 \\
+      Convolution activation & ReLU \\
+      Pooling type & 1-max \\
+      Number of hidden layers & 1 \\
+      Hidden layer size & 50 \\
+      Number of outputs & 1 \\
+      Output activation & Sigmoid \\
+      \bottomrule
+    \end{tabular}
+    \caption{The default parameters used in the model.}
+    \label{tbl:params}
+  \end{subfigure}
+  \caption{The model and its parameters.}
+  \label{fig:model_full}
+\end{figure}
+
+\subsubsection{Convolutional Neural Networks}
+\todo[inline]{This is kind of jumbled and out of place, might need to be deleted
+or moved to an appendix or something.}
+For the purposes of machine learning,
 text produces 3-dimensional data: there is a feature vector for each word, and
 some (either variable or predetermined through padding) amount of words per
 text. This makes each training sample a 2-dimensional matrix, which then gets
@@ -137,7 +202,8 @@ Figure~\ref{fig:cnn}.
 \begin{figure}[htb]
   \centering
   \includegraphics[width=\textwidth]{figures/cnn.pdf}
-  \caption{A simplified convolutional neural network}
+  \caption{A simplified convolutional neural network with one filter and
+    max pooling.}
   \label{fig:cnn}
 \end{figure}
 In this example, the input text is convolved with a filter with a width of 3 and
@@ -196,8 +262,6 @@ research. This choice is based on two factors:
   calculation is dependent on the previous calculations. As a result, CNNs
   achieve far higher training speeds.\citep{facebook}
 \end{enumerate}
-
-\todo[inline]{Diagram/description of the full model with cluster labels added}
 
 %%% Local Variables:
 %%% mode: latex
