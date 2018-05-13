@@ -1,4 +1,5 @@
 \section{Problem Statement}
+\label{sec:problem}
 The German parliament, called the \emph{Bundestag}, publishes the proceedings of
 their meetings, as an effort to open up the political process to the common
 people. These proceedings have been continously published starting in 1949.
@@ -60,7 +61,7 @@ a layout with two columns of text). This is dealt with by using the
 library\footnote{https://poppler.freedesktop.org/}. This script converts a PDF
 file to an XML file containing logical lines of text along with the coordinates
 and size of the line. Figure~\ref{fig:example} shows an example of a portion of
-a PDF file and the corresponding XML. The contents of the \texttt{text} elements
+a PDF file and the corresponding XML\@. The contents of the \texttt{text} elements
 forms the plaintext that is fed into the classification algorithm. Although the
 layout information contained in the properties (\texttt{top}, \texttt{left},
 \texttt{width}, \texttt{height} and \texttt{font}) could be used for the layout

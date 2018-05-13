@@ -2,38 +2,42 @@
 \label{sec:method}
 %\FloatBarrier
 
-The system consists of two separate parts; an unsupervised algorithm for
-augmenting data, and a supervised algorithm for classifying the data
-(Figure~\ref{fig:overview}). The unsupervised portion attempts to augment the
-data with additional structural information. It could be considered a
-preprocessing step, with the choice of parameters acting as a way to inject some
-amount of domain knowledge into the data. The supervised portion consists of a
-regular classification algorithm. \todo[inline]{Todo: Rewrite this and add all
-  the details about how the data is used (sliding window, stratified sampling, etc)}
+As described in Section~\ref{sec:problem}, the input data comes in the form of a
+PDF file which can be converted into plaintext XML data containing lines of text
+along with each line's bounding box. There are two systems in play here; the
+main system is a convolutional neural network classifier that acts on the XML
+data. Further details on this are provided in Section~\ref{sec:sup}. The second
+system is the unsupervised preprocessor whichs acts on the PDF data and writes
+its output as an additional property into the XML data, which is elaborated upon
+in Section~\ref{sec:unsup}. Figure~\ref{fig:overview} shows a high-level
+overview of the two systems and how they interact.
 
 \begin{figure}[htb]
   \centering
   \includegraphics[width=\textwidth]{figures/layout.pdf}
-  \caption{A high-level overview of the system}
+  \caption{A high-level overview of the system. The unsupervised block augments
+  the input to the classifier.}
   \label{fig:overview}
 \end{figure}
 
 \subsection{Unsupervised}
-The unsupervised algorithm attempts to detect and label blocks of text in the
-PDF file, as shown in Figure~\ref{fig:clustered} for an example). This approach
-is based on work by \textcite{klampfl2014unsupervised}, and consists of two
-clustering steps:
-\begin{enumerate}
-\item Individual letters are clustered together into blocks of semantically
-  relevant text (e.g. a full paragraph, or a section header).
-\item These blocks are labeled by a different clustering algorithm.
-\end{enumerate}
+\label{sec:unsup}
+The unsupervised algorithm intends to detect and classify blocks of text in the
+PDF file; Figure~\ref{fig:clustered} shows an example. This approach is based on
+work by \textcite{klampfl2014unsupervised}, and consists of two separate
+clustering steps. First, individual characters (the fundamental objects
+available in a PDF file) are clustered together into blocks of semantically
+relevant text. These would paragraphs, section headers, page decoration, etc. By
+using the bounding boxes of the blocks, they can be clustered based on their
+shape and some additional metadata (e.g.\ occurrence of fonts, occurring font
+sizes). The next two subsections will go into details on the two clustering
+steps.
 
 \begin{figure}[htb]
   \centering
   \includegraphics[height=0.5\textheight]{figures/cluster_example.png}
-  \caption{An example of clustered blocks of text, blocks with the same outline
-    color belonging to the same cluster.}
+  \caption{An example of clustered blocks of text. Blocks with the same outline
+    color belong to the same cluster.}
   \label{fig:clustered}
 \end{figure}
 
@@ -81,7 +85,8 @@ realistic datasets.
     \includegraphics[width=\textwidth]{figures/dendrogram2.png}
     \caption{After}
   \end{subfigure}
-  \caption{An example of hierarical agglomerative clustering.}
+  \caption{An example of hierarical agglomerative clustering, where the nodes
+  are clustered by distance.}
   \label{fig:hac}
 \end{figure}
 
@@ -90,6 +95,7 @@ cut the tree to obtain the desired blocks of text. This is left as a parameter
 to be manually fine-tuned.
 
 \subsubsection{Classical Clustering}
+\label{sec:sup}
 The extracted blocks from the previous step are then clustered according to
 the similarity of their shapes (width and height). This is done using K-means
 clustering for some chosen $K$, or with the DBSCAN algorithm.
@@ -170,7 +176,7 @@ While CNN architectures in computer vision are generally very deep, they tend to
 be very shallow in natural language processing; commonly just a single
 convolution followed by 1-max pooling \citep{zhang2015conv}. Since this
 particular task at first glance appears to be fairly reliant on word position
-(e.g. a colon at the end of a sentence very often indicates the start of a
+(e.g.\ a colon at the end of a sentence very often indicates the start of a
 speech, a colon in the middle almost certainly does not), the degree of pooling
 will be experimented with.
 
