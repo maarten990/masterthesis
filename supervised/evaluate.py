@@ -77,23 +77,25 @@ def precision_recall_values(predicted: List[float], true: List[float]) -> Tuple[
     :param true: A list of the true classification labels.
     :returns: A list of (precision, recall) tuples, sorted by increasing recall.
     """
-    return precision_recall_curve(true, predicted)
+    p, r, _ = precision_recall_curve(true, predicted)
+    return p, r
 
 
 def average_precision(precision: List[float], recall: List[float]) -> float:
     return np.mean(precision)
 
 
-def mean_of_pr(precisions, recalls):
+def mean_of_pr(precisions: List[List[float]], recalls: List[List[float]]) -> Dict[float, float]:
     buckets = np.linspace(0, 1)
     out = {b: [] for b in buckets}
 
     # iterate over trials
     for ps, rs in zip(precisions, recalls):
         for p, r in zip(ps, rs):
-            for b in buckets:
-                if r >= b:
+            for b, b_next in zip(buckets, buckets[1:]):
+                if r < b_next:
                     out[b].append(p)
+                    break
 
     for b in buckets:
         out[b] = np.mean(out[b])
@@ -144,7 +146,7 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
 
 
 def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
-    p, r, _ = precision_recall_values(*get_values(model, get_iterator(dataset, [5, 10, 15, 25, 40])))
+    p, r = precision_recall_values(*get_values(model, get_iterator(dataset, [40])))
 
     scores = {'F1': max_f1(p, r),
               'AoC': average_precision(p, r),
