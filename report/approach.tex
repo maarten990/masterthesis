@@ -130,6 +130,15 @@ ReLU activation ($\mathrm{relu}(x) = \max(0, x)$) and a single output node with 
 activation. The layout of this system is detailed in Figure~\ref{fig:model_full}
 along with its parameters and their baseline value.
 
+The network is trained for 50 epochs (which was found to be more than enough to
+guarantee convergence in every test case), using the Adam\citep{adam} update
+rule and binary cross-entropy as the loss function.  The loss will exhibit some
+up and down fluctuations after the global minimum has been reached; to account
+for this, the best loss so far along with the corresponding model parameters is
+kept track of throughout the learning process.  Once 50 epochs have been
+completed, the output is the model instantiated with the parameters
+corresponding to the lowest loss that was obtained.
+
 \begin{figure}[htbp]
   \centering
   \begin{subfigure}[b]{0.45\textwidth}
