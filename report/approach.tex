@@ -153,25 +153,37 @@ corresponding to the lowest loss that was obtained.
   \end{subfigure}
   \hspace{0.05\textwidth}
   \begin{subfigure}[b]{0.45\textwidth}
-    \centering
-    \begin{tabular}{lr}
-      \toprule
-      Parameter & Default value \\
-      \midrule
-      Window size & 3 \\
-      Word embedding size & 300 \\
-      Number of convolution filters & 100 \\
-      Convolution filter sizes & 3, 5, 7 \\
-      Convolution activation & ReLU \\
-      Pooling type & 1-max \\
-      Number of hidden layers & 1 \\
-      Hidden layer size & 50 \\
-      Number of outputs & 1 \\
-      Output activation & Sigmoid \\
-      \bottomrule
-    \end{tabular}
-    \caption{The default parameters used in the model.}
-    \label{tbl:params}
+    \begin{subfigure}[b]{\textwidth}
+      \centering
+      \begin{tabular}{llr}
+	\toprule
+	& Parameter & Default value \\
+	\midrule
+	& Window size & 3 \\
+	& Word embedding size & 300 \\
+	& Number of filters & 100 \\
+	& Filter sizes & 3, 5, 7 \\
+	& Activation & ReLU \\
+	& Pooling type & 1-max \\
+	\bottomrule
+      \end{tabular}
+      \caption{The default parameters used in the convolutional neural network.}
+    \end{subfigure}
+
+    \begin{subfigure}[b]{\textwidth}
+      \centering
+      \begin{tabular}{llr}
+	\toprule
+	& Parameter & Default value \\
+	\midrule
+	& Number of hidden layers & 1 \\
+	& Hidden layer size & 50 \\
+	& Number of outputs & 1 \\
+	& Output activation & Sigmoid \\
+	\bottomrule
+      \end{tabular}
+      \caption{The default parameters used in the fully-connected neural network.}
+    \end{subfigure}
   \end{subfigure}
   \caption{The model and its parameters.}
   \label{fig:model_full}
