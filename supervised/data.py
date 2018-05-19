@@ -145,9 +145,10 @@ class GermanDataset(Dataset):
 
         X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
 
-        clusterlabels = to_onehot(
-            int(window[self.window_label_idx].attrib['clusterLabel']),
-            self.num_clusterlabels)
+        # concatenate the cluster label of each element in the window
+        clusterlabels = [int(w.attrib['clusterLabel']) if 'clusterLabel' in w.attrib else 0
+                         for w in window]
+        # clusterlabels = np.concatenate(clusterlabels)
 
         return {len(X): {'data': X,
                          'speaker_data': np.array(X_speaker),
@@ -174,7 +175,11 @@ class ConcatDataset(GermanDataset):
 def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:
     start = node
     for _ in range(n_before):
-        start = start.getprevious()
+        prev = start.getprevious()
+        if prev is not None:
+            start = start = prev
+        else:
+            break
 
     out = []
     for _ in range(size):
@@ -255,7 +260,7 @@ def to_tensors(sample: Sample) -> Sample:
     for size, sample_dict in sample.items():
         out[size] = {'data': Variable(torch.from_numpy(sample_dict['data'])).long(),
                      'speaker_data': Variable(torch.from_numpy(sample_dict['speaker_data'])).long(),
-                     'cluster_data': Variable(torch.from_numpy(sample_dict['cluster_data'])).float(),
+                     'cluster_data': Variable(torch.from_numpy(sample_dict['cluster_data'])).long(),
                      'label': Variable(torch.from_numpy(sample_dict['label'])).float()}
 
     return out

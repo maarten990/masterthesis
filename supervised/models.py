@@ -154,7 +154,7 @@ class LSTMClassifier(nn.Module):
         self.clf_out = nn.Linear(hidden_size, 1)
 
         self.use_final_layer = use_final_layer
-        self.output_size = 1 if self.use_final_layer else hidden_size * 2
+        self.output_size = 1 if self.use_final_layer else (hidden_size * 2)
 
     def forward(self, inputs):
         # initialize the lstm hidden states
@@ -164,15 +164,15 @@ class LSTMClassifier(nn.Module):
         # run the LSTM over the full input sequence and take the average over
         # all the outputs
         embedded = self.embedding(inputs)
-        outputs, _ = self.rnn(embedded, (hidden, cell))
-        averaged = torch.mean(outputs, dim=1)
+        output, _ = self.rnn(embedded, (hidden, cell))
+        clf_in = output[:, -1, :]
 
         if self.use_final_layer:
             # sigmoid classification with 1 hidden layer in between
-            hiddenlayer = F.relu(self.dropout(self.clf_h(averaged)))
+            hiddenlayer = F.relu(self.dropout(self.clf_h(clf_in)))
             return F.sigmoid(self.dropout(self.clf_out(hiddenlayer)))
         else:
-            return averaged
+            return clf_in
 
     def init_hidden(self, batch_size):
         "Initialize a zero hidden state with the appropriate dimensions."
@@ -194,15 +194,17 @@ class WithClusterLabels(nn.Module):
         self.recurrent_clf = recurrent_clf
         self.use_labels = use_labels
         self.only_labels = only_labels
+        self.label_cnn = CNNClassifier(n_labels, 5, 2 * n_labels, [(16, 3), (16, 4), (16, 5)], dropout,
+                                       num_layers=1, use_final_layer=False)
 
         if only_labels:
             self.dropout = nn.Dropout(dropout)
             self.linear1 = nn.Linear(n_labels, int(n_labels / 2))
             self.linear2 = nn.Linear(int(n_labels / 2), 1)
         elif use_labels:
-            output_size = self.recurrent_clf.output_size
+            output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
             self.dropout = nn.Dropout(dropout)
-            self.linear1 = nn.Linear(output_size + n_labels, int(output_size / 2))
+            self.linear1 = nn.Linear(output_size, int(output_size / 2))
             self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
@@ -216,7 +218,8 @@ class WithClusterLabels(nn.Module):
         if not self.use_labels:
             return recurrent_output
         else:
-            combined = torch.cat([recurrent_output, labels], 1)
+            label_output = self.label_cnn(labels)
+            combined = torch.cat([recurrent_output, label_output], 1)
             h = F.relu(self.dropout(self.linear1(combined)))
             out = self.dropout(self.linear2(h))
             return F.sigmoid(out)
