@@ -2,6 +2,7 @@
 
 
 from copy import copy
+from enum import auto, Enum
 from typing import Dict, List, Optional, Set, Tuple, Union
 
 from lxml import etree
@@ -13,6 +14,37 @@ from torch.autograd import Variable
 from tqdm import tqdm
 
 np.random.seed(100)
+
+
+class ClusterFmt(Enum):
+    # only uses the cluster label of the central element of the window
+    ONLY_CENTRAL = auto()
+
+    # a concatenated sequence of the categorical labels of the whole window
+    FULL_WINDOW = auto()
+
+    # Same as full window, but with the indices instead of a categorical vector.
+    # Meant for use as input to a Pytorch embedding layer.
+    FULL_WINDOW_ONLY_IDX = auto()
+
+
+def only_central_fn(window, central_idx, num_clusterlabels):
+    return to_onehot(
+        int(window[central_idx].attrib['clusterLabel']) if 'clusterLabel' in window[central_idx].attrib else 0,
+        num_clusterlabels
+    )
+
+
+def full_window_fn(window, central_idx, num_clusterlabels):
+    l = [to_onehot(int(w.attrib['clusterLabel']) if 'clusterLabel' in w.attrib else 0,
+                   num_clusterlabels)
+         for w in window]
+    return np.concatenate(l)
+
+
+def full_window_only_idx_fn(window, central_idx, num_clusterlabels):
+    return [int(w.attrib['clusterLabel']) if 'clusterLabel' in w.attrib else 0
+            for w in window]
 
 
 class Vocab:
@@ -28,7 +60,8 @@ class GermanDataset(Dataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
                  num_positive: int, num_negative: int, window_size: int,
                  window_label_idx: int = 0, vocab: Optional[Vocab]=None,
-                 bag_of_words=False) -> None:
+                 bag_of_words: bool = False,
+                 cluster_fmt: ClusterFmt = ClusterFmt.FULL_WINDOW_ONLY_IDX) -> None:
         self.files = files
         self.vocab = create_dictionary(self.files) if not vocab else vocab
         self.num_clusterlabels = num_clusterlabels
@@ -36,6 +69,11 @@ class GermanDataset(Dataset):
         self.window_label_idx = window_label_idx
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
+        self.cluster_fmt = {
+            ClusterFmt.FULL_WINDOW: full_window_fn,
+            ClusterFmt.FULL_WINDOW_ONLY_IDX: full_window_only_idx_fn,
+            ClusterFmt.ONLY_CENTRAL: only_central_fn
+        }[cluster_fmt]
         n_pos = 0
         n_neg = 0
 
@@ -145,10 +183,7 @@ class GermanDataset(Dataset):
 
         X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
 
-        # concatenate the cluster label of each element in the window
-        clusterlabels = [int(w.attrib['clusterLabel']) if 'clusterLabel' in w.attrib else 0
-                         for w in window]
-        # clusterlabels = np.concatenate(clusterlabels)
+        clusterlabels = self.cluster_fmt(window, self.window_label_idx, self.num_clusterlabels)
 
         return {len(X): {'data': X,
                          'speaker_data': np.array(X_speaker),
@@ -340,7 +375,7 @@ def token_featurizer(nodes, tokenizer):
 def to_onehot(idx: int, n: int) -> List[int]:
     """Convert an integer into an n-dimensional one-hot vector.
 
-    For example, make_categorical(2, 5) -> [0, 0, 1, 0, 0].
+    For example, to_onehot(2, 5) -> [0, 0, 1, 0, 0].
     :param idx: The non-zero index.
     :param n: The dimensionality of the output vector.
     :returns: A list of `n` elements.

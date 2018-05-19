@@ -35,7 +35,7 @@ class Encoder(nn.Module):
         "Initialize a zero hidden state with the appropriate dimensions."
         hidden = Variable(torch.zeros(1, self.hidden_size))
         hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
-        
+
         if torch.cuda.is_available():
             hidden = hidden.cuda()
 
@@ -82,7 +82,7 @@ class NameClassifier(nn.Module):
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
     def __init__(self, input_size, seq_len, embed_size, filters, dropout,
-                 num_layers=1, use_final_layer=True):
+                 num_layers=1):
         super().__init__()
 
         self.dropout = nn.Dropout(dropout)
@@ -101,12 +101,7 @@ class CNNClassifier(nn.Module):
             temp_data = torch.cat(d, 1)
 
         temp_data = F.max_pool1d(temp_data, kernel_size=temp_data.shape[2])
-        clf_size = temp_data.view(1, -1).shape[1]
-        self.clf_h = nn.Linear(clf_size, int(clf_size / 2))
-        self.clf_out = nn.Linear(int(clf_size / 2), 1)
-
-        self.use_final_layer = use_final_layer
-        self.output_size = 1 if self.use_final_layer else clf_size
+        self.output_size = temp_data.view(1, -1).shape[1]
 
     def forward(self, inputs):
         embedded = self.embedding(inputs)
@@ -121,13 +116,7 @@ class CNNClassifier(nn.Module):
 
         # data = F.max_pool1d(data, kernel_size=data.shape[2])
         batch_size = inputs.size(0)
-        clf_in = data.view(batch_size, -1)
-
-        if self.use_final_layer:
-            h = F.relu(self.dropout(self.clf_h(clf_in)))
-            return F.sigmoid(self.dropout(self.clf_out(h)))
-        else:
-            return F.relu(clf_in)
+        return F.relu(data.view(batch_size, -1))
 
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
@@ -135,8 +124,7 @@ class CNNClassifier(nn.Module):
 
 class LSTMClassifier(nn.Module):
     """ LSTM-based speech classifier. """
-    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout,
-                 use_final_layer=True):
+    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
         super().__init__()
 
         self.input_size = input_size
@@ -150,11 +138,7 @@ class LSTMClassifier(nn.Module):
                            dropout=dropout if num_layers > 1 else 0)
 
         # the output size of the rnn is 2 * hidden_size because it's bidirectional
-        self.clf_h = nn.Linear(hidden_size * 2, hidden_size)
-        self.clf_out = nn.Linear(hidden_size, 1)
-
-        self.use_final_layer = use_final_layer
-        self.output_size = 1 if self.use_final_layer else (hidden_size * 2)
+        self.output_size = hidden_size * 2
 
     def forward(self, inputs):
         # initialize the lstm hidden states
@@ -165,14 +149,7 @@ class LSTMClassifier(nn.Module):
         # all the outputs
         embedded = self.embedding(inputs)
         output, _ = self.rnn(embedded, (hidden, cell))
-        clf_in = output[:, -1, :]
-
-        if self.use_final_layer:
-            # sigmoid classification with 1 hidden layer in between
-            hiddenlayer = F.relu(self.dropout(self.clf_h(clf_in)))
-            return F.sigmoid(self.dropout(self.clf_out(hiddenlayer)))
-        else:
-            return clf_in
+        return output[:, -1, :]
 
     def init_hidden(self, batch_size):
         "Initialize a zero hidden state with the appropriate dimensions."
@@ -225,4 +202,91 @@ class WithClusterLabels(nn.Module):
             return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
-        return self.recurrent_clf.loss(y_pred, y_true)
+        return F.binary_cross_entropy(y_pred, y_true)
+
+
+class NoClusterLabels(nn.Module):
+    def __init__(self, recurrent_clf, dropout):
+        super().__init__()
+        self.recurrent_clf = recurrent_clf
+
+        output_size = self.recurrent_clf.output_size
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.linear2 = nn.Linear(int(output_size / 2), 1)
+
+    def forward(self, inputs, labels):
+        recurrent_output = self.recurrent_clf(inputs)
+
+        h = F.relu(self.dropout(self.linear1(recurrent_output)))
+        out = self.dropout(self.linear2(h))
+        return F.sigmoid(out)
+
+    def loss(self, y_pred, y_true):
+        return F.binary_cross_entropy(y_pred, y_true)
+
+
+class CategoricalClusterLabels(nn.Module):
+    def __init__(self, recurrent_clf, n_labels, window_size, dropout):
+        super().__init__()
+        self.recurrent_clf = recurrent_clf
+
+        output_size = self.recurrent_clf.output_size + (n_labels * window_size)
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.linear2 = nn.Linear(int(output_size / 2), 1)
+
+    def forward(self, inputs, labels):
+        recurrent_output = self.recurrent_clf(inputs)
+        combined = torch.cat([recurrent_output, labels.float()], 1)
+        h = F.relu(self.dropout(self.linear1(combined)))
+        out = self.dropout(self.linear2(h))
+        return F.sigmoid(out)
+
+    def loss(self, y_pred, y_true):
+        return F.binary_cross_entropy(y_pred, y_true)
+
+
+class CategoricalClusterLabelsOnlyCenter(nn.Module):
+    def __init__(self, recurrent_clf, n_labels, dropout):
+        super().__init__()
+        self.recurrent_clf = recurrent_clf
+
+        output_size = self.recurrent_clf.output_size + n_labels
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.linear2 = nn.Linear(int(output_size / 2), 1)
+
+    def forward(self, inputs, labels):
+        recurrent_output = self.recurrent_clf(inputs)
+        combined = torch.cat([recurrent_output, labels.float()], 1)
+        h = F.relu(self.dropout(self.linear1(combined)))
+        out = self.dropout(self.linear2(h))
+        return F.sigmoid(out)
+
+    def loss(self, y_pred, y_true):
+        return F.binary_cross_entropy(y_pred, y_true)
+
+
+class ClusterLabelsCNN(nn.Module):
+    def __init__(self, recurrent_clf, n_labels, dropout):
+        super().__init__()
+        self.recurrent_clf = recurrent_clf
+        self.label_cnn = CNNClassifier(n_labels, 5, 2 * n_labels, [(16, 3), (16, 4), (16, 5)], dropout,
+                                       num_layers=1)
+
+        output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.linear2 = nn.Linear(int(output_size / 2), 1)
+
+    def forward(self, inputs, labels):
+        recurrent_output = self.recurrent_clf(inputs)
+        label_output = self.label_cnn(labels)
+        combined = torch.cat([recurrent_output, label_output], 1)
+        h = F.relu(self.dropout(self.linear1(combined)))
+        out = self.dropout(self.linear2(h))
+        return F.sigmoid(out)
+
+    def loss(self, y_pred, y_true):
+        return F.binary_cross_entropy(y_pred, y_true)

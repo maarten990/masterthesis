@@ -2,6 +2,8 @@ from typing import Dict, List, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
+import scipy
 import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve
@@ -11,7 +13,8 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-from data import get_iterator, to_cpu, to_gpu, to_tensors
+from data import ConcatDataset, get_iterator, to_cpu, to_gpu, to_tensors
+from train import setup_and_train
 
 sns.set()
 
@@ -49,10 +52,6 @@ def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool=True
     return predictions, true
 
 
-def evaluate_clf():
-    pass
-
-
 def evaluate_bow(model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset,
                  cutoff: float = 0.5) -> Tuple[float, float]:
     samples = [list(entry.values())[0]['data'] for entry in dataset]
@@ -85,9 +84,17 @@ def average_precision(precision: List[float], recall: List[float]) -> float:
     return np.mean(precision)
 
 
+def mean_aoc(precision: List[float], recall: List[float]) -> float:
+    # m = np.mean(precision)
+    # trapz = np.trapz(precision, recall)
+    simp = scipy.integrate.simps(precision, recall)
+
+    return simp
+
+
 def mean_of_pr(precisions: List[List[float]], recalls: List[List[float]]) -> Dict[float, float]:
     buckets = np.linspace(0, 1)
-    out = {b: [] for b in buckets}
+    out: Dict[float, List[float]] = {b: [] for b in buckets}
 
     # iterate over trials
     for ps, rs in zip(precisions, recalls):
@@ -98,7 +105,11 @@ def mean_of_pr(precisions: List[List[float]], recalls: List[List[float]]) -> Dic
                     break
 
     for b in buckets:
-        out[b] = np.mean(out[b])
+        out[b] = np.mean(out[b]) if out[b] else 0.0
+
+    # filter out any zero dips other than the last one, since they're just
+    # caused by nothing happening to fall in that bin
+    out = {b: v for b, v in out.items() if v != 0.0 or b == 1}
 
     return out
 
@@ -106,7 +117,7 @@ def mean_of_pr(precisions: List[List[float]], recalls: List[List[float]]) -> Dic
 def max_f1(precision: List[float], recall: List[float]) -> float:
     p = np.array(precision)
     r = np.array(recall)
-    return np.max(2 * ((p * r) / (p + r)))
+    return np.max(2 * ((p * r) / (p + r + 1e-3)))
 
 
 def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]], xlabel: str, ylabel: str,
@@ -152,3 +163,111 @@ def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
               'AoC': average_precision(p, r),
               'pr': (p, r)}
     return scores
+
+
+def cross_val(k, model_fn, optim_fn, dataset, params, testset=None):
+    folds = dataset.kfold(k=k)
+    plain = {'F1': [], 'losses': [], 'AoC': [], 'pr': []}
+    F1s = []
+    losses = []
+    APs = []
+    PRs = []
+
+    test_on_holdout = testset is None
+
+    for i in range(k):
+        torch.cuda.empty_cache()
+
+        if k != 1:
+            training_folds = [folds[j] for j in range(k) if j != i]
+        else:
+            training_folds = [folds[j] for j in range(k)]
+
+        train_set = ConcatDataset(training_folds)
+        if test_on_holdout:
+            testset = folds[i]
+
+        model, loss = setup_and_train(params, model_fn, optim_fn, dataset=train_set,
+                                      epochs=params.epochs, batch_size=50, gpu=True)
+        losses.append(loss)
+        scores = get_scores(model, testset)
+        F1s.append(scores['F1'])
+        APs.append(scores['AoC'])
+        PRs.append(scores['pr'])
+
+    return losses, PRs, F1s, APs
+
+
+def analyze(data, filename_prefix=None):
+    # filter NaNs
+    # plain['F1'] = [x for x in plain['F1'] if not np.isnan(x)]
+    # cluster['F1'] = [x for x in cluster['F1'] if not np.isnan(x)]
+    # plain['AoC'] = [x for x in plain['AoC'] if not np.isnan(x)]
+    # cluster['AoC'] = [x for x in cluster['AoC'] if not np.isnan(x)]
+
+    print('Average convergence speed')
+    loss_dict = {label: np.mean(losses, axis=0)
+                 for label, (losses, _, _, _) in data.items()}
+    ax = plot(loss_dict, 'epoch', 'loss')
+    if filename_prefix:
+        plt.savefig(f'{filename_prefix}_losses.pdf')
+    plt.show()
+    print()
+
+    print('Average P/R curve')
+    pr_dict = {}
+    for label, (_, pr, _, _) in data.items():
+        mean_pr = mean_of_pr([p for p, _ in pr],
+                             [r for _, r in pr])
+        r = sorted(mean_pr.keys())
+        p = [mean_pr[r] for r in r]
+        pr_dict[label] = (r, p)
+
+    ax = plot(pr_dict, 'recall', 'precision')
+    if filename_prefix:
+        plt.savefig(f'{filename_prefix}_pr.pdf')
+    plt.show()
+    print()
+
+    print('Score table:')
+    table = []
+    for label, (_, pr, f1, aps) in data.items():
+        mean_pr = mean_of_pr([p for p, _ in pr],
+                             [r for _, r in pr])
+        r = sorted(mean_pr.keys())
+        p = [mean_pr[r] for r in r]
+        table.append([label, np.mean(f1), np.std(f1), np.mean(aps), np.std(aps), mean_aoc(p, r)])
+
+    print(tabulate(table, headers=['', 'F1 mean', 'F1 stddev', 'AoC mean',
+                                   'AoC std', 'Area under averaged curve']))
+
+    print()
+    print('AP plots:')
+    for label, (_, _, _, aps) in data.items():
+        sns.distplot(aps, label=label)
+    plt.legend()
+    if filename_prefix:
+        plt.savefig(f'{filename_prefix}_kde_ap.pdf')
+    plt.show()
+
+    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in data.items()})
+    plt.figure()
+    sns.boxplot(data=df)
+    if filename_prefix:
+        plt.savefig(f'{filename_prefix}_boxplot_ap.pdf')
+    plt.show()
+
+    print('F1 plots:')
+    for label, (_, _, _, aps) in data.items():
+        sns.distplot(aps, label=label)
+    plt.legend()
+    if filename_prefix:
+        plt.savefig(f'{filename_prefix}_kde_f1.pdf')
+    plt.show()
+
+    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in data.items()})
+    plt.figure()
+    sns.boxplot(data=df)
+    if filename_prefix:
+        plt.savefig(f'{filename_prefix}_boxplot_f1.pdf')
+    plt.show();
