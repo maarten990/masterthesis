@@ -6,21 +6,21 @@ import pandas as pd
 import scipy
 import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import precision_score, recall_score, f1_score, precision_recall_curve
+from sklearn.metrics import precision_score, recall_score, precision_recall_curve
 from sklearn.svm import SVC
 from tabulate import tabulate
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
-from data import ConcatDataset, get_iterator, to_cpu, to_gpu, to_tensors
+from data import get_iterator, to_gpu, to_tensors
 from train import setup_and_train
 
 sns.set()
 
 
 def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool=True
-              ) -> Tuple[List[float], List[float]]:
+               ) -> Tuple[List[float], List[float]]:
     """Get the classification output for the given dataset.
 
     :param model: A trained model.
@@ -60,7 +60,7 @@ def evaluate_bow(model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset,
     y = model.predict_proba(vectorizer.transform(samples))
     predictions = np.where(y > cutoff, 1, 0)
     predictions = np.argmax(predictions, axis=1)
-    if not 1 in predictions:
+    if 1 not in predictions:
         p = 1.0
     else:
         p = precision_score(true, predictions)
@@ -167,7 +167,6 @@ def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
 
 def cross_val(k, model_fn, optim_fn, dataset, params, testset=None):
     folds = dataset.kfold(k=k)
-    plain = {'F1': [], 'losses': [], 'AoC': [], 'pr': []}
     F1s = []
     losses = []
     APs = []
@@ -202,7 +201,7 @@ def analyze(data, filename_prefix=None):
     print('Average convergence speed')
     loss_dict = {label: np.mean(losses, axis=0)
                  for label, (losses, _, _, _) in data.items()}
-    ax = plot(loss_dict, 'epoch', 'loss')
+    plot(loss_dict, 'epoch', 'loss')
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_losses.pdf')
     plt.show()
@@ -217,7 +216,7 @@ def analyze(data, filename_prefix=None):
         p = [mean_pr[r] for r in r]
         pr_dict[label] = (r, p)
 
-    ax = plot(pr_dict, 'recall', 'precision')
+    plot(pr_dict, 'recall', 'precision')
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_pr.pdf')
     plt.show()
@@ -264,4 +263,4 @@ def analyze(data, filename_prefix=None):
     sns.boxplot(data=df)
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_boxplot_f1.pdf')
-    plt.show();
+    plt.show()

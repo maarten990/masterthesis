@@ -14,10 +14,9 @@ Options:
 
 import os.path
 import re
-from typing import Any, Callable, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Tuple, Union
 
 from docopt import docopt
-import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 import torch
@@ -187,6 +186,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], model_fn: Callable[[nn.
     losses = train(model, optimizer, data, epochs, gpu)
 
     return model, losses
+
 
 def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     """Parse a parameter dictinary and ensure it's valid.

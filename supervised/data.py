@@ -3,7 +3,7 @@
 
 from copy import copy
 from enum import auto, Enum
-from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Tuple, Union
 
 from lxml import etree
 import nltk
@@ -325,9 +325,9 @@ def to_gpu(sample: Sample) -> Sample:
         out: Sample = {}
         for size, sample_dict in sample.items():
             out[size] = {'data': sample_dict['data'].cuda(),
-                        'speaker_data': sample_dict['speaker_data'].cuda(),
-                        'cluster_data': sample_dict['cluster_data'].cuda(),
-                        'label': sample_dict['label'].cuda()}
+                         'speaker_data': sample_dict['speaker_data'].cuda(),
+                         'cluster_data': sample_dict['cluster_data'].cuda(),
+                         'label': sample_dict['label'].cuda()}
 
         return out
     else:
@@ -338,9 +338,9 @@ def to_cpu(sample: Sample) -> Sample:
     out: Sample = {}
     for size, sample_dict in sample.items():
         out[size] = {'data': sample_dict['data'].cpu(),
-                    'speaker_data': sample_dict['speaker_data'].cpu(),
-                    'cluster_data': sample_dict['cluster_data'].cpu(),
-                    'label': sample_dict['label'].cpu()}
+                     'speaker_data': sample_dict['speaker_data'].cpu(),
+                     'cluster_data': sample_dict['cluster_data'].cpu(),
+                     'label': sample_dict['label'].cpu()}
 
     return out
 
