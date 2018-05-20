@@ -165,8 +165,8 @@ def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
     return scores
 
 
-def cross_val(k, model_fn, optim_fn, dataset, params, testset=None):
-    folds = dataset.kfold(k=k)
+def cross_val(k, train_size, model_fn, optim_fn, dataset, params, testset=None):
+    folds = dataset.shuffle_split(k, train_size)
     F1s = []
     losses = []
     APs = []

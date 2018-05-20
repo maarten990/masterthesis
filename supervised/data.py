@@ -8,7 +8,7 @@ from typing import Dict, Iterator, List, Optional, Tuple, Union
 from lxml import etree
 import nltk
 import numpy as np
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold, StratifiedShuffleSplit
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
@@ -172,7 +172,7 @@ class GermanDataset(Dataset):
         else:
             return DataSubset(self, train_indices)
 
-    def kfold(self, k: int = 10) -> Iterator[Dataset]:
+    def kfold(self, k: int = 10) -> Iterator[Tuple[Dataset, Dataset]]:
         """
         Return stratified training and testing folds with the same data
         distribution as the source data.
@@ -184,6 +184,23 @@ class GermanDataset(Dataset):
         split = fold.split(np.zeros(len(self)), labels)
 
         for train_indices, test_indices in split:
+            yield DataSubset(self, train_indices), DataSubset(self, test_indices)
+
+    def shuffle_split(self, k: int = 10, train_size: Union[float, int] = 0.9
+                      ) -> Iterator[Tuple[Dataset, Dataset]]:
+        """
+        Return stratified training and testing folds with the same data
+        distribution as the source data.
+        :param k: The number of folds.
+        :param train_size: If float, the proportion to use as training set. If
+            int, the absolute number of samples to use.
+        :returns: An iterator of (train, test) datasets.
+        """
+        splitter = StratifiedShuffleSplit(n_splits=k, train_size=train_size)
+        labels = self.get_labels()
+        splits = splitter.split(np.zeros(len(self)), labels)
+
+        for train_indices, test_indices in splits:
             yield DataSubset(self, train_indices), DataSubset(self, test_indices)
 
     def vectorize_window(self, window: List[etree._Element]) -> Sample:
