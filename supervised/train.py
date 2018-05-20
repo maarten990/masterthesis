@@ -12,8 +12,6 @@ Options:
 """
 
 
-import os.path
-import re
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 from docopt import docopt
@@ -49,36 +47,6 @@ class RNNParams:
         self.epochs = epochs
         self.num_layers = num_layers
         self.hidden_size = hidden_size
-
-
-def get_filename(network: str, pattern: str) -> str:
-    """
-    Get the filename to use for pickling a classifier.
-
-    network: the type of network (i.e. cnn, rnn or speaker)
-    pattern: the glob pattern used for gathering training data
-
-    Returns: a string representing a file path
-    """
-    path = f'pickle/{network}_{pattern}'
-    path = re.sub(r'[*.]', '', path) + '.pkl'
-    return path
-
-
-def load_model(filename: str) -> Tuple[nn.Module, torch.optim.Optimizer]:
-    """
-    Load a model from the given path.
-    """
-    if os.path.exists(filename):
-        modelfn, optimfn, model_state, optim_state = torch.load(filename)
-        model = modelfn()
-        optim = optimfn(model.parameters())
-
-        model.load_state_dict(model_state)
-        optim.load_state_dict(optim_state)
-        return model, optim
-    else:
-        return None
 
 
 def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLoader,

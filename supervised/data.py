@@ -217,15 +217,6 @@ class DataSubset(GermanDataset):
         self.num_clusterlabels = data.num_clusterlabels
 
 
-class ConcatDataset(GermanDataset):
-    def __init__(self, datasets: List[GermanDataset]) -> None:
-        self.samples: List[int] = []
-        for ds in datasets:
-            self.samples += ds.samples
-            self.vocab = ds.vocab
-            self.num_clusterlabels = ds.num_clusterlabels
-
-
 def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:
     start = node
     for _ in range(n_before):

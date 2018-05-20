@@ -4,81 +4,6 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 
 
-class Encoder(nn.Module):
-    def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
-        super().__init__()
-
-        self.input_size = input_size
-        self.hidden_size = hidden_size
-        self.num_layers = num_layers
-
-        self.dropout = nn.Dropout(dropout)
-        self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
-                           bidirectional=True, batch_first=True,
-                           dropout=dropout)
-
-        if torch.cuda.is_available():
-            self.cuda()
-
-    def forward(self, inputs):
-        "Perform a full pass of the encoder over the entire input."
-        hidden = self.init_hidden(inputs.size()[0])
-        cell = self.init_hidden(inputs.size()[0])
-
-        embedded = self.embedding(inputs)
-        _, (hidden, _) = self.rnn(embedded, (hidden, cell))
-
-        return hidden
-
-    def init_hidden(self, batch_size):
-        "Initialize a zero hidden state with the appropriate dimensions."
-        hidden = Variable(torch.zeros(1, self.hidden_size))
-        hidden = hidden.repeat(self.num_layers * 2, batch_size, 1)
-
-        if torch.cuda.is_available():
-            hidden = hidden.cuda()
-
-        return hidden
-
-
-class NameClassifier(nn.Module):
-    """
-    LSTM-based classifier that outputs a boolean array indicating wether each
-    input word belongs to the set of words denoting the speaker.
-    """
-    def __init__(self, input_size, seq_length, embed_size, encoder_hidden, dropout, num_layers=1):
-        super().__init__()
-
-        self.encoder = Encoder(input_size, embed_size, encoder_hidden, num_layers, dropout)
-        self.dropout = nn.Dropout(dropout)
-
-        n_classif_hidden = int(((2 * encoder_hidden) + seq_length) / 2)
-        self.out_hidden = nn.Linear(2 * encoder_hidden, n_classif_hidden)
-        self.out_classif = nn.Linear(n_classif_hidden, seq_length)
-
-        if torch.cuda.is_available():
-            self.cuda()
-
-    def forward(self, input, force_teacher=False):
-        # first encode the input sequence and get the output of the final layer
-        hidden_enc = self.encoder(input)
-        context_vector = torch.cat((hidden_enc[-2, :, :], hidden_enc[-1, :, :]), 1)
-
-        # use it to classify whether each input word is part of the name
-        h = self.dropout(self.out_hidden(context_vector))
-        h = self.dropout(F.relu(h))
-        out = self.out_classif(h)
-        out = F.sigmoid(out)
-
-        return out
-
-    def loss(self, y_pred, y_true):
-        # calculate the loss as the binary cross entropy between the
-        # flattened versions of the arrays
-        return F.binary_cross_entropy(y_pred.view(-1), y_true.view(-1))
-
-
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
     def __init__(self, input_size, seq_len, embed_size, filters, dropout,
@@ -160,46 +85,6 @@ class LSTMClassifier(nn.Module):
             hidden = hidden.cuda()
 
         return hidden
-
-    def loss(self, y_pred, y_true):
-        return F.binary_cross_entropy(y_pred, y_true)
-
-
-class WithClusterLabels(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, use_labels, dropout, only_labels=False):
-        super().__init__()
-        self.recurrent_clf = recurrent_clf
-        self.use_labels = use_labels
-        self.only_labels = only_labels
-        self.label_cnn = CNNClassifier(n_labels, 5, 2 * n_labels, [(16, 3), (16, 4), (16, 5)], dropout,
-                                       num_layers=1, use_final_layer=False)
-
-        if only_labels:
-            self.dropout = nn.Dropout(dropout)
-            self.linear1 = nn.Linear(n_labels, int(n_labels / 2))
-            self.linear2 = nn.Linear(int(n_labels / 2), 1)
-        elif use_labels:
-            output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
-            self.dropout = nn.Dropout(dropout)
-            self.linear1 = nn.Linear(output_size, int(output_size / 2))
-            self.linear2 = nn.Linear(int(output_size / 2), 1)
-
-    def forward(self, inputs, labels):
-        if self.only_labels:
-            h = F.relu(self.dropout(self.linear1(labels)))
-            out = self.dropout(self.linear2(h))
-            return F.sigmoid(out)
-
-        recurrent_output = self.recurrent_clf(inputs)
-
-        if not self.use_labels:
-            return recurrent_output
-        else:
-            label_output = self.label_cnn(labels)
-            combined = torch.cat([recurrent_output, label_output], 1)
-            h = F.relu(self.dropout(self.linear1(combined)))
-            out = self.dropout(self.linear2(h))
-            return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
         return F.binary_cross_entropy(y_pred, y_true)
