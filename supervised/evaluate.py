@@ -175,19 +175,13 @@ def cross_val(k, model_fn, optim_fn, dataset, params, testset=None):
 
     test_on_holdout = testset is None
 
-    for i in range(k):
+    for train, test in folds:
         torch.cuda.empty_cache()
 
-        if k != 1:
-            training_folds = [folds[j] for j in range(k) if j != i]
-        else:
-            training_folds = [folds[j] for j in range(k)]
-
-        train_set = ConcatDataset(training_folds)
         if test_on_holdout:
-            testset = folds[i]
+            testset = test
 
-        model, loss = setup_and_train(params, model_fn, optim_fn, dataset=train_set,
+        model, loss = setup_and_train(params, model_fn, optim_fn, dataset=train,
                                       epochs=params.epochs, batch_size=50, gpu=True)
         losses.append(loss)
         scores = get_scores(model, testset)

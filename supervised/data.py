@@ -3,11 +3,12 @@
 
 from copy import copy
 from enum import auto, Enum
-from typing import Dict, List, Optional, Set, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
 from lxml import etree
 import nltk
 import numpy as np
+from sklearn.model_selection import StratifiedKFold
 import torch
 from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
@@ -113,6 +114,18 @@ class GermanDataset(Dataset):
 
         return positives, negatives
 
+    def get_labels(self) -> List[int]:
+        """
+        Return the labels belonging to each sample.
+        """
+        labels: List[int] = []
+        for i, sample in enumerate(self.samples):
+            # the key (length) is not relevant, and we know there's only one item
+            for _, data in sample.items():
+                labels.append(data['label'])
+
+        return labels
+
     def subsample(self, num_positive: int, num_negative: int) -> None:
         positives, negatives = self.get_pos_neg()
         neg_diff = len(negatives) - num_negative
@@ -159,13 +172,19 @@ class GermanDataset(Dataset):
         else:
             return DataSubset(self, train_indices)
 
-    def kfold(self, k: int = 10) -> List[Dataset]:
-        out: List[Dataset] = []
-        offset = int(len(self) / k)
-        for i in range(0, len(self), offset):
-            out.append(DataSubset(self, list(range(i, i + offset))))
+    def kfold(self, k: int = 10) -> Iterator[Dataset]:
+        """
+        Return stratified training and testing folds with the same data
+        distribution as the source data.
+        :param k: The number of folds.
+        :returns: An iterator of (train, test) datasets.
+        """
+        fold = StratifiedKFold(n_splits=k, shuffle=True)
+        labels = self.get_labels()
+        split = fold.split(np.zeros(len(self)), labels)
 
-        return out
+        for train_indices, test_indices in split:
+            yield DataSubset(self, train_indices), DataSubset(self, test_indices)
 
     def vectorize_window(self, window: List[etree._Element]) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+|[^\w\s]')
