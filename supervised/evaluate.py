@@ -255,14 +255,14 @@ def analyze(data, filename_prefix=None):
 
     print()
     print('F1 plots:')
-    for label, (_, _, _, aps) in items:
-        sns.distplot(aps, label=label)
+    for label, (_, _, f1, _) in items:
+        sns.distplot(f1, label=label)
     plt.legend()
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_kde_f1.pdf')
     plt.show()
 
-    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in items})
+    df = pd.DataFrame({label: f1 for label, (_, _, f1, _) in items})
     plt.figure()
     sns.boxplot(data=df)
     if filename_prefix:
