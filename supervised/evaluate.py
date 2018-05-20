@@ -198,9 +198,12 @@ def analyze(data, filename_prefix=None):
     # plain['AoC'] = [x for x in plain['AoC'] if not np.isnan(x)]
     # cluster['AoC'] = [x for x in cluster['AoC'] if not np.isnan(x)]
 
+    # extract the items from the dict to guarantee a consistent iteration order
+    items = list(data.items())
+
     print('Average convergence speed')
     loss_dict = {label: np.mean(losses, axis=0)
-                 for label, (losses, _, _, _) in data.items()}
+                 for label, (losses, _, _, _) in items}
     plot(loss_dict, 'epoch', 'loss')
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_losses.pdf')
@@ -209,7 +212,7 @@ def analyze(data, filename_prefix=None):
 
     print('Average P/R curve')
     pr_dict = {}
-    for label, (_, pr, _, _) in data.items():
+    for label, (_, pr, _, _) in items:
         mean_pr = mean_of_pr([p for p, _ in pr],
                              [r for _, r in pr])
         r = sorted(mean_pr.keys())
@@ -224,7 +227,7 @@ def analyze(data, filename_prefix=None):
 
     print('Score table:')
     table = []
-    for label, (_, pr, f1, aps) in data.items():
+    for label, (_, pr, f1, aps) in items:
         mean_pr = mean_of_pr([p for p, _ in pr],
                              [r for _, r in pr])
         r = sorted(mean_pr.keys())
@@ -236,31 +239,50 @@ def analyze(data, filename_prefix=None):
 
     print()
     print('AP plots:')
-    for label, (_, _, _, aps) in data.items():
+    for label, (_, _, _, aps) in items:
         sns.distplot(aps, label=label)
     plt.legend()
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_kde_ap.pdf')
     plt.show()
 
-    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in data.items()})
+    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in items})
     plt.figure()
     sns.boxplot(data=df)
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_boxplot_ap.pdf')
     plt.show()
 
+    print()
     print('F1 plots:')
-    for label, (_, _, _, aps) in data.items():
+    for label, (_, _, _, aps) in items:
         sns.distplot(aps, label=label)
     plt.legend()
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_kde_f1.pdf')
     plt.show()
 
-    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in data.items()})
+    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in items})
     plt.figure()
     sns.boxplot(data=df)
     if filename_prefix:
         plt.savefig(f'{filename_prefix}_boxplot_f1.pdf')
     plt.show()
+
+    print()
+    print('Statistical significance:')
+    sign_table_f1 = []
+    sign_table_ap = []
+    for label_1, (_, _, f1_1, ap_1) in items:
+        sign_table_f1.append([label_1])
+        sign_table_ap.append([label_1])
+        for label_2, (_, _, f1_2, ap_2) in items:
+            sign_table_f1[-1].append(scipy.stats.ttest_ind(f1_1, f1_2, equal_var=False).pvalue)
+            sign_table_ap[-1].append(scipy.stats.ttest_ind(ap_1, ap_2, equal_var=False).pvalue)
+
+    print('F1 score')
+    print(tabulate(sign_table_f1, headers=[label for label, _ in items]))
+
+    print()
+    print('Area under curve')
+    print(tabulate(sign_table_ap, headers=[label for label, _ in items]))
