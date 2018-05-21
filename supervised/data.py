@@ -196,7 +196,8 @@ class GermanDataset(Dataset):
             int, the absolute number of samples to use.
         :returns: An iterator of (train, test) datasets.
         """
-        splitter = StratifiedShuffleSplit(n_splits=k, train_size=train_size)
+        splitter = StratifiedShuffleSplit(n_splits=k, train_size=train_size,
+                                          test_size=None)
         labels = self.get_labels()
         splits = splitter.split(np.zeros(len(self)), labels)
 

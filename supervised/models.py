@@ -157,8 +157,31 @@ class ClusterLabelsCNN(nn.Module):
     def __init__(self, recurrent_clf, n_labels, dropout):
         super().__init__()
         self.recurrent_clf = recurrent_clf
-        self.label_cnn = CNNClassifier(n_labels, 5, 2 * n_labels, [(16, 3), (16, 4), (16, 5)], dropout,
-                                       num_layers=1)
+        self.label_cnn = CNNClassifier(n_labels, 5, n_labels, [(32, 1), (32, 2), (32, n_labels)],
+                                       dropout, num_layers=1)
+
+        output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
+        self.dropout = nn.Dropout(dropout)
+        self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.linear2 = nn.Linear(int(output_size / 2), 1)
+
+    def forward(self, inputs, labels):
+        recurrent_output = self.recurrent_clf(inputs)
+        label_output = self.label_cnn(labels)
+        combined = torch.cat([recurrent_output, label_output], 1)
+        h = F.relu(self.dropout(self.linear1(combined)))
+        out = self.dropout(self.linear2(h))
+        return F.sigmoid(out)
+
+    def loss(self, y_pred, y_true):
+        return F.binary_cross_entropy(y_pred, y_true)
+
+
+class ClusterLabelsRNN(nn.Module):
+    def __init__(self, recurrent_clf, n_labels, dropout):
+        super().__init__()
+        self.recurrent_clf = recurrent_clf
+        self.label_cnn = LSTMClassifier(n_labels, n_labels, 100, 1, dropout)
 
         output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
         self.dropout = nn.Dropout(dropout)

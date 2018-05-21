@@ -1,4 +1,5 @@
 from typing import Dict, List, Tuple, Union
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,6 +13,7 @@ from tabulate import tabulate
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
+from tqdm import tqdm
 
 from data import get_iterator, to_gpu, to_tensors
 from train import setup_and_train
@@ -19,7 +21,7 @@ from train import setup_and_train
 sns.set()
 
 
-def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool=True
+def get_values(model: nn.Module, dataloader: DataLoader, gpu: bool = True
                ) -> Tuple[List[float], List[float]]:
     """Get the classification output for the given dataset.
 
@@ -165,7 +167,8 @@ def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
     return scores
 
 
-def cross_val(k, train_size, model_fn, optim_fn, dataset, params, testset=None):
+def cross_val(k, train_size, model_fn, optim_fn, dataset, params,
+              early_stopping=0, testset=None):
     folds = dataset.shuffle_split(k, train_size)
     F1s = []
     losses = []
@@ -174,14 +177,16 @@ def cross_val(k, train_size, model_fn, optim_fn, dataset, params, testset=None):
 
     test_on_holdout = testset is None
 
-    for train, test in folds:
+    for train, test in tqdm(folds, total=k):
         torch.cuda.empty_cache()
 
         if test_on_holdout:
             testset = test
 
         model, loss = setup_and_train(params, model_fn, optim_fn, dataset=train,
-                                      epochs=params.epochs, batch_size=50, gpu=True)
+                                      epochs=params.epochs, batch_size=50,
+                                      gpu=True, early_stopping=early_stopping,
+                                      progbar=False)
         losses.append(loss)
         scores = get_scores(model, testset)
         F1s.append(scores['F1'])
@@ -191,22 +196,23 @@ def cross_val(k, train_size, model_fn, optim_fn, dataset, params, testset=None):
     return losses, PRs, F1s, APs
 
 
-def analyze(data, filename_prefix=None):
-    # filter NaNs
-    # plain['F1'] = [x for x in plain['F1'] if not np.isnan(x)]
-    # cluster['F1'] = [x for x in cluster['F1'] if not np.isnan(x)]
-    # plain['AoC'] = [x for x in plain['AoC'] if not np.isnan(x)]
-    # cluster['AoC'] = [x for x in cluster['AoC'] if not np.isnan(x)]
+def analyze(data, variable='variable', path=None):
+    # ensure the target folder exists
+    if path and not os.path.isdir(path):
+        os.makedirs(path)
 
     # extract the items from the dict to guarantee a consistent iteration order
     items = list(data.items())
 
     print('Average convergence speed')
-    loss_dict = {label: np.mean(losses, axis=0)
+    max_epoch = np.max([len(sample) for _, (losses, _, _, _) in items
+                        for sample in losses])
+    loss_dict = {label: np.mean([np.pad(sample, ((0, (max_epoch - len(sample)))), 'edge')
+                                 for sample in losses], axis=0)
                  for label, (losses, _, _, _) in items}
     plot(loss_dict, 'epoch', 'loss')
-    if filename_prefix:
-        plt.savefig(f'{filename_prefix}_losses.pdf')
+    if path:
+        plt.savefig(f'{path}/losses.pdf')
     plt.show()
     print()
 
@@ -220,8 +226,8 @@ def analyze(data, filename_prefix=None):
         pr_dict[label] = (r, p)
 
     plot(pr_dict, 'recall', 'precision')
-    if filename_prefix:
-        plt.savefig(f'{filename_prefix}_pr.pdf')
+    if path:
+        plt.savefig(f'{path}/pr.pdf')
     plt.show()
     print()
 
@@ -234,51 +240,70 @@ def analyze(data, filename_prefix=None):
         p = [mean_pr[r] for r in r]
         table.append([label, np.mean(f1), np.std(f1), np.mean(aps), np.std(aps), mean_aoc(p, r)])
 
-    print(tabulate(table, headers=['', 'F1 mean', 'F1 stddev', 'AoC mean',
+    print(tabulate(table, headers=[variable, 'F1 mean', 'F1 stddev', 'AoC mean',
                                    'AoC std', 'Area under averaged curve']))
+    if path:
+        with open(f'{path}/scores.tex', 'w') as f:
+            f.write(tabulate(table, headers=[variable, 'F1 mean', 'F1 stddev', 'AoC mean',
+                                             'AoC std', 'Area under averaged curve'],
+                             tablefmt='latex_booktabs'))
+
+    df = pd.DataFrame({variable: [label for label, (_, _, f1, _) in items for _ in f1],
+                       'F1 score': [score for _, (_, _, f1, _) in items for score in f1],
+                       'Area under curve': [score for _, (_, _, _, aoc) in items for score in aoc]})
 
     print()
     print('AP plots:')
     for label, (_, _, _, aps) in items:
-        sns.distplot(aps, label=label)
+        sns.distplot(df[df[variable] == label]['Area under curve'], hist=False,
+                     label=label)
     plt.legend()
-    if filename_prefix:
-        plt.savefig(f'{filename_prefix}_kde_ap.pdf')
+    if path:
+        plt.savefig(f'{path}/kde_ap.pdf')
     plt.show()
 
-    df = pd.DataFrame({label: aps for label, (_, _, _, aps) in items})
     plt.figure()
-    sns.boxplot(data=df)
-    if filename_prefix:
-        plt.savefig(f'{filename_prefix}_boxplot_ap.pdf')
+    sns.boxplot(df[variable], df['Area under curve'])
+    if path:
+        plt.savefig(f'{path}/boxplot_ap.pdf')
+    plt.show()
+    plt.figure()
+    sns.violinplot(df[variable], df['Area under curve'])
+    if path:
+        plt.savefig(f'{path}/violinplot_ap.pdf')
     plt.show()
 
     print()
     print('F1 plots:')
     for label, (_, _, f1, _) in items:
-        sns.distplot(f1, label=label)
+        sns.distplot(df[df[variable] == label]['F1 score'], hist=False,
+                     label=label)
     plt.legend()
-    if filename_prefix:
-        plt.savefig(f'{filename_prefix}_kde_f1.pdf')
+    if path:
+        plt.savefig(f'{path}/kde_f1.pdf')
     plt.show()
 
-    df = pd.DataFrame({label: f1 for label, (_, _, f1, _) in items})
     plt.figure()
-    sns.boxplot(data=df)
-    if filename_prefix:
-        plt.savefig(f'{filename_prefix}_boxplot_f1.pdf')
+    sns.boxplot(df[variable], df['F1 score'])
+    if path:
+        plt.savefig(f'{path}/boxplot_f1.pdf')
+    plt.show()
+    plt.figure()
+    sns.violinplot(df[variable], df['F1 score'])
+    if path:
+        plt.savefig(f'{path}/violin_f1.pdf')
     plt.show()
 
     print()
-    print('Statistical significance:')
+    print('Statistical significance (dependent T-test):')
     sign_table_f1 = []
     sign_table_ap = []
     for label_1, (_, _, f1_1, ap_1) in items:
         sign_table_f1.append([label_1])
         sign_table_ap.append([label_1])
         for label_2, (_, _, f1_2, ap_2) in items:
-            sign_table_f1[-1].append(scipy.stats.ttest_ind(f1_1, f1_2, equal_var=False).pvalue)
-            sign_table_ap[-1].append(scipy.stats.ttest_ind(ap_1, ap_2, equal_var=False).pvalue)
+            sign_table_f1[-1].append(scipy.stats.ttest_rel(f1_1, f1_2, axis=0).pvalue)
+            sign_table_ap[-1].append(scipy.stats.ttest_rel(ap_1, ap_2, axis=0).pvalue)
 
     print('F1 score')
     print(tabulate(sign_table_f1, headers=[label for label, _ in items]))
@@ -286,3 +311,12 @@ def analyze(data, filename_prefix=None):
     print()
     print('Area under curve')
     print(tabulate(sign_table_ap, headers=[label for label, _ in items]))
+
+    if path:
+        with open(f'{path}/f1_sign.tex', 'w') as f:
+            f.write(tabulate(sign_table_f1, headers=[label for label, _ in items],
+                             tablefmt="latex_booktabs"))
+
+        with open(f'{path}/ap_sign.tex', 'w') as f:
+            f.write(tabulate(sign_table_ap, headers=[label for label, _ in items],
+                             tablefmt="latex_booktabs"))

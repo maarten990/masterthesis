@@ -12,7 +12,7 @@ Options:
 """
 
 
-from typing import Any, Callable, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Tuple, Type, Union
 
 from docopt import docopt
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -50,7 +50,8 @@ class RNNParams:
 
 
 def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLoader,
-          epochs: int = 100, gpu: bool=True) -> List[float]:
+          epochs: int = 100, gpu: bool = True, early_stopping: int = 0,
+          progbar: bool = False) -> List[float]:
     """Train a Pytorch model.
 
     :param model: A Pytorch model.
@@ -58,6 +59,8 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
     :param dataloader: An iterator returning batches.
     :param epochs: The number of epochs to train for.
     :param gpu: If true, train on the gpu. Otherwise use the cpu.
+    :param early_stopping: If 0, don't use early stopping. If positive, stop
+        after that many epochs have yielded no improvement in loss.
     :returns: The value of the model's loss function at every epoch.
     """
     model.train()
@@ -67,7 +70,11 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
     best_params: Dict[str, Any] = {}
     best_loss = 99999
 
-    t = trange(epochs, desc='Training')
+    stopping_counter = 0
+    if progbar:
+        t = trange(epochs, desc='Training')
+    else:
+        t = range(epochs)
     for _ in t:
         epoch_loss = 0.0
 
@@ -98,20 +105,29 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
         if loss < best_loss:
             best_loss = loss
             best_params = model.state_dict()
+        else:
+            if early_stopping:
+                stopping_counter += 1
+
+            if stopping_counter >= 10:
+                break
 
         # update the progress bar
-        loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
-        t.set_postfix({'loss': loss,
-                       'Δloss': loss_delta})
+        if progbar:
+            loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
+            t.set_postfix({'loss': loss,
+                           'Δloss': loss_delta})
 
-    t.close()
+    if progbar:
+        t.close()
 
     model.load_state_dict(best_params)
     model.eval()
     return epoch_losses
 
 
-def train_BoW(dataset: Dataset, vocab: Dict[str, int], ngram_range: Tuple[int, int] = (1, 1)) -> Tuple[SVC, TfidfVectorizer]:
+def train_BoW(dataset: Dataset, vocab: Dict[str, int],
+              ngram_range: Tuple[int, int] = (1, 1)) -> Tuple[SVC, TfidfVectorizer]:
     vectorizer = TfidfVectorizer(vocabulary=vocab, token_pattern=r'\w+|[^\w\s]', ngram_range=ngram_range)
     model = SVC(probability=True)
 
@@ -127,7 +143,8 @@ def train_BoW(dataset: Dataset, vocab: Dict[str, int], ngram_range: Tuple[int, i
 def setup_and_train(params: Union[CNNParams, RNNParams], model_fn: Callable[[nn.Module], nn.Module],
                     optim_fn: Callable[[Any], torch.optim.Optimizer], dataset: Dataset,
                     epochs: int = 100, batch_size: int = 32,
-                    gpu: bool = True) -> Tuple[nn.Module, List[float]]:
+                    gpu: bool = True, early_stopping: int = 0,
+                    progbar: bool = True) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     if isinstance(params, RNNParams):
@@ -151,7 +168,7 @@ def setup_and_train(params: Union[CNNParams, RNNParams], model_fn: Callable[[nn.
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
-    losses = train(model, optimizer, data, epochs, gpu)
+    losses = train(model, optimizer, data, epochs, gpu, early_stopping, progbar)
 
     return model, losses
 
