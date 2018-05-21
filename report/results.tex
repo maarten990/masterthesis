@@ -1,118 +1,152 @@
 \section{Evaluation}
-\FloatBarrier
+\FloatBarrier%
 
-\subsection{400 samples, local max pooling}
-\todo[inline]{Turn this into actual text}
-T-test probability that the AoC distributions are the same: 0.009790328758564197
-T-test probability that the F1 distributions are the same: 0.011943604700946929
-\begin{table}[htb]
-  \centering
-  \begin{tabular}{lrrrr}
-    \toprule
-    model & \multicolumn{2}{c}{F1} & \multicolumn{2}{c}{AoC} \\
-    \cmidrule(l){2-3} \cmidrule(l){4-5}
-    & mean & std & mean & std \\
-    \midrule
-    CNN & 0.79126 & 0.01644 & 0.856768 & 0.0219711 \\
-    CNN-clusters & 0.83429 & 0.02047 & 0.904359 & 0.0168642 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Performance metrics on a small dataset (200 positive
-    samples)}
-  \label{tbl:small}
-\end{table}
+\subsection{Regularisation}
+Since regularisation is very important to prevent overfitting, the common
+methods of regularisation are tested first to obtain a good baseline value for the
+rest of the experiments. These methods are:
+\begin{itemize}
+  \item Dropout, with values taken from the set
+    $\left\{0.0, 0.1, 0.2, 0.3, 0.4, 0.5\right\}$.
+  \item Weight decay, with values taken from the set
+    \[\left\{0.0, \num{1e-5}, \num{1e-4}, \num{1e-3}, \num{1e-2},
+    \num{1e-1}\right\}.\]
+\end{itemize}
+Further details on these methods are given in \cref{sec:method}.
 
-\begin{figure}[htb]
-  \centering
-  \includegraphics[width=\textwidth]{figures/results/small_5_fold_convergence.pdf}
-  \caption{The convergence speed}
-  \label{fig:small_convergence}
-\end{figure}
+\subsubsection{Dropout}
+\Cref{fig:dropout_plots} shows the training loss over time, as well as the
+resulting precision-recall curve on the training set. Other than the training
+loss being higher with higher dropout values (which is to be expected), there
+does not seem to be any difference in performance. This lack of effect is
+also shown in \cref{fig:dropout_dists}. If anything, no dropout appears to have
+the best performance by a slight margin, although none of the distributions are
+different in a statistically significant way. The full data, with the mean and
+standard deviation of the F1 score and the area under the curve, are given in
+\cref{tbl:dropout}.
 
-\begin{figure}[htb]
+\begin{figure}[htbp]
   \centering
-  \includegraphics[width=\textwidth]{figures/results/small_5_fold_pr.pdf}
-  \caption{The precision/recall curves}
-  \label{fig:small_pr}
-\end{figure}
-
-\begin{figure}[htb]
-  \centering
-  \begin{subfigure}[b]{0.80\textwidth} 
+  \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/results/small_5_fold_kde.pdf}
-    \caption{Kernel density estimation}
+    \includegraphics[width=\textwidth]{./figures/results/dropout/losses.pdf}
+    \caption{The average loss at each epoch.\\}%
+    \label{fig:dropout_loss}
   \end{subfigure}
-  \vspace{0.10\textwidth}
-  \begin{subfigure}[b]{0.80\textwidth}
-	\centering
-    \includegraphics[width=\textwidth]{figures/results/small_5_fold_boxplot.pdf}
-    \caption{Boxplot}
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/dropout/pr.pdf}
+    \caption{The average precision-recall curves at various dropout values.}%
+    \label{fig:dropout_pr}
   \end{subfigure}
-  \caption{The distribution of the cross validation results}
-  \label{fig:small_dist}
+  \caption{The loss over time (\subref{fig:dropout_loss}) and the
+    precision-recall curve (\subref{fig:dropout_pr}). In both cases, the values are
+    averaged over 10 trials.}%
+    \label{fig:dropout_plots}
 \end{figure}
 
-\subsection{400 samples, 1-max pooling}
-\begin{figure}[htb]
+\begin{figure}[htbp]
   \centering
-  \begin{subfigure}[b]{0.49\textwidth} 
+  \begin{subfigure}[t]{0.49\textwidth}
     \centering
-    \includegraphics[width=\textwidth]{figures/results/datasize/200pos_10fold_default_losses.pdf}
-    \caption{Average loss at each epoch}
+    \includegraphics[width=\textwidth]{./figures/results/dropout/kde_f1.pdf}
+    \caption{Kernel density estimation}%
+    \label{fig:dropout_kde}
   \end{subfigure}
-  \begin{subfigure}[b]{0.49\textwidth}
-	\centering
-    \includegraphics[width=\textwidth]{figures/results/datasize/200pos_10fold_default_pr.pdf}
-    \caption{Average precision/recall curve}
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/dropout/boxplot_f1.pdf}
+    \caption{Boxplot}%
+    \label{fig:dropout_box}
   \end{subfigure}
-  \begin{subfigure}[b]{0.49\textwidth}
-	\centering
-    \includegraphics[width=\textwidth]{figures/results/datasize/200pos_10fold_default_kde_ap.pdf}
-    \caption{Kernel density estimation of average precision}
-  \end{subfigure}
-  \begin{subfigure}[b]{0.49\textwidth}
-	\centering
-    \includegraphics[width=\textwidth]{figures/results/datasize/200pos_10fold_default_boxplot_ap.pdf}
-    \caption{Box plot of average precision}
-  \end{subfigure}
-  \begin{subfigure}[b]{0.49\textwidth}
-	\centering
-    \includegraphics[width=\textwidth]{figures/results/datasize/200pos_10fold_default_kde_f1.pdf}
-    \caption{Kernel density estimation of F1 score}
-  \end{subfigure}
-  \begin{subfigure}[b]{0.49\textwidth}
-	\centering
-    \includegraphics[width=\textwidth]{figures/results/datasize/200pos_10fold_default_boxplot_f1.pdf}
-    \caption{Box plot of F1 score}
-  \end{subfigure}
-  \caption{At 200 positive and 200 negative samples with 1-max pooling, there is
-    no discernable difference between the two models.}
-  \label{fig:200_1max}
+  \caption{A kernel density estimation and boxplot, based on the F1 score values
+  over 10 repeated trials.}%
+  \label{fig:dropout_dists}
 \end{figure}
 
 \begin{table}[htb]
   \centering
-  \begin{tabular}{lrrrr}
-    \toprule
-    model & \multicolumn{2}{c}{F1} & \multicolumn{2}{c}{AoC} \\
-    \cmidrule(l){2-3} \cmidrule(l){4-5}
-    & mean & std & mean & std \\
-    \midrule
-    CNN & 0.916071 & 0.00786046 & 0.934946 & 0.0183115 \\
-    CNN-clusters & 0.916407 & 0.00664848 & 0.931635 & 0.0270519 \\
-    \bottomrule
-  \end{tabular}
-  \caption{Performance metrics on 200 positive and 200 negative samples with
-    1-max pooling. The T-test probability of the null hypothesis being true for
-    the average precision is 0.765, for the F1 score it is 0.923. This makes it
-    fairly save to say that for this configuration there is no benefit to the
-    addition of clustering data.
-    }
-  \label{tbl:200pos_1max}
+  \import{./figures/results/dropout/}{scores.tex}
+  \caption{The F1 and AoC scores at various dropout values.}%
+  \label{tbl:dropout}
 \end{table}
 
-\FloatBarrier
+\FloatBarrier%
+\subsubsection{Weight decay}
+Similarly to the dropout plots, \cref{fig:decay_plots} shows the training loss
+over time and the precision-recall curve at various weight decay values. It is
+immediately obvious that with a (frankly absurdly high) value of \num{1e-1}, the
+model has trouble converging to a minimum. This effect is present but less
+pronounced with the value of \num{1e-2}. In spite of this, the precision-recall
+curve shows the model with a decay of \num{1e-2} clearly rising above the rest.
+The distribution of the F1 scores in \cref{fig:decay_dists} tells a similar
+story, with the \num{1e-2} model's distribution barely even overlapping with the
+others. \Cref{tbl:decay_p} gives the \emph{p}-values for the probability of each
+distribution being the same (i.e.\ the chance of the null hypothesis that two
+sets of results are generated from the same underlying distribution being true).
+Looking at this in combination with \cref{fig:decay_kde} and taking the standard
+practice of rejecting the null hypothesis when $p < 0.05$, any value for the
+decay parameter equal to or greater than \num{1e-3} performs better than no
+decay in a statistically significant manner. In addition, a value of \num{1e-2}
+clearly outperforms the other values with incredible certainty. The raw numbers
+are shown in \cref{tbl:decay}.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/decay/losses.pdf}
+    \caption{The average loss at each epoch.\\}%
+    \label{fig:decay_loss}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/decay/pr.pdf}
+    \caption{The average precision-recall curves at various decay values.}%
+    \label{fig:decay_pr}
+  \end{subfigure}
+  \caption{The loss over time (\subref{fig:decay_loss}) and the
+    precision-recall curve (\subref{fig:decay_pr}). In both cases, the values are
+    averaged over 10 trials.}%
+    \label{fig:decay_plots}
+\end{figure}
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/decay/kde_f1.pdf}
+    \caption{Kernel density estimation}%
+    \label{fig:decay_kde}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/decay/boxplot_f1.pdf}
+    \caption{Boxplot}%
+    \label{fig:decay_box}
+  \end{subfigure}
+  \caption{A kernel density estimation and boxplot, based on the F1 score values
+  over 10 repeated trials.}%
+  \label{fig:decay_dists}
+\end{figure}
+
+\begin{table}[htb]
+  \centering
+  \import{./figures/results/decay/}{f1_sign.tex}
+  \caption{\emph{p}:-Values for the decay parameter. Each value between two
+    distributions of F1 scores indicates the probability of both populations
+    being generated from the same distribution distribution.}%
+  \label{tbl:decay_p}
+\end{table}
+
+\begin{table}[htb]
+  \centering
+  \import{./figures/results/decay/}{scores.tex}
+  \caption{The F1 and AoC scores at various decay values.}%
+  \label{tbl:decay}
+\end{table}
+
+\FloatBarrier%
 
 %%% Local Variables:
 %%% mode: latex
