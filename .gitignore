@@ -14,9 +14,10 @@ clusterer/.idea
 clusterer/*.iml
 clusterer/*.pdf
 clusterer/.gradle
-training_data
-clusterlabeled-*
+unverified_training_data
+clustered-*
 pdfs
 *.tar.xz
 .mypy_cache
 *.swp
+.ipynb_checkpoints
