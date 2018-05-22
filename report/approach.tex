@@ -1,4 +1,4 @@
-\section{Methodology}
+\section{Methodology}%
 \label{sec:method}
 %\FloatBarrier
 
@@ -16,11 +16,11 @@ overview of the two systems and how they interact.
   \centering
   \includegraphics[width=\textwidth]{figures/layout.pdf}
   \caption{A high-level overview of the system. The unsupervised block augments
-  the input to the classifier.}
+  the input to the classifier.}%
   \label{fig:overview}
 \end{figure}
 
-\subsection{Unsupervised}
+\subsection{Unsupervised}%
 \label{sec:unsup}
 The unsupervised algorithm intends to detect and classify blocks of text in the
 PDF file; Figure~\ref{fig:clustered} shows an example. This approach is based on
@@ -36,7 +36,7 @@ The next two subsections will go into details on the two clustering steps.
   \centering
   \includegraphics[height=0.5\textheight]{figures/cluster_example.png}
   \caption{An example of clustered blocks of text. Blocks with the same outline
-    color belong to the same cluster.}
+    color belong to the same cluster.}%
   \label{fig:clustered}
 \end{figure}
 
@@ -86,7 +86,7 @@ realistic datasets.
     \caption{After}
   \end{subfigure}
   \caption{An example of hierarical agglomerative clustering, where the nodes
-  are clustered by distance.}
+  are clustered by distance.}%
   \label{fig:hac}
 \end{figure}
 
@@ -110,7 +110,7 @@ their similarity based on the following metrics:
 This is done using K-means clustering, with the value of $k$ being varied for
 experimental purposes.
 
-\subsection{Supervised}
+\subsection{Supervised}%
 \label{sec:sup}
 After the data is augmented by the previously described clustering algorithms,
 it's fed into a convolutional neural network for classification. Since the
@@ -126,18 +126,20 @@ followed by a number of Convolutional filters with max pooling. The output of
 the filters is then concatenated into a single feature vector, which is amended
 with the cluster type as an additional feature before feeding it into a standard
 fully-connected neural network. This network features one hidden layer with a
-ReLU activation ($\mathrm{relu}(x) = \max(0, x)$) and a single output node with a sigmoid
-activation. The layout of this system is detailed in Figure~\ref{fig:model_full}
+ReLU activation ($\mathrm{relu}(x) = \max(0, x)$) and a single output node with
+a sigmoid activation. The layout of this system is detailed in
+Figure~\ref{fig:model_full}
 along with its parameters and their baseline value.
 
-The network is trained for 50 epochs (which was found to be more than enough to
-guarantee convergence in every test case), using the Adam\citep{adam} update
-rule and binary cross-entropy as the loss function.  The loss will exhibit some
-up and down fluctuations after the global minimum has been reached; to account
-for this, the best loss so far along with the corresponding model parameters is
-kept track of throughout the learning process.  Once 50 epochs have been
-completed, the output is the model instantiated with the parameters
-corresponding to the lowest loss that was obtained.
+The network is trained for 100 epochs, stopping early once no improvement in
+training loss has been made for 10 epochs. The optimisation process is done
+using the Adadelta\citep{adadelta} algorithm, with binary cross-entropy as the loss
+function.  The loss will exhibit some up and down fluctuations after the global
+minimum has been reached; to account for this, the best loss so far along with
+the corresponding model parameters is kept track of throughout the learning
+process. Once all the epochs have been completed, the output is the model
+instantiated with the parameters corresponding to the lowest loss that was
+obtained.
 
 \begin{figure}[htbp]
   \centering
@@ -148,7 +150,7 @@ corresponding to the lowest loss that was obtained.
       text gets put into a convolutional neural network, the output of which is
       fed together with the cluster type into a fully connected neural network.
       The sigmoid function is applied to the output of this final neural network
-    to obtain the classification.}
+    to obtain the classification.}%
     \label{fig:nn_layout}
   \end{subfigure}
   \hspace{0.05\textwidth}
@@ -185,7 +187,7 @@ corresponding to the lowest loss that was obtained.
       \caption{The default parameters used in the fully-connected neural network.}
     \end{subfigure}
   \end{subfigure}
-  \caption{The model and its parameters.}
+  \caption{The model and its parameters.}%
   \label{fig:model_full}
 \end{figure}
 
@@ -224,7 +226,7 @@ Figure~\ref{fig:cnn}.
   \centering
   \includegraphics[width=\textwidth]{figures/cnn.pdf}
   \caption{A simplified convolutional neural network with one filter and
-    max pooling.}
+    max pooling.}%
   \label{fig:cnn}
 \end{figure}
 In this example, the input text is convolved with a filter with a width of 3 and

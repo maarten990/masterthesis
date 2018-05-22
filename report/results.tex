@@ -9,8 +9,9 @@ rest of the experiments. These methods are:
   \item Dropout, with values taken from the set
     $\left\{0.0, 0.1, 0.2, 0.3, 0.4, 0.5\right\}$.
   \item Weight decay, with values taken from the set
-    \[\left\{0.0, \num{1e-5}, \num{1e-4}, \num{1e-3}, \num{1e-2},
-    \num{1e-1}\right\}.\]
+    \[
+      \left\{0.0, \num{1e-5}, \num{1e-4}, \num{1e-3}, \num{1e-2}\right\}.
+    \]
 \end{itemize}
 Further details on these methods are given in \cref{sec:method}.
 
@@ -18,11 +19,11 @@ Further details on these methods are given in \cref{sec:method}.
 \Cref{fig:dropout_plots} shows the training loss over time, as well as the
 resulting precision-recall curve on the training set. Other than the training
 loss being higher with higher dropout values (which is to be expected), there
-does not seem to be any difference in performance. This lack of effect is
-also shown in \cref{fig:dropout_dists}. If anything, no dropout appears to have
-the best performance by a slight margin, although none of the distributions are
-different in a statistically significant way. The full data, with the mean and
-standard deviation of the F1 score and the area under the curve, are given in
+does not seem to be any difference in performance. This lack of effect is also
+shown in \cref{fig:dropout_dists}. A dropout rate of 0.3 appears to score the
+best, although none of the distributions are different in a statistically
+significant way. The full data, with the mean and standard deviation of the F1
+score and the area under the curve, are given in
 \cref{tbl:dropout}.
 
 \begin{figure}[htbp]
@@ -74,22 +75,9 @@ standard deviation of the F1 score and the area under the curve, are given in
 \FloatBarrier%
 \subsubsection{Weight decay}
 Similarly to the dropout plots, \cref{fig:decay_plots} shows the training loss
-over time and the precision-recall curve at various weight decay values. It is
-immediately obvious that with a (frankly absurdly high) value of \num{1e-1}, the
-model has trouble converging to a minimum. This effect is present but less
-pronounced with the value of \num{1e-2}. In spite of this, the precision-recall
-curve shows the model with a decay of \num{1e-2} clearly rising above the rest.
-The distribution of the F1 scores in \cref{fig:decay_dists} tells a similar
-story, with the \num{1e-2} model's distribution barely even overlapping with the
-others. \Cref{tbl:decay_p} gives the \emph{p}-values for the probability of each
-distribution being the same (i.e.\ the chance of the null hypothesis that two
-sets of results are generated from the same underlying distribution being true).
-Looking at this in combination with \cref{fig:decay_kde} and taking the standard
-practice of rejecting the null hypothesis when $p < 0.05$, any value for the
-decay parameter equal to or greater than \num{1e-3} performs better than no
-decay in a statistically significant manner. In addition, a value of \num{1e-2}
-clearly outperforms the other values with incredible certainty. The raw numbers
-are shown in \cref{tbl:decay}.
+over time and the precision-recall curve at various weight decay values. There
+are again no significant differences, with a value of \num{1e-4} performing just
+slightly better.
 
 \begin{figure}[htbp]
   \centering
@@ -132,18 +120,92 @@ are shown in \cref{tbl:decay}.
 
 \begin{table}[htb]
   \centering
-  \import{./figures/results/decay/}{f1_sign.tex}
-  \caption{\emph{p}:-Values for the decay parameter. Each value between two
-    distributions of F1 scores indicates the probability of both populations
-    being generated from the same distribution distribution.}%
-  \label{tbl:decay_p}
-\end{table}
-
-\begin{table}[htb]
-  \centering
   \import{./figures/results/decay/}{scores.tex}
   \caption{The F1 and AoC scores at various decay values.}%
   \label{tbl:decay}
+\end{table}
+
+\FloatBarrier%
+
+\subsection{Model}
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/models/losses.pdf}
+    \caption{The average loss at each epoch.\\}%
+    \label{fig:model_loss}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/models/pr.pdf}
+    \caption{The average precision-recall curves for the various models.}%
+    \label{fig:model_pr}
+  \end{subfigure}
+  \caption{The loss over time (\subref{fig:model_loss}) and the
+    precision-recall curve (\subref{fig:model_pr}). In both cases, the values are
+    averaged over 10 trials.}%
+    \label{fig:model_plots}
+\end{figure}
+
+Here the models described earlier (TODO: beschrijven en ernaar verwijzen) are
+tested with the default parameters of the CNN\@. Based on the previous results,
+the dropout rate was set to 0.3 and the decay to \num{1e-4}.
+The plots in \Cref{fig:model_plots} show a subtle but observable difference; the
+model using the full window jumps out of the pack in both cases, converging a
+little bit faster and being on top for most of the precision-recall curve,
+although the model with an additional CNN catches up at higher recalls.
+
+\begin{figure}[htbp]
+  \centering
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/models/kde_f1.pdf}
+    \caption{Kernel density estimation}%
+    \label{fig:model_kde}
+  \end{subfigure}
+  \begin{subfigure}[t]{0.49\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/models/boxplot_f1.pdf}
+    \caption{Boxplot}%
+    \label{fig:model_box}
+  \end{subfigure}
+  \caption{A kernel density estimation and boxplot, based on the F1 score values
+  over 10 repeated trials.}%
+  \label{fig:model_dists}
+\end{figure}
+
+The boxplot in \cref{fig:model_box} paints a clear picture with three tiers of
+performance: the model without cluster labels performs worst, adding only the
+cluster of center of the window improves it a bit, while using the full window
+performs best with and without a CNN applied to it.
+\Cref{fig:model_dists} showns an interesting relation between the two top
+performing models. Their score distributions are clearly bimodal with both peaks
+occurring at roughly the same scores, indicating the possibly of getting caught
+in a local optimum. The real win of the simpler model without the CNN appears to
+be that it is far less likely to get stuck in that local optimum.
+
+\begin{table}[htb]
+  \centering
+  \import{./figures/results/models/}{scores.tex}
+  \caption{The F1 and AoC scores of the various models.}%
+  \label{tbl:model}
+\end{table}
+
+Significance values for the F1 score are given in \cref{tbl:model_sign}, which
+shows that every model is different from every other model using the common
+cutoff of $p <= 0.05$. The least convincing is the difference between the two
+best models (Full window and Window CNN), but given the still significant result
+it is reasonable to state that the Full window model is the clearly winner given
+its far more reliable ability to reach the global optimum.
+
+\begin{table}[htb]
+  \centering
+  \import{./figures/results/models/}{f1_sign.tex}
+  \caption{The probability for each pair of models that their F1 scores are
+  generated by the same underlying distribution (i.e.\ the probability of the
+  null hypothesis that the models perform the same being true).}%
+  \label{tbl:model_sign}
 \end{table}
 
 \FloatBarrier%
