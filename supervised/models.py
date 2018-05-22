@@ -7,16 +7,18 @@ from torch.autograd import Variable
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
     def __init__(self, input_size, seq_len, embed_size, filters, dropout,
-                 num_layers=1):
+                 num_layers=1, batch_norm=False):
         super().__init__()
 
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.layers = nn.ModuleList([])
-
         self.layers.append(nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters]))
         for i in range(num_layers - 1):
             self.layers.append(nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters]))
+
+        self.batch_norm = batch_norm
+        self.batch_norms = nn.ModuleList([nn.BatchNorm1d(num) for num, _ in filters])
 
         # calculate classifier size
         temp_data = Variable(torch.zeros((1, embed_size, seq_len)))
@@ -35,7 +37,9 @@ class CNNClassifier(nn.Module):
         data = embedded.permute(0, 2, 1)
 
         for layer in self.layers:
-            d = [conv(data) for conv in layer]
+            d = [F.relu(conv(data)) for conv in layer]
+            if self.batch_norm:
+                d = [bn(l) for bn, l in zip(self.batch_norms, d)]
             d = [F.max_pool1d(l, kernel_size=l.shape[2]) for l in d]
             data = torch.cat(d, 1)
 
@@ -91,19 +95,25 @@ class LSTMClassifier(nn.Module):
 
 
 class NoClusterLabels(nn.Module):
-    def __init__(self, recurrent_clf, dropout):
+    def __init__(self, recurrent_clf, dropout, batch_norm=False):
         super().__init__()
+        self.batch_norm = batch_norm
         self.recurrent_clf = recurrent_clf
+        self.recurrent_clf.batch_norm = batch_norm
 
         output_size = self.recurrent_clf.output_size
         self.dropout = nn.Dropout(dropout)
         self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.bn = nn.BatchNorm1d(int(output_size / 2))
         self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
 
-        h = F.relu(self.dropout(self.linear1(recurrent_output)))
+        h = self.linear1(recurrent_output)
+        if self.batch_norm:
+            h = self.bn(h)
+        h = F.relu(self.dropout(h))
         out = self.dropout(self.linear2(h))
         return F.sigmoid(out)
 
@@ -112,19 +122,25 @@ class NoClusterLabels(nn.Module):
 
 
 class CategoricalClusterLabels(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, window_size, dropout):
+    def __init__(self, recurrent_clf, n_labels, window_size, dropout, batch_norm=False):
         super().__init__()
+        self.batch_norm = batch_norm
         self.recurrent_clf = recurrent_clf
+        self.recurrent_clf.batch_norm = batch_norm
 
         output_size = self.recurrent_clf.output_size + (n_labels * window_size)
         self.dropout = nn.Dropout(dropout)
         self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.bn = nn.BatchNorm1d(int(output_size / 2))
         self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
         combined = torch.cat([recurrent_output, labels.float()], 1)
-        h = F.relu(self.dropout(self.linear1(combined)))
+        h = self.linear1(combined)
+        if self.batch_norm:
+            h = self.bn(h)
+        h = F.relu(self.dropout(h))
         out = self.dropout(self.linear2(h))
         return F.sigmoid(out)
 
@@ -133,19 +149,25 @@ class CategoricalClusterLabels(nn.Module):
 
 
 class CategoricalClusterLabelsOnlyCenter(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, dropout):
+    def __init__(self, recurrent_clf, n_labels, dropout, batch_norm=False):
         super().__init__()
+        self.batch_norm = batch_norm
         self.recurrent_clf = recurrent_clf
+        self.recurrent_clf.batch_norm = batch_norm
 
         output_size = self.recurrent_clf.output_size + n_labels
         self.dropout = nn.Dropout(dropout)
         self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.bn = nn.BatchNorm1d(int(output_size / 2))
         self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
         combined = torch.cat([recurrent_output, labels.float()], 1)
-        h = F.relu(self.dropout(self.linear1(combined)))
+        h = self.linear1(combined)
+        if self.batch_norm:
+            h = self.bn(h)
+        h = F.relu(self.dropout(h))
         out = self.dropout(self.linear2(h))
         return F.sigmoid(out)
 
@@ -154,22 +176,28 @@ class CategoricalClusterLabelsOnlyCenter(nn.Module):
 
 
 class ClusterLabelsCNN(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, dropout):
+    def __init__(self, recurrent_clf, n_labels, dropout, batch_norm=False):
         super().__init__()
+        self.batch_norm = batch_norm
         self.recurrent_clf = recurrent_clf
+        self.recurrent_clf.batch_norm = batch_norm
         self.label_cnn = CNNClassifier(n_labels, 5, n_labels, [(32, 1), (32, 2), (32, n_labels)],
                                        dropout, num_layers=1)
 
         output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
         self.dropout = nn.Dropout(dropout)
         self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.bn = nn.BatchNorm1d(int(output_size / 2))
         self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
         label_output = self.label_cnn(labels)
         combined = torch.cat([recurrent_output, label_output], 1)
-        h = F.relu(self.dropout(self.linear1(combined)))
+        h = self.linear1(combined)
+        if self.batch_norm:
+            h = self.bn(h)
+        h = F.relu(self.dropout(h))
         out = self.dropout(self.linear2(h))
         return F.sigmoid(out)
 
@@ -178,21 +206,27 @@ class ClusterLabelsCNN(nn.Module):
 
 
 class ClusterLabelsRNN(nn.Module):
-    def __init__(self, recurrent_clf, n_labels, dropout):
+    def __init__(self, recurrent_clf, n_labels, dropout, batch_norm=False):
         super().__init__()
+        self.batch_norm = batch_norm
         self.recurrent_clf = recurrent_clf
+        self.recurrent_clf.batch_norm = batch_norm
         self.label_cnn = LSTMClassifier(n_labels, n_labels, 100, 1, dropout)
 
         output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
         self.dropout = nn.Dropout(dropout)
         self.linear1 = nn.Linear(output_size, int(output_size / 2))
+        self.bn = nn.BatchNorm1d(int(output_size / 2))
         self.linear2 = nn.Linear(int(output_size / 2), 1)
 
     def forward(self, inputs, labels):
         recurrent_output = self.recurrent_clf(inputs)
         label_output = self.label_cnn(labels)
         combined = torch.cat([recurrent_output, label_output], 1)
-        h = F.relu(self.dropout(self.linear1(combined)))
+        h = self.linear1(combined)
+        if self.batch_norm:
+            h = self.bn(h)
+        h = F.relu(self.dropout(h))
         out = self.dropout(self.linear2(h))
         return F.sigmoid(out)
 

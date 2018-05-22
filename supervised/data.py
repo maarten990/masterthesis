@@ -3,7 +3,7 @@
 
 from copy import copy
 from enum import auto, Enum
-from typing import Dict, Iterator, List, Optional, Tuple, Union
+from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
 from lxml import etree
 import nltk
@@ -59,8 +59,8 @@ Sample = Dict[int, Dict[str, np.ndarray]]
 
 class GermanDataset(Dataset):
     def __init__(self, files: List[str], num_clusterlabels: int,
-                 num_positive: int, num_negative: int, window_size: int,
-                 window_label_idx: int = 0, vocab: Optional[Vocab]=None,
+                 negative_ratio: float, window_size: int,
+                 window_label_idx: int = 0, vocab: Optional[Vocab] = None,
                  bag_of_words: bool = False,
                  cluster_fmt: ClusterFmt = ClusterFmt.FULL_WINDOW_ONLY_IDX) -> None:
         self.files = files
@@ -75,31 +75,22 @@ class GermanDataset(Dataset):
             ClusterFmt.FULL_WINDOW_ONLY_IDX: full_window_only_idx_fn,
             ClusterFmt.ONLY_CENTRAL: only_central_fn
         }[cluster_fmt]
-        n_pos = 0
-        n_neg = 0
 
-        with tqdm(total=num_positive) as pbar:
-            for file in files:
-                xml = load_xml_from_disk(file)
-                pos = xml.xpath('/pdf2xml/page/text[@is-speech="true"]')
-                neg = xml.xpath('/pdf2xml/page/text[@is-speech="false"]')
+        for file in files:
+            xml = load_xml_from_disk(file)
+            pos = xml.xpath('/pdf2xml/page/text[@is-speech="true"]')
+            neg = xml.xpath('/pdf2xml/page/text[@is-speech="false"]')
 
-                for p in pos:
-                    window = xml_window(p, window_label_idx, window_size)
-                    if window:
-                        self.samples.append(self.vectorize_window(window))
-                        n_pos += 1
-                        pbar.update(1)
-                for n in neg:
-                    window = xml_window(n, window_label_idx, window_size)
-                    if window:
-                        self.samples.append(self.vectorize_window(window))
-                        n_neg += 1
+            for p in pos:
+                window = xml_window(p, window_label_idx, window_size)
+                if window:
+                    self.samples.append(self.vectorize_window(window))
+            for n in neg:
+                window = xml_window(n, window_label_idx, window_size)
+                if window:
+                    self.samples.append(self.vectorize_window(window))
 
-                if n_pos >= num_positive and n_neg >= num_negative:
-                    break
-
-        self.subsample(num_positive, num_negative)
+        self.equalize_ratio(negative_ratio)
 
     def get_pos_neg(self) -> Tuple[List[int], List[int]]:
         positives: List[int] = []
@@ -125,6 +116,10 @@ class GermanDataset(Dataset):
                 labels.append(data['label'])
 
         return labels
+
+    def equalize_ratio(self, negative_ratio):
+        positives, negatives = self.get_pos_neg()
+        self.subsample(len(positives), len(positives))
 
     def subsample(self, num_positive: int, num_negative: int) -> None:
         positives, negatives = self.get_pos_neg()
