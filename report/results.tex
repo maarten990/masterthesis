@@ -17,10 +17,9 @@ Further details on these methods are given in \cref{sec:method}.
 
 \subsubsection{Dropout}
 \Cref{fig:dropout_plots} shows the training loss over time, as well as the
-resulting precision-recall curve on the training set. Other than the training
-loss being higher with higher dropout values (which is to be expected), there
-does not seem to be any difference in performance. This lack of effect is also
-shown in \cref{fig:dropout_dists}. A dropout rate of 0.3 appears to score the
+resulting precision-recall curve on the training set. There does not seem to be
+any visible difference in performance; this lack of effect is also
+shown in \cref{fig:dropout_dists}. A dropout rate of 0.5 appears to score the
 best, although none of the distributions are different in a statistically
 significant way. The full data, with the mean and standard deviation of the F1
 score and the area under the curve, are given in
@@ -150,7 +149,7 @@ slightly better.
 
 Here the models described earlier (TODO: beschrijven en ernaar verwijzen) are
 tested with the default parameters of the CNN\@. Based on the previous results,
-the dropout rate was set to 0.3 and the decay to \num{1e-4}.
+the dropout rate was set to 0.5 and the decay to \num{1e-4}.
 The plots in \Cref{fig:model_plots} show a subtle but observable difference; the
 model using the full window jumps out of the pack in both cases, converging a
 little bit faster and being on top for most of the precision-recall curve,
