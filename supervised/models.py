@@ -114,7 +114,7 @@ class NoClusterLabels(nn.Module):
         if self.batch_norm:
             h = self.bn(h)
         h = F.relu(self.dropout(h))
-        out = self.dropout(self.linear2(h))
+        out = self.linear2(h)
         return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
@@ -141,7 +141,7 @@ class CategoricalClusterLabels(nn.Module):
         if self.batch_norm:
             h = self.bn(h)
         h = F.relu(self.dropout(h))
-        out = self.dropout(self.linear2(h))
+        out = self.linear2(h)
         return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
@@ -168,7 +168,7 @@ class CategoricalClusterLabelsOnlyCenter(nn.Module):
         if self.batch_norm:
             h = self.bn(h)
         h = F.relu(self.dropout(h))
-        out = self.dropout(self.linear2(h))
+        out = self.linear2(h)
         return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
@@ -198,7 +198,7 @@ class ClusterLabelsCNN(nn.Module):
         if self.batch_norm:
             h = self.bn(h)
         h = F.relu(self.dropout(h))
-        out = self.dropout(self.linear2(h))
+        out = self.linear2(h)
         return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
@@ -227,7 +227,7 @@ class ClusterLabelsRNN(nn.Module):
         if self.batch_norm:
             h = self.bn(h)
         h = F.relu(self.dropout(h))
-        out = self.dropout(self.linear2(h))
+        out = self.linear2(h)
         return F.sigmoid(out)
 
     def loss(self, y_pred, y_true):
