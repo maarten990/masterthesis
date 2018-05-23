@@ -127,7 +127,7 @@ slightly better.
 
 \FloatBarrier%
 
-\subsection{Model}
+\subsection{Models}
 \begin{figure}[htbp]
   \centering
   \begin{subfigure}[t]{0.49\textwidth}
@@ -207,6 +207,18 @@ its far more reliable ability to reach the global optimum.
   null hypothesis that the models perform the same being true).}%
   \label{tbl:model_sign}
 \end{table}
+
+\subsection{Number of clusters}
+\Cref{fig:kmeans_box} shows the results of varying the number of clusters
+created in the final k-means clustering step.
+\begin{figure}[htbp]
+  \centering
+    \centering
+    \includegraphics[width=\textwidth]{./figures/results/kmeans/boxplot_f1.pdf}
+    \caption{A boxplot based on the F1 scores of 10 repeated trials for various
+    amounts of clusters created by the k-means algorithm.}%
+    \label{fig:kmeans_box}
+\end{figure}
 
 \FloatBarrier%
 
