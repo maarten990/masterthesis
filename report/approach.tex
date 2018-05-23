@@ -2,14 +2,14 @@
 \label{sec:method}
 %\FloatBarrier
 
-As described in Section~\ref{sec:problem}, the input data comes in the form of a
+As described in \cref{sec:problem}, the input data comes in the form of a
 PDF file which can be converted into plaintext XML data containing lines of text
 along with each line's bounding box. There are two systems in play here; the
 main system is a convolutional neural network classifier that acts on the XML
-data. Further details on this are provided in Section~\ref{sec:sup}. The second
+data. Further details on this are provided in \cref{sec:sup}. The second
 system is the unsupervised preprocessor whichs acts on the PDF data and writes
 its output as an additional property into the XML data, which is elaborated upon
-in Section~\ref{sec:unsup}. Figure~\ref{fig:overview} shows a high-level
+in \cref{sec:unsup}. \Cref{fig:overview} shows a high-level
 overview of the two systems and how they interact.
 
 \begin{figure}[htb]
@@ -23,14 +23,14 @@ overview of the two systems and how they interact.
 \subsection{Unsupervised}%
 \label{sec:unsup}
 The unsupervised algorithm intends to detect and classify blocks of text in the
-PDF file; Figure~\ref{fig:clustered} shows an example. This approach is based on
+PDF file; \Cref{fig:clustered} shows an example. This approach is based on
 work by \textcite{klampfl2014unsupervised}, and consists of two separate
 clustering steps. First, individual characters (the fundamental objects
 available in a PDF file) are clustered together into blocks of semantically
 relevant text. These would be paragraphs, section headers, page decoration, etc.
 By using the bounding boxes of the blocks, they can be clustered based on their
 shape and some additional metadata (e.g.\ occurrence of font types and sizes).
-The next two subsections will go into details on the two clustering steps.
+The following subsections will go into details on the two clustering steps.
 
 \begin{figure}[htb]
   \centering
@@ -44,7 +44,7 @@ The next two subsections will go into details on the two clustering steps.
 The first step is performed using hierarchical agglomerative clustering (HAC),
 an unsupervised bottom-up clustering algorithm that constructs a hierarchical
 tree of clusters (in this context referred to as a \emph{dendrogram}). An
-example is shown in Figure~\ref{fig:hac}. The algorithm gets fed the individual
+example is shown in \cref{fig:hac}. The algorithm gets fed the individual
 characters present in the PDF files, then iteratively groups the two closest
 clusters (the initial inputs being regarded as clusters of one element) together
 until only a single cluster remains. This process involves two parameters:
@@ -121,15 +121,15 @@ text content of this window is then entered into a standard convolutional neural
 network architecture similar to the one proposed by \textcite{kim2014conv}.
 First an embedding layer is used to learn a high-dimensional representation of
 the words (no pre-trained embeddings were used because of both the specialized
-political domain of the data as well as a lack of pre-trained German models),
-followed by a number of Convolutional filters with max pooling. The output of
-the filters is then concatenated into a single feature vector, which is amended
-with the cluster type as an additional feature before feeding it into a standard
-fully-connected neural network. This network features one hidden layer with a
-ReLU activation ($\mathrm{relu}(x) = \max(0, x)$) and a single output node with
-a sigmoid activation. The layout of this system is detailed in
-Figure~\ref{fig:model_full}
-along with its parameters and their baseline value.
+political domain of the data as well as a lack of quality pre-trained German models),
+followed by a number of Convolutional filters with 1-max pooling. The output of
+the filters is then concatenated into a single feature vector, which is amended 
+with the cluster labels of each element in the sliding window as an additional
+feature. This feature vector is then fedinto a standard fully-connected neural
+network. This network features one hidden layer with a ReLU activation
+($\mathrm{relu}(x) = \max(0, x)$) and a single output node with a sigmoid
+activation. The layout of this system is detailed in \cref{fig:model_full} along
+with its parameters and their baseline value.
 
 The network is trained for 100 epochs, stopping early once no improvement in
 training loss has been made for 10 epochs. The optimisation process is done
@@ -139,7 +139,8 @@ minimum has been reached; to account for this, the best loss so far along with
 the corresponding model parameters is kept track of throughout the learning
 process. Once all the epochs have been completed, the output is the model
 instantiated with the parameters corresponding to the lowest loss that was
-obtained.
+obtained. Regularisation is done through a combination of dropout and weight
+decay, the precise amounts to be determined through experimentation.
 
 \begin{figure}[htbp]
   \centering
@@ -161,7 +162,7 @@ obtained.
 	\toprule
 	& Parameter & Default value \\
 	\midrule
-	& Window size & 3 \\
+	& Window size & 9 \\
 	& Word embedding size & 300 \\
 	& Number of filters & 100 \\
 	& Filter sizes & 3, 5, 7 \\
@@ -221,7 +222,7 @@ exponentially with the value of $n$.
 Convolutional neural networks (CNNs) work by taking a number of filters
 (sometimes called kernels or feature maps) of a specified size and convolving
 these over the input data. A simplified example using one filter is shown in
-Figure~\ref{fig:cnn}.
+\cref{fig:cnn}.
 \begin{figure}[htb]
   \centering
   \includegraphics[width=\textwidth]{figures/cnn.pdf}
@@ -249,7 +250,7 @@ twofold:
 \item It downsamples the number of inputs, reducing the amount of parameters
   required further on in the network.
 \item It adds translation invariance to the feature detected by this filter. The
-  example filter of Figure~\ref{fig:cnn} appears to react strongly to the
+  example filter of \cref{fig:cnn} appears to react strongly to the
   presence of the word ``Hallo''. Without the pooling layer, changing the
   location of the word ``Hallo'' in the input would similarly change the
   location of the high activation in the intermediate representation; this would
@@ -263,11 +264,7 @@ standard feedforward neural network.
 
 While CNN architectures in computer vision are generally very deep, they tend to
 be very shallow in natural language processing; commonly just a single
-convolution followed by 1-max pooling \citep{zhang2015conv}. Since this
-particular task at first glance appears to be fairly reliant on word position
-(e.g.\ a colon at the end of a sentence very often indicates the start of a
-speech, a colon in the middle almost certainly does not), the degree of pooling
-will be experimented with.
+convolution followed by 1-max pooling \citep{zhang2015conv}. 
 
 \subsubsection{Difference between convolutional and recurrent neural networks}
 Recurrent neural networks (in particular LSTMs or GRUs) are seemingly the most
