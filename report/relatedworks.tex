@@ -1,6 +1,28 @@
 \section{Related Work}
 \todo[inline]{Todo: Expand section}
 
+In terms of analyzing document structure, \textcite{klampfl2014unsupervised}
+introduce a method to analyze scientific articles, detecting blocks of text,
+labeling them (as e.g.\ section headers, tables or references) and determining
+the reading order --- all in an unsupervised manner. The text block detection is
+done using a sequence of different clustering algorithms, while the labeling is
+done using a heuristic approach.
+
+The problem handled here is in a way similar to that of wrapper induction, which
+is the process of inferring a \emph{wrapper} (a program that extracts data into
+a usable form) from a web page. A fairly recent survey of the state of this
+field is done by \textcite{wrapper}, who note that a big problem is keeping up
+with the constantly changing nature of web pages.  A novel approach to combat
+this is that of \textcite{deepweb}. They do wrapper induction by combining the
+textual content of a webpage with a screenshot of the rendered webpage in an
+effort to do wrapper induction on previously unseen web pages.  The text is
+encoded in a way that maintains spatial information, a model they refer to as
+\emph{Text Maps} or \emph{Spatial bag of words}.  The text maps and the
+screenshot are fed into separate convolutional networks, after which the output
+is combined for a final classification. In a test of extracting product names
+and prices from web pages, the system obtains very high score comparable to
+systems that do use site-specific initialization.
+
 Various forms of convolutional neural networks are commonly used for text
 classification. The most basic architecture is described by
 \textcite{kim2014conv}, where the input words are tokenized and embedded before
@@ -20,14 +42,6 @@ and language processing might be due to the difference in datasets. The common
 ImageNet dataset used in computer vision deals with 1000 classes; in contrast,
 sentiment analysis datasets vary between 2 and 25 classes. In addition, they
 note that the deeper networks do require a larger amount of data to train.
-
-In terms of analyzing document structure, \textcite{klampfl2014unsupervised}
-introduce a method to analyze scientific articles, detecting blocks of text,
-labeling them (as e.g.\ section headers, tables or references) and determining
-the reading order --- all in an unsupervised manner. While their approach to
-block detection forms an integral part of this thesis, the rest is too
-specifically tied to the format of scientific articles to be applicable in this
-scenario.
 
 %%% Local Variables:
 %%% mode: latex
