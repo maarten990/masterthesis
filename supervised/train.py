@@ -29,8 +29,15 @@ from models import LSTMClassifier, CNNClassifier
 
 class CNNParams:
     """Parameters for a CNNClassifier."""
-    def __init__(self, embed_size: int, dropout: float, epochs: int,
-                 filters: List[Tuple[int, int]], num_layers: int) -> None:
+
+    def __init__(
+        self,
+        embed_size: int,
+        dropout: float,
+        epochs: int,
+        filters: List[Tuple[int, int]],
+        num_layers: int,
+    ) -> None:
         self.embed_size = embed_size
         self.dropout = dropout
         self.epochs = epochs
@@ -40,8 +47,15 @@ class CNNParams:
 
 class RNNParams:
     """Parameters for an LSTMClassifier."""
-    def __init__(self, embed_size: int, dropout: float, epochs: int,
-                 num_layers: int, hidden_size: int) -> None:
+
+    def __init__(
+        self,
+        embed_size: int,
+        dropout: float,
+        epochs: int,
+        num_layers: int,
+        hidden_size: int,
+    ) -> None:
         self.embed_size = embed_size
         self.dropout = dropout
         self.epochs = epochs
@@ -49,9 +63,15 @@ class RNNParams:
         self.hidden_size = hidden_size
 
 
-def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLoader,
-          epochs: int = 100, gpu: bool = True, early_stopping: int = 0,
-          progbar: bool = False) -> List[float]:
+def train(
+    model: nn.Module,
+    optimizer: torch.optim.Optimizer,
+    dataloader: DataLoader,
+    epochs: int = 100,
+    gpu: bool = True,
+    early_stopping: int = 0,
+    progbar: bool = False,
+) -> List[float]:
     """Train a Pytorch model.
 
     :param model: A Pytorch model.
@@ -72,7 +92,7 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
 
     stopping_counter = 0
     if progbar:
-        t = trange(epochs, desc='Training')
+        t = trange(epochs, desc="Training")
     else:
         t = range(epochs)
     for _ in t:
@@ -84,9 +104,9 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
                 data = to_gpu(data)
 
             for _, d in data.items():
-                X = d['data']
-                c = d['cluster_data']
-                y = d['label']
+                X = d["data"]
+                c = d["cluster_data"]
+                y = d["label"]
 
                 y_pred = model(X, c)
                 loss = model.loss(y_pred, y)
@@ -114,9 +134,10 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
 
         # update the progress bar
         if progbar:
-            loss_delta = epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
-            t.set_postfix({'loss': loss,
-                           'Δloss': loss_delta})
+            loss_delta = (
+                epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
+            )
+            t.set_postfix({"loss": loss, "Δloss": loss_delta})
 
     if progbar:
         t.close()
@@ -126,13 +147,16 @@ def train(model: nn.Module, optimizer: torch.optim.Optimizer, dataloader: DataLo
     return epoch_losses
 
 
-def train_BoW(dataset: Dataset, vocab: Dict[str, int],
-              ngram_range: Tuple[int, int] = (1, 1)) -> Tuple[SVC, TfidfVectorizer]:
-    vectorizer = TfidfVectorizer(vocabulary=vocab, token_pattern=r'\w+|[^\w\s]', ngram_range=ngram_range)
+def train_BoW(
+    dataset: Dataset, vocab: Dict[str, int], ngram_range: Tuple[int, int] = (1, 1)
+) -> Tuple[SVC, TfidfVectorizer]:
+    vectorizer = TfidfVectorizer(
+        vocabulary=vocab, token_pattern=r"\w+|[^\w\s]", ngram_range=ngram_range
+    )
     model = SVC(probability=True)
 
-    samples = [list(entry.values())[0]['data'] for entry in dataset]
-    labels = [list(entry.values())[0]['label'] for entry in dataset]
+    samples = [list(entry.values())[0]["data"] for entry in dataset]
+    labels = [list(entry.values())[0]["label"] for entry in dataset]
     print(samples[0])
     X = vectorizer.fit_transform(samples)
 
@@ -140,33 +164,39 @@ def train_BoW(dataset: Dataset, vocab: Dict[str, int],
     return model, vectorizer
 
 
-def setup_and_train(params: Union[CNNParams, RNNParams], model_fn: Callable[[nn.Module], nn.Module],
-                    optim_fn: Callable[[Any], torch.optim.Optimizer], dataset: Dataset,
-                    epochs: int = 100, batch_size: int = 32,
-                    gpu: bool = True, early_stopping: int = 0,
-                    progbar: bool = True) -> Tuple[nn.Module, List[float]]:
+def setup_and_train(
+    params: Union[CNNParams, RNNParams],
+    model_fn: Callable[[nn.Module], nn.Module],
+    optim_fn: Callable[[Any], torch.optim.Optimizer],
+    dataset: Dataset,
+    epochs: int = 100,
+    batch_size: int = 32,
+    gpu: bool = True,
+    early_stopping: int = 0,
+    progbar: bool = True,
+) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     argdict: Dict[str, Any]
     if isinstance(params, RNNParams):
         buckets = [5, 10, 15, 25, 40]
         argdict = {
-            'input_size': len(dataset.vocab.token_to_idx) + 1,
-            'embed_size': params.embed_size,
-            'hidden_size': params.hidden_size,
-            'num_layers': params.num_layers,
-            'dropout': params.dropout
+            "input_size": len(dataset.vocab.token_to_idx) + 1,
+            "embed_size": params.embed_size,
+            "hidden_size": params.hidden_size,
+            "num_layers": params.num_layers,
+            "dropout": params.dropout,
         }
         recurrent_model = LSTMClassifier(**argdict)
     elif isinstance(params, CNNParams):
         buckets = [40]
         argdict = {
-            'input_size': len(dataset.vocab.token_to_idx) + 1,
-            'seq_len': buckets[0],
-            'embed_size': params.embed_size,
-            'filters': params.filters,
-            'dropout': params.dropout,
-            'num_layers': params.num_layers
+            "input_size": len(dataset.vocab.token_to_idx) + 1,
+            "seq_len": buckets[0],
+            "embed_size": params.embed_size,
+            "filters": params.filters,
+            "dropout": params.dropout,
+            "num_layers": params.num_layers,
         }
         recurrent_model = CNNClassifier(**argdict)
 
@@ -184,23 +214,23 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     :param params: The parameter dict.
     :returns: The parsed parameters.
     """
-    tp = params['type']
-    del params['type']
+    tp = params["type"]
+    del params["type"]
 
     constructor: Union[Type[CNNParams], Type[RNNParams]]
-    if tp == 'cnn':
-        keys = ['embed_size', 'filters', 'dropout', 'epochs', 'num_layers']
+    if tp == "cnn":
+        keys = ["embed_size", "filters", "dropout", "epochs", "num_layers"]
         constructor = CNNParams
-    elif tp == 'rnn':
-        keys = ['embed_size', 'hidden_size', 'num_layers', 'dropout', 'epochs']
+    elif tp == "rnn":
+        keys = ["embed_size", "hidden_size", "num_layers", "dropout", "epochs"]
         constructor = RNNParams
     else:
-        print('Error: only cnn or rnn allowed as type.')
+        print("Error: only cnn or rnn allowed as type.")
         return None
 
     for key in keys:
         if key not in params.keys():
-            print(f'Error: missing key {key}')
+            print(f"Error: missing key {key}")
             return None
 
     return constructor(**params)
@@ -208,12 +238,12 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
 
 def main():
     args = docopt(__doc__)
-    paramfile = args['<paramfile>']
-    files = args['<files>']
-    with_labels = args['--with_labels']
-    batch_size = args['--batch_size']
+    paramfile = args["<paramfile>"]
+    files = args["<files>"]
+    with_labels = args["--with_labels"]
+    batch_size = args["--batch_size"]
 
-    with open(paramfile, 'r') as f:
+    with open(paramfile, "r") as f:
         params = yaml.load(f)
         p = parse_params(params)
 
@@ -221,5 +251,5 @@ def main():
         print(losses)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

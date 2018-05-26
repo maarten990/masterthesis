@@ -31,25 +31,36 @@ class ClusterFmt(Enum):
 
 def only_central_fn(window, central_idx, num_clusterlabels):
     return to_onehot(
-        int(window[central_idx].attrib['clusterLabel']) if 'clusterLabel' in window[central_idx].attrib else 0,
-        num_clusterlabels
+        int(window[central_idx].attrib["clusterLabel"])
+        if "clusterLabel" in window[central_idx].attrib
+        else 0,
+        num_clusterlabels,
     )
 
 
 def full_window_fn(window, central_idx, num_clusterlabels):
-    l = [to_onehot(int(w.attrib['clusterLabel']) if 'clusterLabel' in w.attrib else 0,
-                   num_clusterlabels)
-         for w in window]
+    l = [
+        to_onehot(
+            int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0,
+            num_clusterlabels,
+        )
+        for w in window
+    ]
     return np.concatenate(l)
 
 
 def full_window_only_idx_fn(window, central_idx, num_clusterlabels):
-    return [int(w.attrib['clusterLabel']) if 'clusterLabel' in w.attrib else 0
-            for w in window]
+    return [
+        int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0
+        for w in window
+    ]
 
 
 class Vocab:
-    def __init__(self, token_to_idx: Dict[str, int], idx_to_token: Dict[int, str]) -> None:
+
+    def __init__(
+        self, token_to_idx: Dict[str, int], idx_to_token: Dict[int, str]
+    ) -> None:
         self.token_to_idx = token_to_idx
         self.idx_to_token = idx_to_token
 
@@ -58,11 +69,18 @@ Sample = Dict[int, Dict[str, np.ndarray]]
 
 
 class GermanDataset(Dataset):
-    def __init__(self, files: List[str], num_clusterlabels: int,
-                 negative_ratio: float, window_size: int,
-                 window_label_idx: int = 0, vocab: Optional[Vocab] = None,
-                 bag_of_words: bool = False,
-                 cluster_fmt: ClusterFmt = ClusterFmt.FULL_WINDOW_ONLY_IDX) -> None:
+
+    def __init__(
+        self,
+        files: List[str],
+        num_clusterlabels: int,
+        negative_ratio: float,
+        window_size: int,
+        window_label_idx: int = 0,
+        vocab: Optional[Vocab] = None,
+        bag_of_words: bool = False,
+        cluster_fmt: ClusterFmt = ClusterFmt.FULL_WINDOW_ONLY_IDX,
+    ) -> None:
         self.files = files
         self.vocab = create_dictionary(self.files) if not vocab else vocab
         self.num_clusterlabels = num_clusterlabels
@@ -73,7 +91,7 @@ class GermanDataset(Dataset):
         self.cluster_fmt = {
             ClusterFmt.FULL_WINDOW: full_window_fn,
             ClusterFmt.FULL_WINDOW_ONLY_IDX: full_window_only_idx_fn,
-            ClusterFmt.ONLY_CENTRAL: only_central_fn
+            ClusterFmt.ONLY_CENTRAL: only_central_fn,
         }[cluster_fmt]
 
         for file in files:
@@ -98,7 +116,7 @@ class GermanDataset(Dataset):
         for i, sample in enumerate(self.samples):
             # the key (length) is not relevant, and we know there's only one item
             for _, data in sample.items():
-                if (data['label'] == 1).all():
+                if (data["label"] == 1).all():
                     positives.append(i)
                 else:
                     negatives.append(i)
@@ -113,7 +131,7 @@ class GermanDataset(Dataset):
         for i, sample in enumerate(self.samples):
             # the key (length) is not relevant, and we know there's only one item
             for _, data in sample.items():
-                labels.append(data['label'])
+                labels.append(data["label"])
 
         return labels
 
@@ -127,10 +145,15 @@ class GermanDataset(Dataset):
         pos_diff = len(positives) - num_positive
         neg_discard = np.random.choice(negatives, neg_diff, replace=False)
         pos_discard = np.random.choice(positives, pos_diff, replace=False)
-        self.samples = [sample for i, sample in enumerate(self.samples)
-                        if i not in neg_discard and i not in pos_discard]
+        self.samples = [
+            sample
+            for i, sample in enumerate(self.samples)
+            if i not in neg_discard and i not in pos_discard
+        ]
 
-        print(f'Retrieved {len(positives)} positive samples, {len(negatives)} negative samples.')
+        print(
+            f"Retrieved {len(positives)} positive samples, {len(negatives)} negative samples."
+        )
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -138,7 +161,9 @@ class GermanDataset(Dataset):
     def __getitem__(self, idx: int) -> Sample:
         return self.samples[idx]
 
-    def split(self, train: Tuple[int, int], test: Optional[Tuple[int, int]] = None) -> Tuple[Dataset, Dataset]:
+    def split(
+        self, train: Tuple[int, int], test: Optional[Tuple[int, int]] = None
+    ) -> Tuple[Dataset, Dataset]:
         """
         Split the dataset into a training set and a test set.
         :param train: A tuple indicating the number of positive and negative
@@ -157,8 +182,10 @@ class GermanDataset(Dataset):
         pos_indices = np.random.choice(positives, train[0] + test[0], replace=False)
         neg_indices = np.random.choice(negatives, train[1] + test[1], replace=False)
 
-        train_indices = np.concatenate((pos_indices[:train[0]], neg_indices[:train[0]]))
-        test_indices = np.concatenate((pos_indices[:test[0]], neg_indices[:test[0]]))
+        train_indices = np.concatenate(
+            (pos_indices[: train[0]], neg_indices[: train[0]])
+        )
+        test_indices = np.concatenate((pos_indices[: test[0]], neg_indices[: test[0]]))
         np.random.shuffle(train_indices)
         np.random.shuffle(test_indices)
 
@@ -181,8 +208,9 @@ class GermanDataset(Dataset):
         for train_indices, test_indices in split:
             yield DataSubset(self, train_indices), DataSubset(self, test_indices)
 
-    def shuffle_split(self, k: int = 10, train_size: Union[float, int] = 0.9
-                      ) -> Iterator[Tuple[Dataset, Dataset]]:
+    def shuffle_split(
+        self, k: int = 10, train_size: Union[float, int] = 0.9
+    ) -> Iterator[Tuple[Dataset, Dataset]]:
         """
         Return stratified training and testing folds with the same data
         distribution as the source data.
@@ -191,8 +219,9 @@ class GermanDataset(Dataset):
             int, the absolute number of samples to use.
         :returns: An iterator of (train, test) datasets.
         """
-        splitter = StratifiedShuffleSplit(n_splits=k, train_size=train_size,
-                                          test_size=None)
+        splitter = StratifiedShuffleSplit(
+            n_splits=k, train_size=train_size, test_size=None
+        )
         labels = self.get_labels()
         splits = splitter.split(np.zeros(len(self)), labels)
 
@@ -200,30 +229,38 @@ class GermanDataset(Dataset):
             yield DataSubset(self, train_indices), DataSubset(self, test_indices)
 
     def vectorize_window(self, window: List[etree._Element]) -> Sample:
-        tokenizer = nltk.tokenize.RegexpTokenizer(r'\w+|[^\w\s]')
+        tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
         tokens = token_featurizer(window, tokenizer)
         y = get_label(window[self.window_label_idx])
 
         # lowercase as the tokens will also be lowercased
         speaker_tokens = tokenizer.tokenize(
-            get_speaker(window[self.window_label_idx]).lower())
+            get_speaker(window[self.window_label_idx]).lower()
+        )
 
         if self.bag_of_words:
-            X = ' '.join(tokens)
+            X = " ".join(tokens)
         else:
             X = np.array([self.vocab.token_to_idx.get(token, 0) for token in tokens])
 
         X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
 
-        clusterlabels = self.cluster_fmt(window, self.window_label_idx, self.num_clusterlabels)
+        clusterlabels = self.cluster_fmt(
+            window, self.window_label_idx, self.num_clusterlabels
+        )
 
-        return {len(X): {'data': X,
-                         'speaker_data': np.array(X_speaker),
-                         'cluster_data': np.array(clusterlabels),
-                         'label': np.array([y])}}
+        return {
+            len(X): {
+                "data": X,
+                "speaker_data": np.array(X_speaker),
+                "cluster_data": np.array(clusterlabels),
+                "label": np.array([y]),
+            }
+        }
 
 
 class DataSubset(GermanDataset):
+
     def __init__(self, data: GermanDataset, indices: List[int]) -> None:
         self.samples = [data.samples[i] for i in indices]
         self.vocab = data.vocab
@@ -249,11 +286,16 @@ def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._El
     return out
 
 
-def get_iterator(dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32) -> DataLoader:
-    return DataLoader(dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets))
+def get_iterator(
+    dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32
+) -> DataLoader:
+    return DataLoader(
+        dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets)
+    )
 
 
 class CollateWithBuckets:
+
     def __init__(self, buckets: List[int]) -> None:
         self.buckets = buckets
 
@@ -272,9 +314,12 @@ class CollateWithBuckets:
                     if size <= bucket_size:
                         if bucket_size in out:
                             out[bucket_size] = self.concat_samples(
-                                out[bucket_size], self.pad(s, bucket_size - size))
+                                out[bucket_size], self.pad(s, bucket_size - size)
+                            )
                         else:
-                            out[bucket_size] = ensure_2d(self.pad(s, bucket_size - size))
+                            out[bucket_size] = ensure_2d(
+                                self.pad(s, bucket_size - size)
+                            )
 
                         break
                 else:
@@ -282,27 +327,40 @@ class CollateWithBuckets:
                     bucket_size = buckets[-1]
                     if bucket_size in out:
                         out[bucket_size] = self.concat_samples(
-                            out[bucket_size], self.pad(s, bucket_size - size))
+                            out[bucket_size], self.pad(s, bucket_size - size)
+                        )
                     else:
                         out[bucket_size] = ensure_2d(self.pad(s, bucket_size - size))
 
         return out
 
-    def pad(self, sample_dict: Dict[str, np.ndarray], amount: int) -> Dict[str, np.ndarray]:
+    def pad(
+        self, sample_dict: Dict[str, np.ndarray], amount: int
+    ) -> Dict[str, np.ndarray]:
         if amount >= 0:
-            return {'data': np.pad(sample_dict['data'], (0, amount), 'constant'),
-                    'speaker_data': np.pad(sample_dict['speaker_data'], (0, amount), 'constant'),
-                    'cluster_data': sample_dict['cluster_data'],
-                    'label': sample_dict['label']}
+            return {
+                "data": np.pad(sample_dict["data"], (0, amount), "constant"),
+                "speaker_data": np.pad(
+                    sample_dict["speaker_data"], (0, amount), "constant"
+                ),
+                "cluster_data": sample_dict["cluster_data"],
+                "label": sample_dict["label"],
+            }
         else:
-            return {'data': sample_dict['data'][:amount],
-                    'speaker_data': sample_dict['speaker_data'][:amount],
-                    'cluster_data': sample_dict['cluster_data'],
-                    'label': sample_dict['label']}
+            return {
+                "data": sample_dict["data"][:amount],
+                "speaker_data": sample_dict["speaker_data"][:amount],
+                "cluster_data": sample_dict["cluster_data"],
+                "label": sample_dict["label"],
+            }
 
-    def concat_samples(self, sample1: Dict[str, np.ndarray], sample2: Dict[str, np.ndarray]) -> Dict[str, np.ndarray]:
-        return {key: np.append(ensure_2d(sample1[key]), ensure_2d(sample2[key]), 0)
-                for key in sample1.keys()}
+    def concat_samples(
+        self, sample1: Dict[str, np.ndarray], sample2: Dict[str, np.ndarray]
+    ) -> Dict[str, np.ndarray]:
+        return {
+            key: np.append(ensure_2d(sample1[key]), ensure_2d(sample2[key]), 0)
+            for key in sample1.keys()
+        }
 
 
 def ensure_2d(arr: Union[np.ndarray, Dict[str, np.ndarray]]) -> np.ndarray:
@@ -316,10 +374,16 @@ def to_tensors(sample: Sample) -> Sample:
     out: Sample = {}
 
     for size, sample_dict in sample.items():
-        out[size] = {'data': Variable(torch.from_numpy(sample_dict['data'])).long(),
-                     'speaker_data': Variable(torch.from_numpy(sample_dict['speaker_data'])).long(),
-                     'cluster_data': Variable(torch.from_numpy(sample_dict['cluster_data'])).long(),
-                     'label': Variable(torch.from_numpy(sample_dict['label'])).float()}
+        out[size] = {
+            "data": Variable(torch.from_numpy(sample_dict["data"])).long(),
+            "speaker_data": Variable(
+                torch.from_numpy(sample_dict["speaker_data"])
+            ).long(),
+            "cluster_data": Variable(
+                torch.from_numpy(sample_dict["cluster_data"])
+            ).long(),
+            "label": Variable(torch.from_numpy(sample_dict["label"])).float(),
+        }
 
     return out
 
@@ -328,10 +392,12 @@ def to_gpu(sample: Sample) -> Sample:
     if torch.cuda.is_available():
         out: Sample = {}
         for size, sample_dict in sample.items():
-            out[size] = {'data': sample_dict['data'].cuda(),
-                         'speaker_data': sample_dict['speaker_data'].cuda(),
-                         'cluster_data': sample_dict['cluster_data'].cuda(),
-                         'label': sample_dict['label'].cuda()}
+            out[size] = {
+                "data": sample_dict["data"].cuda(),
+                "speaker_data": sample_dict["speaker_data"].cuda(),
+                "cluster_data": sample_dict["cluster_data"].cuda(),
+                "label": sample_dict["label"].cuda(),
+            }
 
         return out
     else:
@@ -341,46 +407,48 @@ def to_gpu(sample: Sample) -> Sample:
 def to_cpu(sample: Sample) -> Sample:
     out: Sample = {}
     for size, sample_dict in sample.items():
-        out[size] = {'data': sample_dict['data'].cpu(),
-                     'speaker_data': sample_dict['speaker_data'].cpu(),
-                     'cluster_data': sample_dict['cluster_data'].cpu(),
-                     'label': sample_dict['label'].cpu()}
+        out[size] = {
+            "data": sample_dict["data"].cpu(),
+            "speaker_data": sample_dict["speaker_data"].cpu(),
+            "cluster_data": sample_dict["cluster_data"].cpu(),
+            "label": sample_dict["label"].cpu(),
+        }
 
     return out
 
 
 def load_xml_from_disk(path: str) -> etree._Element:
-    parser = etree.XMLParser(ns_clean=True, encoding='utf-8')
-    with open(path, 'r', encoding='utf-8') as f:
-        return etree.fromstring(f.read().encode('utf-8'), parser)
+    parser = etree.XMLParser(ns_clean=True, encoding="utf-8")
+    with open(path, "r", encoding="utf-8") as f:
+        return etree.fromstring(f.read().encode("utf-8"), parser)
 
 
 def get_label(node: etree._Element) -> int:
-    is_speech = node.attrib['is-speech']
-    return 1 if is_speech == 'true' else 0
+    is_speech = node.attrib["is-speech"]
+    return 1 if is_speech == "true" else 0
 
 
 def get_speaker(node: etree._Element) -> str:
-    is_speech = node.attrib['is-speech']
+    is_speech = node.attrib["is-speech"]
 
-    if is_speech == 'true':
-        return node.attrib['speaker']
+    if is_speech == "true":
+        return node.attrib["speaker"]
     else:
-        return ''
+        return ""
 
 
 def create_dictionary(paths: List[str]) -> Vocab:
     tokenizer = nltk.tokenize.WordPunctTokenizer()
     all_words: Set[str] = set()
 
-    for path in tqdm(paths, desc='Creating dictionary'):
+    for path in tqdm(paths, desc="Creating dictionary"):
         xml = load_xml_from_disk(path)
-        text = ' '.join(xml.xpath('/pdf2xml/page/text/text()')).lower()
+        text = " ".join(xml.xpath("/pdf2xml/page/text/text()")).lower()
         tokens = tokenizer.tokenize(text)
         all_words |= set(tokens)
 
-    word_to_idx = {w: i+1 for i, w in enumerate(all_words)}
-    idx_to_word = {i+1: w for i, w in enumerate(all_words)}
+    word_to_idx = {w: i + 1 for i, w in enumerate(all_words)}
+    idx_to_word = {i + 1: w for i, w in enumerate(all_words)}
 
     return Vocab(word_to_idx, idx_to_word)
 
@@ -388,7 +456,7 @@ def create_dictionary(paths: List[str]) -> Vocab:
 def token_featurizer(nodes, tokenizer):
     out = []
     for node in nodes:
-        text = ' '.join(node.xpath('.//text()')).lower()
+        text = " ".join(node.xpath(".//text()")).lower()
         tokens = tokenizer.tokenize(text)
         out.extend(tokens)
 

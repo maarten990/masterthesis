@@ -6,16 +6,31 @@ from torch.autograd import Variable
 
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
-    def __init__(self, input_size, seq_len, embed_size, filters, dropout,
-                 num_layers=1, batch_norm=False):
+
+    def __init__(
+        self,
+        input_size,
+        seq_len,
+        embed_size,
+        filters,
+        dropout,
+        num_layers=1,
+        batch_norm=False,
+    ):
         super().__init__()
 
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
         self.layers = nn.ModuleList([])
-        self.layers.append(nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters]))
+        self.layers.append(
+            nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters])
+        )
         for i in range(num_layers - 1):
-            self.layers.append(nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters]))
+            self.layers.append(
+                nn.ModuleList(
+                    [nn.Conv1d(embed_size, num, size) for num, size in filters]
+                )
+            )
 
         self.batch_norm = batch_norm
         self.batch_norms = nn.ModuleList([nn.BatchNorm1d(num) for num, _ in filters])
@@ -53,6 +68,7 @@ class CNNClassifier(nn.Module):
 
 class LSTMClassifier(nn.Module):
     """ LSTM-based speech classifier. """
+
     def __init__(self, input_size, embed_size, hidden_size, num_layers, dropout):
         super().__init__()
 
@@ -62,9 +78,14 @@ class LSTMClassifier(nn.Module):
 
         self.dropout = nn.Dropout(dropout)
         self.embedding = nn.Embedding(input_size, embed_size)
-        self.rnn = nn.LSTM(embed_size, hidden_size, num_layers,
-                           bidirectional=True, batch_first=True,
-                           dropout=dropout if num_layers > 1 else 0)
+        self.rnn = nn.LSTM(
+            embed_size,
+            hidden_size,
+            num_layers,
+            bidirectional=True,
+            batch_first=True,
+            dropout=dropout if num_layers > 1 else 0,
+        )
 
         # the output size of the rnn is 2 * hidden_size because it's bidirectional
         self.output_size = hidden_size * 2
@@ -95,6 +116,7 @@ class LSTMClassifier(nn.Module):
 
 
 class NoClusterLabels(nn.Module):
+
     def __init__(self, recurrent_clf, dropout, batch_norm=False):
         super().__init__()
         self.batch_norm = batch_norm
@@ -122,6 +144,7 @@ class NoClusterLabels(nn.Module):
 
 
 class CategoricalClusterLabels(nn.Module):
+
     def __init__(self, recurrent_clf, n_labels, window_size, dropout, batch_norm=False):
         super().__init__()
         self.batch_norm = batch_norm
@@ -149,6 +172,7 @@ class CategoricalClusterLabels(nn.Module):
 
 
 class CategoricalClusterLabelsOnlyCenter(nn.Module):
+
     def __init__(self, recurrent_clf, n_labels, dropout, batch_norm=False):
         super().__init__()
         self.batch_norm = batch_norm
@@ -176,13 +200,20 @@ class CategoricalClusterLabelsOnlyCenter(nn.Module):
 
 
 class ClusterLabelsCNN(nn.Module):
+
     def __init__(self, recurrent_clf, n_labels, dropout, batch_norm=False):
         super().__init__()
         self.batch_norm = batch_norm
         self.recurrent_clf = recurrent_clf
         self.recurrent_clf.batch_norm = batch_norm
-        self.label_cnn = CNNClassifier(n_labels, 5, n_labels, [(32, 1), (32, 2), (32, n_labels)],
-                                       dropout, num_layers=1)
+        self.label_cnn = CNNClassifier(
+            n_labels,
+            5,
+            n_labels,
+            [(32, 1), (32, 2), (32, n_labels)],
+            dropout,
+            num_layers=1,
+        )
 
         output_size = self.recurrent_clf.output_size + self.label_cnn.output_size
         self.dropout = nn.Dropout(dropout)
@@ -206,6 +237,7 @@ class ClusterLabelsCNN(nn.Module):
 
 
 class ClusterLabelsRNN(nn.Module):
+
     def __init__(self, recurrent_clf, n_labels, dropout, batch_norm=False):
         super().__init__()
         self.batch_norm = batch_norm
