@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple, Union
+from typing import Any, Dict, List, Tuple, Union
 import os
 
 import matplotlib.pyplot as plt
@@ -96,24 +96,24 @@ def mean_aoc(precision: List[float], recall: List[float]) -> float:
 
 def mean_of_pr(precisions: List[List[float]], recalls: List[List[float]]) -> Dict[float, float]:
     buckets = np.linspace(0, 1)
-    out: Dict[float, List[float]] = {b: [] for b in buckets}
+    hist: Dict[float, List[float]] = {b: [] for b in buckets}
 
     # iterate over trials
     for ps, rs in zip(precisions, recalls):
         for p, r in zip(ps, rs):
             for b, b_next in zip(buckets, buckets[1:]):
                 if r < b_next:
-                    out[b].append(p)
+                    hist[b].append(p)
                     break
 
-    for b in buckets:
-        out[b] = np.mean(out[b]) if out[b] else 0.0
+    out: Dict[float, float] = {
+        b: np.mean(values) if values else 0.0
+        for b, values in hist.items()
+    }
 
     # filter out any zero dips other than the last one, since they're just
     # caused by nothing happening to fall in that bin
-    out = {b: v for b, v in out.items() if v != 0.0 or b == 1}
-
-    return out
+    return {b: v for b, v in out.items() if v != 0.0 or b == 1}
 
 
 def max_f1(precision: List[float], recall: List[float]) -> float:
@@ -158,7 +158,7 @@ def plot(curves: Dict[str, Union[List[float], Tuple[List[float], List[float]]]],
     return ax
 
 
-def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, float]:
+def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, Any]:
     p, r = precision_recall_values(*get_values(model, get_iterator(dataset, [40])))
 
     scores = {'F1': max_f1(p, r),

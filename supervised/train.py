@@ -147,22 +147,27 @@ def setup_and_train(params: Union[CNNParams, RNNParams], model_fn: Callable[[nn.
                     progbar: bool = True) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
+    argdict: Dict[str, Any]
     if isinstance(params, RNNParams):
         buckets = [5, 10, 15, 25, 40]
-        argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
-                   'embed_size': params.embed_size,
-                   'hidden_size': params.hidden_size,
-                   'num_layers': params.num_layers,
-                   'dropout': params.dropout}
+        argdict = {
+            'input_size': len(dataset.vocab.token_to_idx) + 1,
+            'embed_size': params.embed_size,
+            'hidden_size': params.hidden_size,
+            'num_layers': params.num_layers,
+            'dropout': params.dropout
+        }
         recurrent_model = LSTMClassifier(**argdict)
     elif isinstance(params, CNNParams):
         buckets = [40]
-        argdict = {'input_size': len(dataset.vocab.token_to_idx) + 1,
-                   'seq_len': buckets[0],
-                   'embed_size': params.embed_size,
-                   'filters': params.filters,
-                   'dropout': params.dropout,
-                   'num_layers': params.num_layers}
+        argdict = {
+            'input_size': len(dataset.vocab.token_to_idx) + 1,
+            'seq_len': buckets[0],
+            'embed_size': params.embed_size,
+            'filters': params.filters,
+            'dropout': params.dropout,
+            'num_layers': params.num_layers
+        }
         recurrent_model = CNNClassifier(**argdict)
 
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
