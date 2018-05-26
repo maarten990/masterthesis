@@ -15,13 +15,13 @@ terms of internal representation are entirely unstructured. That means that none
 of the rich structure highlighted in Figure~\ref{fig:pdf_roi} is actually
 present in a computer-usable way.
 
-\begin{figure}[htbp]
+\begin{figure}[p]
   \centering
   \includegraphics[page=16,height=0.95\textheight]{../pdfs/18001.pdf}
   \caption{A sample page from one of the Bundestag proceedings.}
   \label{fig:pdf_page}
 \end{figure}
-\begin{figure}[htbp]
+\begin{figure}[p]
   \centering
   \includegraphics[height=0.85\textheight]{figures/pdf_roi.pdf}
   \caption{The same page as in Figure~\ref{fig:pdf_page}, hand-annotated with
@@ -71,16 +71,15 @@ separate system is used (the Apache pdfbox\footnote{https://pdfbox.apache.org/}
 library for Java). By using the bounding boxes of individual characters as the
 base for clustering, the troubles of line-extraction can be fully bypassed.
 
-\begin{figure}[htbp]
+\begin{figure}[p]
   \centering
   \begin{subfigure}[b]{0.6\textwidth} 
-    \centering
     \includegraphics[width=\textwidth]{figures/source.png}
-    \caption{A portion of the source PDF.}
+    \caption{A portion of the source PDF.}%
     \label{fig:source_pdf}
+    \vspace{1cm}
   \end{subfigure}
   \begin{subfigure}[b]{\textwidth}
-	\centering
     \begin{lstlisting}[language=xml, morekeywords={text}]
       <text top="122" left="125" width="143" height="16" font="3">
           <b>Dr. Norbert Lammert </b>
@@ -105,11 +104,11 @@ base for clustering, the troubles of line-extraction can be fully bypassed.
       excerpt in Figure~\ref{fig:source_pdf}. The contents of the \texttt{text}
       elements are used as inputs for the classification algorithm; the layout
       data contained in the properties is not used, as a separate software
-      pipeline is used for the unsupervised clustering.}
+      pipeline is used for the unsupervised clustering.}%
     \label{fig:source_xml}
   \end{subfigure}
   \caption{A sample excerpt from a source PDF, along with its XML representation
-    created by \texttt{pdftohtml}.}
+    created by \texttt{pdftohtml}.}%
   \label{fig:example}
 \end{figure}
 
@@ -127,10 +126,10 @@ stratified sampling. Figure~\ref{fig:data_dist} shows the distribution of the
 number of positive samples per file, giving a guideline as to how many files
 would have to be annotated to reach a desired amount of positive samples.
 
-\begin{figure}[htbp]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\textwidth]{figures/distribution.pdf}
-  \caption{Distribution of the number of positive samples per file}
+  \caption{Distribution of the number of positive samples per file}%
   \label{fig:data_dist}
 \end{figure}
 

@@ -12,7 +12,7 @@ its output as an additional property into the XML data, which is elaborated upon
 in \cref{sec:unsup}. \Cref{fig:overview} shows a high-level
 overview of the two systems and how they interact.
 
-\begin{figure}[htb]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\textwidth]{figures/layout.pdf}
   \caption{A high-level overview of the system. The unsupervised block augments
@@ -32,7 +32,7 @@ By using the bounding boxes of the blocks, they can be clustered based on their
 shape and some additional metadata (e.g.\ occurrence of font types and sizes).
 The following subsections will go into details on the two clustering steps.
 
-\begin{figure}[htb]
+\begin{figure}[tb]
   \centering
   \includegraphics[height=0.5\textheight]{figures/cluster_example.png}
   \caption{An example of clustered blocks of text. Blocks with the same outline
@@ -72,7 +72,7 @@ in $\mathcal{O}(n^3)$, single-linkage clustering can be done in
 $\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more usable on
 realistic datasets.
 
-\begin{figure}[htb]
+\begin{figure}[tb]
   \centering
   \begin{subfigure}[b]{0.40\textwidth} 
     \centering
@@ -142,7 +142,7 @@ instantiated with the parameters corresponding to the lowest loss that was
 obtained. Regularisation is done through a combination of dropout and weight
 decay, the precise amounts to be determined through experimentation.
 
-\begin{figure}[htbp]
+\begin{figure}[p]
   \centering
   \begin{subfigure}[b]{0.45\textwidth}
     \includegraphics[width=\textwidth]{figures/nn_layout.pdf}
@@ -171,6 +171,7 @@ decay, the precise amounts to be determined through experimentation.
 	\bottomrule
       \end{tabular}
       \caption{The default parameters used in the convolutional neural network.}
+      \vspace{1cm}
     \end{subfigure}
 
     \begin{subfigure}[b]{\textwidth}
