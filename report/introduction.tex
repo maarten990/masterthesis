@@ -1,24 +1,42 @@
-\section{Introduction}
-The Political Mashup
-project\footnote{http://search.politicalmashup.nl/about.html} aims to digitize
-the world's political proceedings in order to make them easily accessible and
-searchable. Unfortunately, the published documents are often primarily intended
-to be human-readable, without the embedded semantic structure required to
-properly index this data in a digital way. This semantic information is
-currently recovered using rule-based methods. Since the data gets transcribed by
-a human typist, compiled to a PDF, and then goes back into an imperfect PDF
-decompiler, there is a lot of room for minor variations in the output even
-though the layout of the document itself is consistent. Dealing with this in a
-rule-based system entails using either broad rules that lead to a larger
-probability of false positives, or a large amount of narrow rules which can
-quickly lead to a spaghetti-like mess of special cases and is very fragile to
-unseen issues.
+\section{Introduction} A healthy democracy relies on a transparent political
+process that is open to the common populace\todo[inline]{hier valt vast iets leuks te
+quoten van een politiek filosoof}. A common step towards achieving this is by
+publishing the proceedings of the parliament's meetings, such as the
+\emph{Bundestag} in Germany\footnote{https://www.bundestag.de/protokolle} or the
+\emph{Tweede Kamer} in the
+Netherlands\footnote{https://www.tweedekamer.nl/kamerstukken}.  These
+proceedings can be useful in various ways, for example:
+\begin{itemize}
+  \item Double-checking whether a certain politician's actions in the parliament
+    are consistent with their public stance.
+  \item Using them as a source of data for text analysis, such as classifying
+    political ideology\citep{ideology}.
+  \item Tracking the change in ideological leaning of a politician or party over
+    time\cite{mittromney}.
+\end{itemize}
+In each of these cases it would be hugely beneficial if the data was properly
+indexed. If you want to know John Doe's stance on immigration, you would ideally
+simply query a database for speeches by John Doe regarding the topic of
+immigration without having to manually skim over hundreds of documents to find
+the relevant speeches.  It is unfortunate then that many of these documents are
+published solely in unstructured formats, such as PDF or plain text.  Projects
+such as Political Mashup\footnote{http://search.politicalmashup.nl/about.html}
+handle this by writing systems to parse and then index these documents. The
+semantic information required for indexing is currently recovered using
+rule-based methods. In the case of a PDF document, this is fairly challenging.
+The data often gets transcribed by a human typist, compiled to a PDF, and then
+goes back into a PDF decompiler for easier processing; this adds a lot of places
+where minor variations can occur in the output even though the document itself
+uses a consistent layout.  Dealing with this in a rule-based system entails
+using either highly general rules that lead to a large probability of false
+positives, or a large amount of highly specific rules which can quickly lead to
+a spaghetti-like mess of special cases and is very fragile to unseen cases.
 
 I propose that by using a small number of manually annotated documents as a
 dataset, a machine learning algorithm can learn to classify sentences in a way
 that allows it to segment a document into its constituent parts, while being
 more robust to noise than its rule-based counterpart. The common ways to do
-sentence classification (e.g. convolutional neural networks \citep{kim2014conv}
+sentence classification (e.g.\ convolutional neural networks \citep{kim2014conv}
 , recurrent neural networks or the simpler bag-of-words models) operate on
 sentences in a vacuum, considering only their linguistic contents and ignoring
 any contextual information that might be present. This is to be expected
