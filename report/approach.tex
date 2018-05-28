@@ -16,8 +16,7 @@ overview of the two systems and how they interact.
   \centering
   \includegraphics[width=\textwidth]{figures/layout.pdf}
   \caption{A high-level overview of the system. The unsupervised block augments
-  the input to the classifier.}%
-  \label{fig:overview}
+  the input to the classifier.\label{fig:overview}}
 \end{figure}
 
 \subsection{Unsupervised}%
@@ -36,8 +35,7 @@ The following subsections will go into details on the two clustering steps.
   \centering
   \includegraphics[height=0.5\textheight]{figures/cluster_example.png}
   \caption{An example of clustered blocks of text. Blocks with the same outline
-    color belong to the same cluster.}%
-  \label{fig:clustered}
+  color belong to the same cluster.\label{fig:clustered}}
 \end{figure}
 
 \subsubsection{Hierarchical Agglomerative Clustering}
@@ -86,8 +84,7 @@ realistic datasets.
     \caption{After}
   \end{subfigure}
   \caption{An example of hierarical agglomerative clustering, where the nodes
-  are clustered by distance.}%
-  \label{fig:hac}
+  are clustered by distance.\label{fig:hac}}
 \end{figure}
 
 After the dendrogram is constructed, it has to be cut at some level to obtain
@@ -116,16 +113,26 @@ After the data is augmented by the previously described clustering algorithms,
 it's fed into a convolutional neural network for classification. Since the
 source PDFs have a dual column layout with rather short lines, a sliding window
 is used to add valuable context, with the center element in the window supplying
-both the label (i.e.\ does or does not start a speech) and the cluster type. The
-text content of this window is then entered into a standard convolutional neural
-network architecture similar to the one proposed by \textcite{kim2014conv}.
-First an embedding layer is used to learn a high-dimensional representation of
-the words (no pre-trained embeddings were used because of both the specialized
-political domain of the data as well as a lack of quality pre-trained German models),
-followed by a number of Convolutional filters with 1-max pooling. The output of
-the filters is then concatenated into a single feature vector, which is amended 
-with the cluster labels of each element in the sliding window as an additional
-feature. This feature vector is then fedinto a standard fully-connected neural
+the label (i.e.\ does or does not start a speech). The text content of this
+window is then entered into a standard convolutional neural network architecture
+similar to the one proposed by \textcite{kim2014conv}.  First an embedding layer
+is used to learn a high-dimensional representation of the words (no pre-trained
+embeddings were used because of both the specialized political domain of the
+data as well as a lack of quality pre-trained German models), followed by a
+to-be-determined number of convolutional filters with 1-max pooling. The output
+of the filters is then concatenated into a single feature vector, which is
+combined with the clustering data in one of three ways, which will all be
+evaluated:
+\begin{enumerate}
+  \item The cluster type of the center element of the window is added to the
+    feature vector.
+  \item The cluster types of each element in the window are added to the
+    feature vector.
+  \item An additional smaller CNN is applied to the cluster types of each
+    element in the window, the output of which is concatenated with the feature
+    vector.
+\end{enumerate}
+The resulting feature vector is then fed into a standard fully-connected neural
 network. This network features one hidden layer with a ReLU activation
 ($\mathrm{relu}(x) = \max(0, x)$) and a single output node with a sigmoid
 activation. The layout of this system is detailed in \cref{fig:model_full} along
@@ -133,14 +140,15 @@ with its parameters and their baseline value.
 
 The network is trained for 100 epochs, stopping early once no improvement in
 training loss has been made for 10 epochs. The optimisation process is done
-using the Adadelta\citep{adadelta} algorithm, with binary cross-entropy as the loss
-function.  The loss will exhibit some up and down fluctuations after the global
-minimum has been reached; to account for this, the best loss so far along with
-the corresponding model parameters is kept track of throughout the learning
+using the Adadelta\citep{adadelta} algorithm, with binary cross-entropy as the
+loss function.  The loss will exhibit some up and down fluctuations after the
+global minimum has been reached; to account for this, the best loss so far along
+with the corresponding model parameters is kept track of throughout the learning
 process. Once all the epochs have been completed, the output is the model
 instantiated with the parameters corresponding to the lowest loss that was
-obtained. Regularisation is done through a combination of dropout and weight
-decay, the precise amounts to be determined through experimentation.
+obtained. Regularisation is done through a combination of dropout\citep{dropout}
+and an upper limit on the L2 norm of each weight vector\citep{l2norm}, the
+precise values to be determined through experimentation.
 
 \begin{figure}[p]
   \centering
@@ -151,23 +159,22 @@ decay, the precise amounts to be determined through experimentation.
       text gets put into a convolutional neural network, the output of which is
       fed together with the cluster type into a fully connected neural network.
       The sigmoid function is applied to the output of this final neural network
-    to obtain the classification.}%
-    \label{fig:nn_layout}
+    to obtain the classification.\label{fig:nn_layout}}
   \end{subfigure}
   \hspace{0.05\textwidth}
   \begin{subfigure}[b]{0.45\textwidth}
     \begin{subfigure}[b]{\textwidth}
       \centering
-      \begin{tabular}{llr}
+      \begin{tabular}{lr}
 	\toprule
-	& Parameter & Default value \\
+	Parameter & Default value \\
 	\midrule
-	& Window size & 9 \\
-	& Word embedding size & 300 \\
-	& Number of filters & 100 \\
-	& Filter sizes & 3, 5, 7 \\
-	& Activation & ReLU \\
-	& Pooling type & 1-max \\
+	Window size & 9 \\
+	Word embedding size & 300 \\
+	Number of filters & 100 \\
+	Filter sizes & 3, 5, 7 \\
+	Activation & ReLU \\
+	Pooling type & 1-max \\
 	\bottomrule
       \end{tabular}
       \caption{The default parameters used in the convolutional neural network.}
@@ -176,21 +183,36 @@ decay, the precise amounts to be determined through experimentation.
 
     \begin{subfigure}[b]{\textwidth}
       \centering
-      \begin{tabular}{llr}
+      \begin{tabular}{lr}
 	\toprule
-	& Parameter & Default value \\
+	Parameter & Default value \\
 	\midrule
-	& Number of hidden layers & 1 \\
-	& Hidden layer size & 50 \\
-	& Number of outputs & 1 \\
-	& Output activation & Sigmoid \\
+	Number of hidden layers & 1 \\
+	Hidden layer size & 50 \\
+	Number of outputs & 1 \\
+	Output activation & Sigmoid \\
 	\bottomrule
       \end{tabular}
       \caption{The default parameters used in the fully-connected neural network.}
+      \vspace{1cm}
+    \end{subfigure}
+
+    \begin{subfigure}[b]{\textwidth}
+      \centering
+      \begin{tabular}{lr}
+	\toprule
+	Parameter & Default value \\
+	\midrule
+	Dropout rate & 0.5 \\
+	learning rate & 1.0 \\
+	$\rho$ & 0.9 \\
+	maximum L2 norm & 3 \\
+	\bottomrule
+      \end{tabular}
+      \caption{The default parameters used for the optimization process.}
     \end{subfigure}
   \end{subfigure}
-  \caption{The model and its parameters.}%
-  \label{fig:model_full}
+  \caption{The model and its parameters.\label{fig:model_full}}
 \end{figure}
 
 \subsubsection{Convolutional Neural Networks}
@@ -224,12 +246,11 @@ Convolutional neural networks (CNNs) work by taking a number of filters
 (sometimes called kernels or feature maps) of a specified size and convolving
 these over the input data. A simplified example using one filter is shown in
 \cref{fig:cnn}.
-\begin{figure}[htb]
+\begin{figure}[tb]
   \centering
   \includegraphics[width=\textwidth]{figures/cnn.pdf}
   \caption{A simplified convolutional neural network with one filter and
-    max pooling.}%
-  \label{fig:cnn}
+  max pooling.\label{fig:cnn}}
 \end{figure}
 In this example, the input text is convolved with a filter with a width of 3 and
 a stride of 1 --- that is, each application of the filter considers three

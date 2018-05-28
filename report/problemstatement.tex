@@ -3,23 +3,23 @@
 The German parliament, called the \emph{Bundestag}, publishes the proceedings of
 their meetings, as an effort to open up the political process to the common
 people. These proceedings have been continously published starting in 1949.
-Figure~\ref{fig:pdf_page} shows a sample page from one of these proceedings; the
+\Cref{fig:pdf_page} shows a sample page from one of these proceedings; the
 left column contains a continuation of a speech from the previous page as well
 as two moderately sized speeches, while the right column contains a large number
 of very short speeches. Having a large corpus of political proceedings like this
 is wonderful and opens a lot of doors for research regarding political
-discourse. Figure~\ref{fig:pdf_roi} shows the same page seen in
-Figure~\ref{fig:pdf_page}, but with a number of regions of interest (manually)
+discourse. \Cref{fig:pdf_roi} shows the same page seen in
+\cref{fig:pdf_page}, but with a number of regions of interest (manually)
 colored in. Unfortunately this data is only available as PDF files, which in
 terms of internal representation are entirely unstructured. That means that none
-of the rich structure highlighted in Figure~\ref{fig:pdf_roi} is actually
+of the rich structure highlighted in \cref{fig:pdf_roi} is actually
 present in a computer-usable way.
 
 \begin{figure}[p]
   \centering
   \includegraphics[page=16,height=0.95\textheight]{../pdfs/18001.pdf}
-  \caption{A sample page from one of the Bundestag proceedings.}
-  \label{fig:pdf_page}
+  \caption{A sample page from one of the Bundestag
+    proceedings.\label{fig:pdf_page}}
 \end{figure}
 \begin{figure}[p]
   \centering
@@ -30,18 +30,17 @@ present in a computer-usable way.
     a speech, and contain information about who the speakers is. The blue
     regions are little interruptions (\emph{Heiterkeits}), often signifying
     approval or displeasure (the regularly seen \emph{Beifall} means applause).
-    The green regions indicate plain blocks of text.}
-  \label{fig:pdf_roi}
+  The green regions indicate plain blocks of text.\label{fig:pdf_roi}}
 \end{figure}
 
 The central problem in this thesis is the extraction of speeches from the
 documents, transforming each document into a structured series of speeches that
 can be serve as a useful entry point into further research. As a first step, the
-structural layout (as in Figure~\ref{fig:pdf_roi}) will be extracted using
+structural layout (as in \cref{fig:pdf_roi}) will be extracted using
 unsupervised clustering algorithms. The textual contents of the document are
 then fed into supervised text classifier, where each piece of text is augmented
 with the corresponding layout information previously obtained. More details on
-this process will be supplied in Section~\ref{sec:method}.
+this process will be supplied in \cref{sec:method}.
 
 As annotating data by hand is an expensive process, a big focus is on limiting
 the amount of required training data as much as possible; it would be preferable
@@ -60,7 +59,7 @@ a layout with two columns of text). This is dealt with by using the
 \texttt{pdftohtml} script from the Poppler PDF rendering
 library\footnote{https://poppler.freedesktop.org/}. This script converts a PDF
 file to an XML file containing logical lines of text along with the coordinates
-and size of the line. Figure~\ref{fig:example} shows an example of a portion of
+and size of the line. \Cref{fig:example} shows an example of a portion of
 a PDF file and the corresponding XML\@. The contents of the \texttt{text} elements
 forms the plaintext that is fed into the classification algorithm. Although the
 layout information contained in the properties (\texttt{top}, \texttt{left},
@@ -75,8 +74,7 @@ base for clustering, the troubles of line-extraction can be fully bypassed.
   \centering
   \begin{subfigure}[b]{0.6\textwidth} 
     \includegraphics[width=\textwidth]{figures/source.png}
-    \caption{A portion of the source PDF.}%
-    \label{fig:source_pdf}
+    \caption{A portion of the source PDF.\label{fig:source_pdf}}
     \vspace{1cm}
   \end{subfigure}
   \begin{subfigure}[b]{\textwidth}
@@ -104,12 +102,10 @@ base for clustering, the troubles of line-extraction can be fully bypassed.
       excerpt in Figure~\ref{fig:source_pdf}. The contents of the \texttt{text}
       elements are used as inputs for the classification algorithm; the layout
       data contained in the properties is not used, as a separate software
-      pipeline is used for the unsupervised clustering.}%
-    \label{fig:source_xml}
+    pipeline is used for the unsupervised clustering.\label{fig:source_xml}}
   \end{subfigure}
   \caption{A sample excerpt from a source PDF, along with its XML representation
-    created by \texttt{pdftohtml}.}%
-  \label{fig:example}
+    created by \texttt{pdftohtml}.\label{fig:example}}
 \end{figure}
 
 The dataset was obtained through a rule-based system as described in the
@@ -121,17 +117,21 @@ contain 43,252 \texttt{<text>} elements indicating the start of speeches (that
 is, positive training samples), and 2,602,793 other elements (negative samples).
 This adds to a total of 2,646,045 training samples, taking up 503 MiB. This is a
 rather lopsided distribution (there are roughly 60 negative samples for each
-positive sample), which will have to be accounted for by, for instance, using
-stratified sampling. Figure~\ref{fig:data_dist} shows the distribution of the
-number of positive samples per file, giving a guideline as to how many files
+positive sample). Since machine learning algorithms tends to work best with a
+roughly equal amount of samples per label, this discrepancy will be accounted
+for by using stratified sampling. \Cref{fig:data_dist} shows the distribution of
+the number of positive samples per file, giving a guideline as to how many files
 would have to be annotated to reach a desired amount of positive samples.
-
 \begin{figure}[tb]
   \centering
   \includegraphics[width=\textwidth]{figures/distribution.pdf}
-  \caption{Distribution of the number of positive samples per file}%
-  \label{fig:data_dist}
+  \caption{Distribution of the number of positive samples per
+    file.\label{fig:data_dist}}
 \end{figure}
+Unfortunately due to the issues mentioned in the introduction, the labeling of
+these documents is not entirely perfect. Since this would form an issue when
+evaluating the system, a subset of 5 files (comprising 705 positive samples) has
+been manually checked and corrected for errors.
 
 \subsection{Research Question}
 As the application of supervised text classification is fairly basic and
