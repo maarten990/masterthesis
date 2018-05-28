@@ -37,12 +37,14 @@ class CNNParams:
         epochs: int,
         filters: List[Tuple[int, int]],
         num_layers: int,
+        max_norm: float,
     ) -> None:
         self.embed_size = embed_size
         self.dropout = dropout
         self.epochs = epochs
         self.filters = filters
         self.num_layers = num_layers
+        self.max_norm = max_norm
 
 
 class RNNParams:
@@ -55,12 +57,28 @@ class RNNParams:
         epochs: int,
         num_layers: int,
         hidden_size: int,
+        max_norm: float,
     ) -> None:
         self.embed_size = embed_size
         self.dropout = dropout
         self.epochs = epochs
         self.num_layers = num_layers
         self.hidden_size = hidden_size
+        self.max_norm = max_norm
+
+
+def clip_norms(model: nn.Module, max_val: float, eps: float = 1e-8) -> None:
+    """
+    Clip the L2 norm of each parameter in a model to a maximum value.
+    :param model: The pytorch model to clip.
+    :param max_val: The maximum value for the L2 norm of the parameters.
+    :param eps: An additional term added to prevent division by zero.
+    """
+    for name, param in model.named_parameters():
+        if "bias" not in name:
+            norm = param.norm(2, dim=0, keepdim=True)
+            desired = torch.clamp(norm, 0, max_val)
+            param = param * (desired / (eps + norm))
 
 
 def train(
@@ -71,6 +89,7 @@ def train(
     gpu: bool = True,
     early_stopping: int = 0,
     progbar: bool = False,
+    max_norm: float = 0,
 ) -> List[float]:
     """Train a Pytorch model.
 
@@ -81,6 +100,9 @@ def train(
     :param gpu: If true, train on the gpu. Otherwise use the cpu.
     :param early_stopping: If 0, don't use early stopping. If positive, stop
         after that many epochs have yielded no improvement in loss.
+    :param progbar: Display a progress bar or not.
+    :param max_norm: Value to clip each weight vector's L2 norm at. If 0, no
+        clipping is done.
     :returns: The value of the model's loss function at every epoch.
     """
     model.train()
@@ -113,6 +135,9 @@ def train(
                 optimizer.zero_grad()
                 loss.backward()
                 optimizer.step()
+
+                if max_norm > 0:
+                    clip_norms(model, max_norm)
 
                 epoch_loss += loss.item()
 
@@ -174,6 +199,7 @@ def setup_and_train(
     gpu: bool = True,
     early_stopping: int = 0,
     progbar: bool = True,
+    max_norm: float = 0,
 ) -> Tuple[nn.Module, List[float]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
@@ -203,7 +229,9 @@ def setup_and_train(
     data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
-    losses = train(model, optimizer, data, epochs, gpu, early_stopping, progbar)
+    losses = train(
+        model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm
+    )
 
     return model, losses
 

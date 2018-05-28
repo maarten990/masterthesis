@@ -167,15 +167,25 @@ def plot(
     return ax
 
 
-def get_scores(model: nn.Module, dataset: Dataset) -> Dict[str, Any]:
-    p, r = precision_recall_values(*get_values(model, get_iterator(dataset, [40])))
+def get_scores(model: nn.Module, dataset: Dataset, gpu: bool = True) -> Dict[str, Any]:
+    p, r = precision_recall_values(
+        *get_values(model, get_iterator(dataset, [40]), gpu=gpu)
+    )
 
     scores = {"F1": max_f1(p, r), "AoC": average_precision(p, r), "pr": (p, r)}
     return scores
 
 
 def cross_val(
-    k, train_size, model_fn, optim_fn, dataset, params, early_stopping=10, testset=None
+    k,
+    train_size,
+    model_fn,
+    optim_fn,
+    dataset,
+    params,
+    early_stopping=10,
+    testset=None,
+    gpu=True,
 ):
     folds = dataset.shuffle_split(k, train_size)
     F1s = []
@@ -198,12 +208,13 @@ def cross_val(
             dataset=train,
             epochs=params.epochs,
             batch_size=50,
-            gpu=True,
+            gpu=gpu,
             early_stopping=early_stopping,
             progbar=False,
+            max_norm=params.max_norm,
         )
         losses.append(loss)
-        scores = get_scores(model, testset)
+        scores = get_scores(model, testset, gpu)
         F1s.append(scores["F1"])
         APs.append(scores["AoC"])
         PRs.append(scores["pr"])
