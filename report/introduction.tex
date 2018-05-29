@@ -35,22 +35,41 @@ a spaghetti-like mess of special cases and is very fragile to unseen cases.
 I propose that by using a small number of manually annotated documents as a
 dataset, a machine learning algorithm can learn to classify sentences in a way
 that allows it to segment a document into its constituent parts, while being
-more robust to noise than its rule-based counterpart. The common ways to do
-sentence classification (e.g.\ convolutional neural networks \citep{kim2014conv}
-, recurrent neural networks or the simpler bag-of-words models) operate on
-sentences in a vacuum, considering only their linguistic contents and ignoring
-any contextual information that might be present. This is to be expected
-considering that most of the common datasets in this area really \emph{are} just
-small bits of text in a vacuum; often-used datasets involve Twitter messages
-or short product reviews. In this case however, the sentences come from a
-document with a rich structure providing a lot of context. Anecdotally, as a
-human it is trivial to discern section headers in a document even when the
-document is in a foreign language; simply the fact that the section header might
-be printed in bold and centered rather than left-aligned gives it away.
-Incorporating this structural data into the learning process will hopefully
-increase the performance of the system, either by simply scoring better on the
-used metrics, or perhaps more indirectly by requiring less data or training time
-to achieve the same score.
+more robust to noise than its rule-based counterpart. While the structure of a
+parliamentary debate is tree-shaped (a general example in shown in
+\cref{fig:tree}), this tree is generally both shallow and very rigidly
+structured. As a result, simply classifying the positions in the text where a
+new structural element begins is enough to reconstruct the full tree given the
+domain knowledge about this particular set of documents; some variations can
+occur depending on the particular conventions used by the creator of the
+documents, for example in how speech interruptions by noisy colleagues are
+handled. After the document's layout has been extracted, it is a matter of
+obtaining each element's metadata (such as the speaker and their political
+affiliation for each speech element). This step is outside of the scope of this
+thesis.
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\textwidth]{figures/tree.pdf}
+  \caption{The structure of a parliamentary debate is that of a shallow
+    tree.\label{fig:tree}}
+\end{figure}
+
+The common ways to do sentence classification (e.g.\ convolutional neural
+networks \citep{kim2014conv}, recurrent neural networks or the simpler
+bag-of-words models) operate on sentences in a vacuum, considering only their
+linguistic contents and ignoring any contextual information that might be
+contained in the layout in which the text might have been embedded. This is to
+be expected considering that most of the common datasets in this area really
+\emph{are} just small bits of text in a vacuum; often-used datasets involve
+Twitter messages or short product reviews. In this case however, the sentences
+come from a document with a rich structure providing a lot of context.
+Anecdotally, as a human it is trivial to discern section headers in a document
+even when the document is in a foreign language; simply the fact that the
+section header might be printed in bold and centered rather than left-aligned
+gives it away.  Incorporating this structural data into the learning process
+will hopefully increase the performance of the system, either by simply scoring
+better on the used metrics, or perhaps more indirectly by requiring less data or
+training time to achieve the same score.
 
 %%% Local Variables:
 %%% mode: latex

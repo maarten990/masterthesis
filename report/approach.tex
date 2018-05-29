@@ -138,17 +138,17 @@ network. This network features one hidden layer with a ReLU activation
 activation. The layout of this system is detailed in \cref{fig:model_full} along
 with its parameters and their baseline value.
 
-The network is trained for 100 epochs, stopping early once no improvement in
-training loss has been made for 10 epochs. The optimisation process is done
-using the Adadelta\citep{adadelta} algorithm, with binary cross-entropy as the
-loss function.  The loss will exhibit some up and down fluctuations after the
-global minimum has been reached; to account for this, the best loss so far along
-with the corresponding model parameters is kept track of throughout the learning
-process. Once all the epochs have been completed, the output is the model
-instantiated with the parameters corresponding to the lowest loss that was
-obtained. Regularisation is done through a combination of dropout\citep{dropout}
-and an upper limit on the L2 norm of each weight vector\citep{l2norm}, the
-precise values to be determined through experimentation.
+The network is trained for 100 epochs, stopping early once no significant
+improvement in training loss has been made for 10 epochs. The optimisation
+process is done using the Adadelta\citep{adadelta} algorithm, with binary
+cross-entropy as the loss function and the training data delivered in batches.
+The loss might exhibit some up and down fluctuations after a minimum has been
+reached; to account for this, the best loss so far along with the corresponding
+model parameters is kept track of throughout the learning process. Once all the
+epochs have been completed, the output is the model instantiated with the
+parameters corresponding to the lowest loss that was obtained. Regularisation is
+done through a combination of dropout\citep{dropout} and an upper limit on the
+L2 norm of each weight vector\citep{l2norm}.
 
 \begin{figure}[p]
   \centering
@@ -203,10 +203,11 @@ precise values to be determined through experimentation.
 	\toprule
 	Parameter & Default value \\
 	\midrule
+	Batch size & 50 \\
 	Dropout rate & 0.5 \\
-	learning rate & 1.0 \\
+	Learning rate & 1.0 \\
 	$\rho$ & 0.9 \\
-	maximum L2 norm & 3 \\
+	Maximum L2 norm & 3 \\
 	\bottomrule
       \end{tabular}
       \caption{The default parameters used for the optimization process.}
@@ -214,6 +215,39 @@ precise values to be determined through experimentation.
   \end{subfigure}
   \caption{The model and its parameters.\label{fig:model_full}}
 \end{figure}
+
+\subsubsection{Optimisation process}
+\todo[inline]{Adadelta uitleggen}
+Dropout\citep{dropout} is a Regularisation method that is rather crude at first
+glance; on each batch update, each node in the neural network has a probability
+$p$ of outputting zero (i.e.\ the node being ``disabled''). As a result, nodes
+cannot rely on the output of any other node being present, preventing
+co-adaptation and as a result reducing the probability of overfitting on the
+training data. Dropout is only active during training; when running the network
+in evaluation mode, all nodes are active and the outputs are rescaled by a
+factor of $1 - p$ to account for the now higher activation values.
+There is another way to view dropout. It is commonly known that neural network
+(or really any machine learning classifier) performance can be improved by
+training a large number of them and averaging their outputs. Since every
+combination of nodes disabled by dropout could be considered a unique neural
+network, dropout acts as computationally cheap approximation to averaging
+multiple networks.
+
+In addition to dropout, a maximum L2 norm is imposed on each node's incoming
+weight vector. If the weight vector's L2 norm exceeds this limit, it is rescaled
+so that its new norm is equal to the maximum allowed norm; otherwise the weight
+vector is left alone:
+\begin{equation}
+  \label{eq:norm}
+  \vect{w} = \begin{cases}
+    \vect{w}\,                          & \text{if } ||\vect{w}||^2 \leq n \\
+    n \frac{\vect{w}}{||\vect{w}||^2} & \text{otherwise}
+  \end{cases}
+\end{equation}
+This differs from the more common L2-regularisation --- where the combined L2
+norm of all weight vectors is added to the loss function --- in that the weights
+are not being continuously pushed towards zero, making it a milder form of
+regularisation that allows for a bit more complexity in the model.
 
 \subsubsection{Convolutional Neural Networks}
 \todo[inline]{This is kind of jumbled and out of place, might need to be deleted

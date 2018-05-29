@@ -51,11 +51,25 @@
 \addbibresource{library.bib} 
 
 \begin{document}
+\newcommand{\vect}[1]{\ensuremath{\mathbf{#1}}}
 
 \import{.}{title-page-ai.tex}
 \tableofcontents
 \clearpage
 \linenumbers
+
+\abstract{Proceedings of parliamentary debates are often published as
+  unstructured PDF files, making them unsuitable for indexing into a database or
+  querying for specific information. Digitizing them into a structured format is
+  challenging; doing so manually is labor-intensive, doing so through a
+  rule-based system is error-prone. Manually annotating a small number of
+  documents can provide a training set that allows a convolutional neural
+  network to accurately classify the elements that denote the structure of the
+  document (e.g.\ the start of a new speech), using purely the textual content
+  of the document. Adding a preprocessing step that clusters pieces of text based on
+  the physical layout of the document significantly improves the classification
+  performance.}
+
 \import{.}{introduction.tex}
 \import{.}{problemstatement.tex}
 \import{.}{relatedworks.tex}
