@@ -167,9 +167,11 @@ def plot(
     return ax
 
 
-def get_scores(model: nn.Module, dataset: Dataset, gpu: bool = True) -> Dict[str, Any]:
+def get_scores(
+    model: nn.Module, buckets: List[int], dataset: Dataset, gpu: bool = True
+) -> Dict[str, Any]:
     p, r = precision_recall_values(
-        *get_values(model, get_iterator(dataset, [40]), gpu=gpu)
+        *get_values(model, get_iterator(dataset, buckets)[0], gpu=gpu)
     )
 
     scores = {"F1": max_f1(p, r), "AoC": average_precision(p, r), "pr": (p, r)}
@@ -201,7 +203,7 @@ def cross_val(
         if test_on_holdout:
             testset = test
 
-        model, loss = setup_and_train(
+        model, loss, buckets = setup_and_train(
             params,
             model_fn,
             optim_fn,
@@ -214,7 +216,7 @@ def cross_val(
             max_norm=params.max_norm,
         )
         losses.append(loss)
-        scores = get_scores(model, testset, gpu)
+        scores = get_scores(model, buckets, testset, gpu)
         F1s.append(scores["F1"])
         APs.append(scores["AoC"])
         PRs.append(scores["pr"])

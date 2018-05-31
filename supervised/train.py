@@ -200,7 +200,7 @@ def setup_and_train(
     early_stopping: int = 0,
     progbar: bool = True,
     max_norm: float = 0,
-) -> Tuple[nn.Module, List[float]]:
+) -> Tuple[nn.Module, List[float], List[int]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     argdict: Dict[str, Any]
@@ -214,8 +214,10 @@ def setup_and_train(
             "dropout": params.dropout,
         }
         recurrent_model = LSTMClassifier(**argdict)
+        data, _ = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     elif isinstance(params, CNNParams):
-        buckets = [40]
+        buckets = None
+        data, buckets = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
         argdict = {
             "input_size": len(dataset.vocab.token_to_idx) + 1,
             "seq_len": buckets[0],
@@ -226,14 +228,13 @@ def setup_and_train(
         }
         recurrent_model = CNNClassifier(**argdict)
 
-    data = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
     losses = train(
         model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm
     )
 
-    return model, losses
+    return model, losses, buckets
 
 
 def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:

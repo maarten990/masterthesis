@@ -287,10 +287,18 @@ def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._El
 
 
 def get_iterator(
-    dataset: Dataset, buckets: List[int] = [40], batch_size: int = 32
-) -> DataLoader:
-    return DataLoader(
-        dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets)
+    dataset: Dataset, buckets: Optional[List[int]] = [40], batch_size: int = 32
+) -> Tuple[DataLoader, List[int]]:
+    if not buckets:
+        # find the bucket size that fits 90% of the data
+        sizes = [size for sample in dataset for size in sample.keys()]
+        cutoff = int(np.percentile(sizes, 90))
+        buckets = [cutoff]
+    return (
+        DataLoader(
+            dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets)
+        ),
+        buckets,
     )
 
 
