@@ -33,10 +33,10 @@ positives, or a large amount of highly specific rules which can quickly lead to
 a spaghetti-like mess of special cases and is very fragile to unseen cases.
 
 I propose that by using a small number of manually annotated documents as a
-dataset, a machine learning algorithm can learn to classify sentences in a way
-that allows it to segment a document into its constituent parts, while being
-more robust to noise than its rule-based counterpart. While the structure of a
-parliamentary debate is tree-shaped (a general example in shown in
+dataset, a machine learning algorithm can learn to classify fragments of text in
+a way that allows it to segment a document into its constituent parts, while
+being more robust to noise than its rule-based counterpart. While the structure
+of a parliamentary debate is tree-shaped (a general example in shown in
 \cref{fig:tree}), this tree is generally both shallow and very rigidly
 structured. As a result, simply classifying the positions in the text where a
 new structural element begins is enough to reconstruct the full tree given the

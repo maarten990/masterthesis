@@ -2,13 +2,18 @@
 \label{sec:problem}
 The German parliament, called the \emph{Bundestag}, publishes the proceedings of
 their meetings, as an effort to open up the political process to the common
-people. These proceedings have been continously published starting in 1949.
+people. These proceedings have been continously published since the inception of
+the German Empire in 1871, when the parliament was called the \emph{Reichstag},
+up to 1942; publishing resumed after the conclusion of World War 2 with the
+inception of the Bundestag in 1949. Of course, the further back in the time you
+go,the more difficult the documents become to use. While the more recent
+documents are fully digital, documents prior to 1998 are scans of physical
+documents and require optical character recognition, which becomes even more
+problematic in the documents from the 1800s where a thick Gothic font is used.
 \Cref{fig:pdf_page} shows a sample page from one of these proceedings; the
 left column contains a continuation of a speech from the previous page as well
 as two moderately sized speeches, while the right column contains a large number
-of very short speeches. Having a large corpus of political proceedings like this
-is wonderful and opens a lot of doors for research regarding political
-discourse. \Cref{fig:pdf_roi} shows the same page seen in
+of very short speeches. \Cref{fig:pdf_roi} shows the same page seen in
 \cref{fig:pdf_page}, but with a number of regions of interest (manually)
 colored in. Unfortunately this data is only available as PDF files, which in
 terms of internal representation are entirely unstructured. That means that none
@@ -27,7 +32,7 @@ present in a computer-usable way.
   \caption{The same page as in Figure~\ref{fig:pdf_page}, hand-annotated with
     interesting regions that play a significant role in understanding the
     layout. The red regions are the headers the signify that someone is starting
-    a speech, and contain information about who the speakers is. The blue
+    a speech, and contain information about who the speaker is. The blue
     regions are little interruptions (\emph{Heiterkeits}), often signifying
     approval or displeasure (the regularly seen \emph{Beifall} means applause).
   The green regions indicate plain blocks of text.\label{fig:pdf_roi}}
@@ -48,6 +53,7 @@ if the system was able to learn sufficiently from a handful (say, less than 5)
 of hand-annotated files.
 
 \subsection{Dataset}
+\todo[inline]{Rewrite this section}
 PDF files are unfortunately rather difficult to work with; being a vector-based
 format, they have no internal concept of words or sentences. All that's
 available are instructions for drawing a certain character at a certain
@@ -80,7 +86,7 @@ base for clustering, the troubles of line-extraction can be fully bypassed.
   \begin{subfigure}[b]{\textwidth}
     \begin{lstlisting}[language=xml, morekeywords={text}]
       <text top="122" left="125" width="143" height="16" font="3">
-          <b>Dr. Norbert Lammert </b>
+          Dr. Norbert Lammert 
       </text>
       <text top="122" left="269" width="83" height="17" font="4">
           (CDU/CSU):
@@ -134,29 +140,25 @@ evaluating the system, a subset of 5 files (comprising 705 positive samples) has
 been manually checked and corrected for errors.
 
 \subsection{Research Question}
-As the application of supervised text classification is fairly basic and
-well-studied, academically speaking the interesting portion of this problem is
-figuring out what benefit is added by the unsupervised layout clustering, if
-any. A potential benefit could manifest itself in a couple of different ways:
-\begin{itemize}
-\item The performance (using a metric such as the F1 score or average
-  precision, to be further elaborated on in Section~\ref{sec:method}) after
-  training is increased.
-\item The peak performance is equal, but less training data is required to reach
-  said peak.
-\item The peak performance is equal and a similar amount of training data is
-  required, but the classifier needs less iterations to reach this performance.
-\end{itemize}
-This leads to the research question that is central to this thesis:
+A baseline model can be created by leaving out the clustering step, leaving us
+with two models:
+\begin{enumerate}
+  \item A baseline model that classifies based on purely text
+  \item A model that classifies based on both text and layout information
+\end{enumerate}
+There are two ways in which the second model can improve upon the baseline:
+either it performs better (using a metric such as the F1 score), or it requires
+less data to reach the same performance. This naturally leads to two research
+questions:
 \begin{researchquestion}
   Does augmenting a text classification system with layout information obtained
-  by unsupervised clustering of the input data improve the classifier with
-  regards to:
-  \begin{itemize}
-  \item F1 score and average precision
-  \item required volume of training data
-  \item training speed
-  \end{itemize}
+  by unsupervised clustering of the input data improve the F1 score of the
+  classifier?
+\end{researchquestion}
+\begin{researchquestion}
+  Does augmenting a text classification system with layout information obtained
+  by unsupervised clustering of the input data allow the classifier to reach its
+  peak performance using less input data?
 \end{researchquestion}
 
 %%% Local Variables:
