@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import os
 
 import matplotlib.pyplot as plt
@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from data import get_iterator, to_gpu, to_tensors
-from train import setup_and_train
+from train import CNNParams, RNNParams, setup_and_train
 
 sns.set()
 
@@ -179,17 +179,21 @@ def get_scores(
 
 
 def cross_val(
-    k,
-    train_size,
-    model_fn,
-    optim_fn,
-    dataset,
-    params,
-    early_stopping=10,
-    testset=None,
-    gpu=True,
+    k: int,
+    train_size: int,
+    model_fn: Callable[[nn.Module], nn.Module],
+    optim_fn: Callable[[Any], torch.optim.Optimizer],
+    dataset: Dataset,
+    params: Union[CNNParams, RNNParams],
+    early_stopping: int = 10,
+    testset: Optional[Dataset] = None,
+    gpu: bool = True,
 ):
-    folds = dataset.shuffle_split(k, train_size)
+    if train_size == -1:
+        folds = dataset.kfold(k)
+    else:
+        folds = dataset.shuffle_split(k, train_size)
+
     F1s = []
     losses = []
     APs = []
@@ -197,7 +201,12 @@ def cross_val(
 
     test_on_holdout = testset is None
 
+    first_run = True
     for train, test in tqdm(folds, total=k):
+        if first_run:
+            print(f'{len(train)} training samples, {len(test)} testing samples')
+            first_run = False
+
         torch.cuda.empty_cache()
 
         if test_on_holdout:
@@ -283,8 +292,8 @@ def analyze(data, variable="variable", path=None):
                 variable,
                 "F1 mean",
                 "F1 stddev",
-                "AoC mean",
-                "AoC std",
+                "AUC mean",
+                "AUC std",
                 "Area under averaged curve",
             ],
         )
@@ -298,8 +307,8 @@ def analyze(data, variable="variable", path=None):
                         variable,
                         "F1 mean",
                         "F1 stddev",
-                        "AoC mean",
-                        "AoC std",
+                        "AUC mean",
+                        "AUC std",
                         "Area under averaged curve",
                     ],
                     tablefmt="latex_booktabs",
@@ -315,28 +324,6 @@ def analyze(data, variable="variable", path=None):
     )
 
     print()
-    print("AP plots:")
-    for label, (_, _, _, aps) in items:
-        sns.distplot(
-            df[df[variable] == label]["Area under curve"], hist=False, label=label
-        )
-    plt.legend()
-    if path:
-        plt.savefig(f"{path}/kde_ap.pdf")
-    plt.show()
-
-    plt.figure()
-    sns.boxplot(df[variable], df["Area under curve"])
-    if path:
-        plt.savefig(f"{path}/boxplot_ap.pdf")
-    plt.show()
-    plt.figure()
-    sns.violinplot(df[variable], df["Area under curve"])
-    if path:
-        plt.savefig(f"{path}/violinplot_ap.pdf")
-    plt.show()
-
-    print()
     print("F1 plots:")
     for label, (_, _, f1, _) in items:
         sns.distplot(df[df[variable] == label]["F1 score"], hist=False, label=label)
@@ -349,11 +336,6 @@ def analyze(data, variable="variable", path=None):
     sns.boxplot(df[variable], df["F1 score"])
     if path:
         plt.savefig(f"{path}/boxplot_f1.pdf")
-    plt.show()
-    plt.figure()
-    sns.violinplot(df[variable], df["F1 score"])
-    if path:
-        plt.savefig(f"{path}/violin_f1.pdf")
     plt.show()
 
     print()
@@ -370,10 +352,6 @@ def analyze(data, variable="variable", path=None):
     print("F1 score")
     print(tabulate(sign_table_f1, headers=[label for label, _ in items]))
 
-    print()
-    print("Area under curve")
-    print(tabulate(sign_table_ap, headers=[label for label, _ in items]))
-
     if path:
         with open(f"{path}/f1_sign.tex", "w") as f:
             f.write(
@@ -384,11 +362,28 @@ def analyze(data, variable="variable", path=None):
                 )
             )
 
-        with open(f"{path}/ap_sign.tex", "w") as f:
-            f.write(
-                tabulate(
-                    sign_table_ap,
-                    headers=[label for label, _ in items],
-                    tablefmt="latex_booktabs",
-                )
-            )
+
+def analyze_size(data, variable="variable", path=None):
+    # ensure the target folder exists
+    if path and not os.path.isdir(path):
+        os.makedirs(path)
+
+    df_data = {
+        "training samples": [],
+        variable: [],
+        "F1 score": [],
+    }
+
+    for size, d in data.items():
+        items = list(d.items())
+        df_data["training samples"] += [size for _, (_, _, f1, _) in items for _ in f1]
+        df_data[variable] += [label for label, (_, _, f1, _) in items for _ in f1]
+        df_data["F1 score"] += [score for _, (_, _, f1, _) in items for score in f1]
+
+    df = pd.DataFrame(df_data)
+
+    sns.factorplot(x="training samples", y="F1 score", col=variable, data=df,
+                   kind="point")
+    if path:
+        plt.savefig(f"{path}/boxplot_f1.pdf")
+    plt.show()
