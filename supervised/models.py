@@ -23,12 +23,15 @@ class CNNClassifier(nn.Module):
         self.embedding = nn.Embedding(input_size, embed_size)
         self.layers = nn.ModuleList([])
         self.layers.append(
-            nn.ModuleList([nn.Conv1d(embed_size, num, size) for num, size in filters])
+            nn.ModuleList([nn.Conv1d(embed_size, num, size, padding=(size - 1) / 2)
+                           for num, size in filters])
         )
+
+        num_filters = sum([num for num, _ in filters])
         for i in range(num_layers - 1):
             self.layers.append(
                 nn.ModuleList(
-                    [nn.Conv1d(embed_size, num, size) for num, size in filters]
+                    [nn.Conv1d(num_filters, num, size, padding=(size - 1) / 2) for num, size in filters]
                 )
             )
 
@@ -39,7 +42,6 @@ class CNNClassifier(nn.Module):
         temp_data = Variable(torch.zeros((1, embed_size, seq_len)))
         for layer in self.layers:
             d = [conv(temp_data) for conv in layer]
-            d = [F.max_pool1d(l, kernel_size=l.shape[2]) for l in d]
             temp_data = torch.cat(d, 1)
 
         temp_data = F.max_pool1d(temp_data, kernel_size=temp_data.shape[2])
@@ -55,10 +57,9 @@ class CNNClassifier(nn.Module):
             d = [F.relu(conv(data)) for conv in layer]
             if self.batch_norm:
                 d = [bn(l) for bn, l in zip(self.batch_norms, d)]
-            d = [F.max_pool1d(l, kernel_size=l.shape[2]) for l in d]
             data = torch.cat(d, 1)
 
-        # data = F.max_pool1d(data, kernel_size=data.shape[2])
+        data = F.max_pool1d(data, kernel_size=data.shape[2])
         batch_size = inputs.size(0)
         return F.relu(data.view(batch_size, -1))
 
