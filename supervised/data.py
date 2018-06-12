@@ -108,7 +108,8 @@ class GermanDataset(Dataset):
                 if window:
                     self.samples.append(self.vectorize_window(window))
 
-        self.equalize_ratio(negative_ratio)
+        if negative_ratio != -1:
+            self.equalize_ratio(negative_ratio)
 
     def get_pos_neg(self) -> Tuple[List[int], List[int]]:
         positives: List[int] = []

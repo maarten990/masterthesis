@@ -186,6 +186,7 @@ def cross_val(
     dataset: Dataset,
     params: Union[CNNParams, RNNParams],
     early_stopping: int = 10,
+    validation_set: Dataset = None,
     testset: Optional[Dataset] = None,
     gpu: bool = True,
 ):
@@ -203,14 +204,14 @@ def cross_val(
 
     first_run = True
     for train, test in tqdm(folds, total=k):
-        if first_run:
-            print(f'{len(train)} training samples, {len(test)} testing samples')
-            first_run = False
-
         torch.cuda.empty_cache()
 
         if test_on_holdout:
             testset = test
+
+        if first_run:
+            print(f'{len(train)} training samples, {len(testset)} testing samples')
+            first_run = False
 
         model, loss, buckets = setup_and_train(
             params,
@@ -223,6 +224,7 @@ def cross_val(
             early_stopping=early_stopping,
             progbar=False,
             max_norm=params.max_norm,
+            validation_set=validation_set,
         )
         losses.append(loss)
         scores = get_scores(model, buckets, testset, gpu)
@@ -382,8 +384,9 @@ def analyze_size(data, variable="variable", path=None):
 
     df = pd.DataFrame(df_data)
 
-    sns.factorplot(x="training samples", y="F1 score", col=variable, data=df,
-                   kind="point")
+    g = sns.factorplot(x="training samples", y="F1 score", col=variable, data=df,
+                       kind="point")
+    g.set_titles("{col_name}")
     if path:
         plt.savefig(f"{path}/boxplot_f1.pdf")
     plt.show()

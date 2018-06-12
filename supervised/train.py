@@ -12,7 +12,7 @@ Options:
 """
 
 
-from typing import Any, Callable, Dict, List, Tuple, Type, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 from docopt import docopt
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -25,6 +25,7 @@ import yaml
 
 from data import get_iterator, to_cpu, to_gpu, to_tensors
 from models import LSTMClassifier, CNNClassifier
+from evaluate import get_scores
 
 
 class CNNParams:
@@ -90,6 +91,7 @@ def train(
     early_stopping: int = 0,
     progbar: bool = False,
     max_norm: float = 0,
+    validation_set: Optional[Tuple[Dataset, List[int]]] = None,
 ) -> List[float]:
     """Train a Pytorch model.
 
@@ -103,6 +105,7 @@ def train(
     :param progbar: Display a progress bar or not.
     :param max_norm: Value to clip each weight vector's L2 norm at. If 0, no
         clipping is done.
+    :param validation_set: Optional verification set to use for early stopping.
     :returns: The value of the model's loss function at every epoch.
     """
     model.train()
@@ -111,6 +114,9 @@ def train(
     epoch_losses: List[float] = []
     best_params: Dict[str, Any] = {}
     best_loss = 99999
+
+    f1_scores: List[float] = []
+    best_f1 = 0.0
 
     stopping_counter = 0
     if progbar:
@@ -147,14 +153,27 @@ def train(
         epoch_losses.append(loss)
 
         # check if the model is the best yet
-        if loss < best_loss:
-            best_loss = loss
-            best_params = model.state_dict()
-        else:
-            if early_stopping:
+        if validation_set:
+            ds, buckets = validation_set
+            f1 = get_scores(model, buckets, ds, gpu)["F1"]
+            f1_scores.append(f1)
+            if f1 > best_f1:
+                best_f1 = f1
+                best_params = model.state_dict()
+                stopping_counter = 0
+            else:
                 stopping_counter += 1
 
-            if stopping_counter >= 10:
+        else:
+            if loss < best_loss:
+                best_loss = loss
+                best_params = model.state_dict()
+                stopping_counter = 0
+            else:
+                stopping_counter += 1
+
+        if early_stopping:
+            if stopping_counter >= early_stopping:
                 break
 
         # update the progress bar
@@ -169,7 +188,7 @@ def train(
 
     model.load_state_dict(best_params)
     model.eval()
-    return epoch_losses
+    return epoch_losses if not validation_set else f1_scores
 
 
 def train_BoW(
@@ -200,12 +219,13 @@ def setup_and_train(
     early_stopping: int = 0,
     progbar: bool = True,
     max_norm: float = 0,
+    validation_set: Optional[Dataset] = None,
 ) -> Tuple[nn.Module, List[float], List[int]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     argdict: Dict[str, Any]
     if isinstance(params, RNNParams):
-        buckets = [5, 10, 15, 25, 40]
+        buckets = [5, 10, 25, 50, 75, 100]
         argdict = {
             "input_size": len(dataset.vocab.token_to_idx) + 1,
             "embed_size": params.embed_size,
@@ -231,7 +251,7 @@ def setup_and_train(
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
     losses = train(
-        model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm
+        model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm, (validation_set, buckets)
     )
 
     return model, losses, buckets
