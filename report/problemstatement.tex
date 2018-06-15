@@ -1,4 +1,4 @@
-\section{Problem Statement}
+\section{Problem Statement}%
 \label{sec:problem}
 The German parliament, called the \emph{Bundestag}, publishes the proceedings of
 their meetings, as an effort to open up the political process to the common
@@ -53,28 +53,37 @@ if the system was able to learn sufficiently from a handful (say, less than 5)
 of hand-annotated files.
 
 \subsection{Dataset}
-\todo[inline]{Rewrite this section}
-PDF files are unfortunately rather difficult to work with; being a vector-based
-format, they have no internal concept of words or sentences. All that's
-available are instructions for drawing a certain character at a certain
-position. This means that even something as seemingly trivial as obtaining the
-lines of text from a PDF requires some fairly involved logic and heuristics (for
-instance, one would think that simply taking all characters on a page with the
-same $y$ coordinate would be sufficient until realizing that many documents have
-a layout with two columns of text). This is dealt with by using the
-\texttt{pdftohtml} script from the Poppler PDF rendering
-library\footnote{https://poppler.freedesktop.org/}. This script converts a PDF
-file to an XML file containing logical lines of text along with the coordinates
-and size of the line. \Cref{fig:example} shows an example of a portion of
-a PDF file and the corresponding XML\@. The contents of the \texttt{text} elements
-forms the plaintext that is fed into the classification algorithm. Although the
-layout information contained in the properties (\texttt{top}, \texttt{left},
-\texttt{width}, \texttt{height} and \texttt{font}) could be used for the layout
-clustering, this would effectively tie the performance of the clustering to the
-performance of \texttt{pdftohtml}'s line-extraction heuristics. Instead, a
-separate system is used (the Apache pdfbox\footnote{https://pdfbox.apache.org/}
-library for Java). By using the bounding boxes of individual characters as the
-base for clustering, the troubles of line-extraction can be fully bypassed.
+The dataset contains 11 hand-annotated documents, comprising 2052 positive
+samples and 76,944 negative samples. The average document contains about 200
+positive samples. Seeing as the source documents are PDF files, some
+transformations are needed to extract text from them in a way that is suitable
+for use as a machine learning dataset. This is not as trivial as it might seem,
+given that PDF files only contain instructions for drawing certain characters at
+certain coordinates, with no internal concept of paragraphs, lines or even
+words.
+
+For the supervised portion of the system, the PDF files are transformed using
+the \texttt{pdftohtml} utility from the Poppler PDF rendering
+library\footnote{https://poppler.freedesktop.org/}. This utility takes a PDF
+file and uses a number of heuristics to output lines of text occurring
+inside the file. In this context, a \emph{line} refers to any number of
+characters that occur on the same height on a page while preserving reading
+order (which is relevant when dealing with documents that have a two-column
+layout) and is explicitly not the same as a sentence. These lines are output in
+an XML format which includes metadata on the geometry of the line (position and
+size) and its font. An example of a portion of text from the dataset and the
+corresponding XML output from \texttt{pdftohtml} is shown in \cref{fig:example}.
+Since this process is based on heuristics, it can and does go wrong; there are
+instances of mistakes such as a single line being broken up into multiple XML
+nodes, or lines of two side-by-side columns being taken as a single XML node.
+This is not terribly common (the frequency of such errors is perhaps one per
+file on average), but it does make the dataset inherently noisy and is one of
+the issues that rule-based systems have trouble with.
+
+For the unsupervised clustering, the PDF files are taken directly as input and
+clustering is done using individual characters as the basic unit. This is just
+as easy as clustering on the lines produced by \texttt{pdftohtml}, but has the
+benefit of not being dependent on the imperfect line-extraction heuristics.
 
 \begin{figure}[p]
   \centering
@@ -114,31 +123,7 @@ base for clustering, the troubles of line-extraction can be fully bypassed.
     created by \texttt{pdftohtml}.\label{fig:example}}
 \end{figure}
 
-The dataset was obtained through a rule-based system as described in the
-introduction, which annotates each \texttt{<text>} element of the XML files with
-a boolean flag indicating whether said element starts a new speech. The system
-was run on documents from the 18th electoral period of the \emph{Bundestag},
-consisting of 211 documents dating from 2013 to 2017. Together these documents
-contain 43,252 \texttt{<text>} elements indicating the start of speeches (that
-is, positive training samples), and 2,602,793 other elements (negative samples).
-This adds to a total of 2,646,045 training samples, taking up 503 MiB. This is a
-rather lopsided distribution (there are roughly 60 negative samples for each
-positive sample). Since machine learning algorithms tends to work best with a
-roughly equal amount of samples per label, this discrepancy will be accounted
-for by using stratified sampling. \Cref{fig:data_dist} shows the distribution of
-the number of positive samples per file, giving a guideline as to how many files
-would have to be annotated to reach a desired amount of positive samples.
-\begin{figure}[tb]
-  \centering
-  \includegraphics[width=\textwidth]{figures/distribution.pdf}
-  \caption{Distribution of the number of positive samples per
-    file.\label{fig:data_dist}}
-\end{figure}
-Unfortunately due to the issues mentioned in the introduction, the labeling of
-these documents is not entirely perfect. Since this would form an issue when
-evaluating the system, a subset of 5 files (comprising 705 positive samples) has
-been manually checked and corrected for errors.
-
+\FloatBarrier%
 \subsection{Research Question}
 A baseline model can be created by leaving out the clustering step, leaving us
 with two models:
