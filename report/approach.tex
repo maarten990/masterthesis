@@ -119,10 +119,9 @@ similar to the one proposed by \textcite{kim2014conv}.  First an embedding layer
 is used to learn a high-dimensional representation of the words (no pre-trained
 embeddings were used because of both the specialized political domain of the
 data as well as a lack of quality pre-trained German models), followed by a
-to-be-determined number of convolutional filters with 1-max pooling. The output
-of the filters is then concatenated into a single feature vector, which is
-combined with the clustering data in one of three ways, which will all be
-evaluated:
+number of convolutional filters with 1-max pooling. The output of the filters is
+then concatenated into a single feature vector, which is combined with the
+clustering data in one of three ways, which will all be evaluated:
 \begin{enumerate}
   \item The cluster type of the center element of the window is added to the
     feature vector.
@@ -139,16 +138,23 @@ activation. The layout of this system is detailed in \cref{fig:model_full} along
 with its parameters and their baseline value.
 
 The network is trained for 100 epochs, stopping early once no significant
-improvement in training loss has been made for 10 epochs. The optimisation
-process is done using the Adadelta\citep{adadelta} algorithm, with binary
-cross-entropy as the loss function and the training data delivered in batches.
-The loss might exhibit some up and down fluctuations after a minimum has been
-reached; to account for this, the best loss so far along with the corresponding
-model parameters is kept track of throughout the learning process. Once all the
-epochs have been completed, the output is the model instantiated with the
-parameters corresponding to the lowest loss that was obtained. Regularisation is
-done through a combination of dropout\citep{dropout} and an upper limit on the
-L2 norm of each weight vector\citep{l2norm}.
+improvement in training loss has been made for 10 epochs in a row. The
+optimisation process is done using the Adadelta\citep{adadelta}
+algorithm\footnote{Why not Adam\citep{adam}? The architecture\citep{kim2014conv}
+and survey paper\citep{zhang2015conv} that this work is based on both date to
+roughly the year when the Adam paper was published, and thus likely predate the
+widespread acceptance of Adam as a de facto standard. Since a full analysis of
+different optimizers is outside the scope of this thesis and some quick informal
+tests showed no difference between using Adadelta or Adam, there is no reason to
+deviate from the survey.}, with
+binary cross-entropy as the loss function and the training data delivered in
+batches.  The loss might exhibit some up and down fluctuations after a minimum
+has been reached; to account for this, the best loss so far along with the
+corresponding model parameters is kept track of throughout the learning process.
+Once all the epochs have been completed, the output is the model instantiated
+with the parameters corresponding to the lowest loss that was obtained.
+Regularisation is done through a combination of dropout\citep{dropout} and an
+upper limit on the L2 norm of each weight vector\citep{l2norm}.
 
 \begin{figure}[p]
   \centering
@@ -210,14 +216,75 @@ L2 norm of each weight vector\citep{l2norm}.
 	Maximum L2 norm & 3 \\
 	\bottomrule
       \end{tabular}
-      \caption{The default parameters used for the optimization process.}
+      \caption{The default parameters used for the optimisation process.}
     \end{subfigure}
   \end{subfigure}
   \caption{The model and its parameters.\label{fig:model_full}}
 \end{figure}
 
 \subsubsection{Optimisation process}
-\todo[inline]{Adadelta uitleggen}
+Optimisation is done using the Adadelta update rule\citep{adadelta}. This is
+easiest to explain by starting with the basic mini-batch stochastic gradient
+descent algorithm (SGD). At each iteration $t$, the network parameters $\theta$
+are updated based on some calculation:
+\begin{equation}
+  \theta_{t+1} = \theta_{t} - \Delta\theta_t
+\end{equation}
+The difference between optimization algorithms is how $\Delta\theta$ is
+calculated. With SGD, it is simply
+\begin{equation}
+  \Delta\theta_t = \mu \loss{t}
+\end{equation}
+where $\mathcal{L}$ is the loss function (in this case, the binary cross entropy
+between the predicted labels and the true labels), and $\mu$ is an arbitrary
+learning rate between 0 and 1. This learning rate is a tricky parameter to set;
+too low and learning will take ages, too high and the network will fail to
+converge because the steps taken are too big. One way to improve this is by
+using the Adagrad\citep{adagrad} algorithm. While SGD uses a single learning
+rate for the entire parameter vector, Adagrad (which stands for ``adaptive
+gradient'') adapts the learning rate for each individual parameter; frequently
+updated parameters get a lower learning rate, while less frequently updated
+parameters are updated with a higher learning rate. This is done by simply
+dividing the learning rate with the L2 norm of the sum of all previous gradients:
+\begin{gather}
+  g_{t} = \loss{t} \\
+  \Delta\theta_t = \frac{\mu}{\sqrt{\sum^{t}_{\mathcal{T}=1}g_{\mathcal{T}}^2}} g_{t}
+\end{gather}
+This has been found to work very well, in particular in natural language
+processing and computer vision where features are often sparse, but it has two
+drawbacks:
+\begin{enumerate}
+  \item A suitable value for the global learning rate $\mu$ has to be
+    manually provided.
+  \item Since the learning rate is rescaled using a monotonically increasing sum of
+    previous gradient magnitudes, the learning rate will converge to zero.
+\end{enumerate}
+Adadelta nullifies these drawbacks by eliminating the global learning rate and
+restricting the accumulation of gradients to a window of recent updates. First
+of all, the sum over all previous gradients is replaced by an exponentially
+decaying average of the squared gradients, referred to as $E[g^2]$:
+\begin{equation}\label{eq:rms}
+  E[g^2]_t = \rho E[g^2]_{t-1} + (1 - \rho) g_t^2
+\end{equation}
+Here $\rho$ is a constant representing the rate of decay; this decaying sum
+serves as a more efficient approximation of an actual window of past gradients,
+which would require far more memory to store (considering both the huge number
+of parameters in a neural network and the memory constraints of running on a GPU).
+Substituting this into the Adagrad algorithm gives us:
+\begin{align}
+  \Delta\theta_t &= \frac{\mu}{\sqrt{E[g^2]_t}} g_{t} \\
+		 &= \frac{\mu}{RMS[g]_t} g_{t}
+\end{align}
+The quantity $\sqrt{E[g^2]_t}$ is called the \emph{root mean square} of $g$,
+which occurs often enough in optimisation algorithms that it is often
+abbreviated as $RMS[g]$. As a final step, the learning rate $\mu$ is eliminated
+by replacing it with a decaying average of the previous gradient updates,
+similar to \cref{eq:rms}.
+\begin{equation}
+  \Delta\theta_t = \frac{RMS[\theta]_{t-1}}{RMS[g]_t} g_{t}
+\end{equation}
+
+\subsubsection{Regularisation}
 Dropout\citep{dropout} is a Regularisation method that is rather crude at first
 glance; on each batch update, each node in the neural network has a probability
 $p$ of outputting zero (i.e.\ the node being ``disabled''). As a result, nodes
