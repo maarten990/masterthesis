@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from data import get_iterator, to_gpu, to_tensors
-from train import CNNParams, RNNParams, setup_and_train
+import train
 
 sns.set()
 
@@ -181,10 +181,10 @@ def get_scores(
 def cross_val(
     k: int,
     train_size: int,
-    model_fn: Callable[[nn.Module], nn.Module],
+    model_fns: List[Callable[[nn.Module], nn.Module]],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
     dataset: Dataset,
-    params: Union[CNNParams, RNNParams],
+    params: Any,
     early_stopping: int = 10,
     validation_set: Dataset = None,
     testset: Optional[Dataset] = None,
@@ -195,42 +195,43 @@ def cross_val(
     else:
         folds = dataset.shuffle_split(k, train_size)
 
-    F1s = []
-    losses = []
-    APs = []
-    PRs = []
+    F1s: List[List[float]] = [[] for _ in model_fns]
+    losses: List[List[List[float]]] = [[] for _ in model_fns]
+    APs: List[List[float]] = [[] for _ in model_fns]
+    PRs: List[List[float]] = [[] for _ in model_fns]
 
     test_on_holdout = testset is None
 
     first_run = True
-    for train, test in tqdm(folds, total=k):
+    for trainset, test in tqdm(folds, total=k):
         torch.cuda.empty_cache()
 
         if test_on_holdout:
             testset = test
 
         if first_run:
-            print(f'{len(train)} training samples, {len(testset)} testing samples')
+            print(f"{len(trainset)} training samples, {len(testset)} testing samples")
             first_run = False
 
-        model, loss, buckets = setup_and_train(
-            params,
-            model_fn,
-            optim_fn,
-            dataset=train,
-            epochs=params.epochs,
-            batch_size=50,
-            gpu=gpu,
-            early_stopping=early_stopping,
-            progbar=False,
-            max_norm=params.max_norm,
-            validation_set=validation_set,
-        )
-        losses.append(loss)
-        scores = get_scores(model, buckets, testset, gpu)
-        F1s.append(scores["F1"])
-        APs.append(scores["AoC"])
-        PRs.append(scores["pr"])
+        for i, model_fn in enumerate(model_fns):
+            model, loss, buckets = train.setup_and_train(
+                params,
+                model_fn,
+                optim_fn,
+                dataset=trainset,
+                epochs=params.epochs,
+                batch_size=50,
+                gpu=gpu,
+                early_stopping=early_stopping,
+                progbar=False,
+                max_norm=params.max_norm,
+                validation_set=validation_set,
+            )
+            scores = get_scores(model, buckets, testset, gpu)
+            losses[i].append(loss)
+            F1s[i].append(scores["F1"])
+            APs[i].append(scores["AoC"])
+            PRs[i].append(scores["pr"])
 
     return losses, PRs, F1s, APs
 
@@ -370,11 +371,7 @@ def analyze_size(data, variable="variable", path=None):
     if path and not os.path.isdir(path):
         os.makedirs(path)
 
-    df_data = {
-        "training samples": [],
-        variable: [],
-        "F1 score": [],
-    }
+    df_data = {"training samples": [], variable: [], "F1 score": []}
 
     for size, d in data.items():
         items = list(d.items())
@@ -384,9 +381,10 @@ def analyze_size(data, variable="variable", path=None):
 
     df = pd.DataFrame(df_data)
 
-    g = sns.factorplot(x="training samples", y="F1 score", col=variable, data=df,
-                       kind="point")
+    g = sns.factorplot(
+        x="training samples", y="F1 score", col=variable, data=df, kind="point"
+    )
     g.set_titles("{col_name}")
     if path:
-        plt.savefig(f"{path}/boxplot_f1.pdf")
+        plt.savefig(f"{path}/factorplot_f1.pdf")
     plt.show()

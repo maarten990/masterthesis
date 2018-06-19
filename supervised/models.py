@@ -23,15 +23,22 @@ class CNNClassifier(nn.Module):
         self.embedding = nn.Embedding(input_size, embed_size)
         self.layers = nn.ModuleList([])
         self.layers.append(
-            nn.ModuleList([nn.Conv1d(embed_size, num, size, padding=(size - 1) / 2)
-                           for num, size in filters])
+            nn.ModuleList(
+                [
+                    nn.Conv1d(embed_size, num, size, padding=(size - 1) / 2)
+                    for num, size in filters
+                ]
+            )
         )
 
         num_filters = sum([num for num, _ in filters])
         for i in range(num_layers - 1):
             self.layers.append(
                 nn.ModuleList(
-                    [nn.Conv1d(num_filters, num, size, padding=(size - 1) / 2) for num, size in filters]
+                    [
+                        nn.Conv1d(num_filters, num, size, padding=(size - 1) / 2)
+                        for num, size in filters
+                    ]
                 )
             )
 
@@ -208,12 +215,7 @@ class ClusterLabelsCNN(nn.Module):
         self.recurrent_clf = recurrent_clf
         self.recurrent_clf.batch_norm = batch_norm
         self.label_cnn = CNNClassifier(
-            n_labels,
-            5,
-            n_labels,
-            [(32, 1), (32, 2), (32, n_labels)],
-            dropout,
-            num_layers=1,
+            n_labels, 5, n_labels, [(100, 3)], dropout, num_layers=1
         )
 
         output_size = self.recurrent_clf.output_size + self.label_cnn.output_size

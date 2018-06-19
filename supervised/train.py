@@ -108,8 +108,8 @@ def train(
     :param validation_set: Optional verification set to use for early stopping.
     :returns: The value of the model's loss function at every epoch.
     """
-    model.train()
     model.cuda() if gpu else model.cpu()
+    model.train()
 
     epoch_losses: List[float] = []
     best_params: Dict[str, Any] = {}
@@ -136,6 +136,7 @@ def train(
                 c = d["cluster_data"]
                 y = d["label"]
 
+                model.train()
                 y_pred = model(X, c)
                 loss = model.loss(y_pred, y)
                 optimizer.zero_grad()
@@ -163,7 +164,6 @@ def train(
                 stopping_counter = 0
             else:
                 stopping_counter += 1
-
         else:
             if loss < best_loss:
                 best_loss = loss
@@ -172,7 +172,7 @@ def train(
             else:
                 stopping_counter += 1
 
-        if early_stopping:
+        if early_stopping > 0:
             if stopping_counter >= early_stopping:
                 break
 
@@ -250,8 +250,9 @@ def setup_and_train(
 
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
+    valid = (validation_set, buckets) if validation_set else None
     losses = train(
-        model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm, (validation_set, buckets)
+        model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm, valid
     )
 
     return model, losses, buckets
