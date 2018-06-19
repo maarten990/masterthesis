@@ -1,225 +1,65 @@
 \section{Evaluation}
 \FloatBarrier%
-
-\subsection{Regularisation}
-Since regularisation is very important to prevent overfitting, the common
-methods of regularisation are tested first to obtain a good baseline value for the
-rest of the experiments. These methods are:
-\begin{itemize}
-  \item Dropout, with values taken from the set
-    $\left\{0.0, 0.1, 0.2, 0.3, 0.4, 0.5\right\}$.
-  \item Weight decay, with values taken from the set
-    \[
-      \left\{0.0, \num{1e-5}, \num{1e-4}, \num{1e-3}, \num{1e-2}\right\}.
-    \]
-\end{itemize}
-Further details on these methods are given in \cref{sec:method}.
-
-\subsubsection{Dropout}
-\Cref{fig:dropout_plots} shows the training loss over time, as well as the
-resulting precision-recall curve on the training set. There does not seem to be
-any visible difference in performance; this lack of effect is also
-shown in \cref{fig:dropout_dists}. A dropout rate of 0.5 appears to score the
-best, although none of the distributions are different in a statistically
-significant way. The full data, with the mean and standard deviation of the F1
-score and the area under the curve, are given in
-\cref{tbl:dropout}.
+The results of all three models tested with the basic parameters
+(\cref{tbl:params}) on various input sizes is shown in \cref{fig:result}. At
+very low training sizes, the F1 scores are about the same, with a very high
+variance. At higher training sizes, the \texttt{Clusters} model pulls ahead with
+a small, but statistically significant lead over the baseline
+(see \cref{tbl:base_cl} for the raw numbers). The \texttt{Clusters-LSTM} model
+performs similarly to the \texttt{Clusters} models, only scoring higher in a
+barely significant way at 400 samples. 
 
 \begin{figure}[tb]
   \centering
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/dropout/losses.pdf}
-    \caption{The average loss at each epoch.\\}%
-    \label{fig:dropout_loss}
-  \end{subfigure}
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/dropout/pr.pdf}
-    \caption{The average precision-recall curves at various dropout values.}%
-    \label{fig:dropout_pr}
-  \end{subfigure}
-  \caption{The loss over time (\subref{fig:dropout_loss}) and the
-    precision-recall curve (\subref{fig:dropout_pr}). In both cases, the values are
-    averaged over 10 trials.}%
-    \label{fig:dropout_plots}
+  \includegraphics[width=\textwidth]{figures/results/main/factorplot_f1.pdf}
+  \caption{This figure compares the performance of the baseline model, using
+    only a CNN, to that of the model augmented with clustering. The vertical axis
+    shows the F1 score, averaged over 10 trials. The horizontal axis shows the
+    number of samples used for training (at a 1:1 ratio of positive to negative
+    samples). The vertical bars indicate confidence intervals, meaning that based on
+    the observed F1 scores and assuming normality, the true mean is 95\% likely to
+  fall within the shown interval.\label{fig:result}}
 \end{figure}
-
-\begin{figure}[tb]
-  \centering
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/dropout/kde_f1.pdf}
-    \caption{Kernel density estimation}%
-    \label{fig:dropout_kde}
-  \end{subfigure}
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/dropout/boxplot_f1.pdf}
-    \caption{Boxplot}%
-    \label{fig:dropout_box}
-  \end{subfigure}
-  \caption{A kernel density estimation and boxplot, based on the F1 score values
-  over 10 repeated trials.}%
-  \label{fig:dropout_dists}
-\end{figure}
-
 \begin{table}[tb]
   \centering
-  \import{./figures/results/dropout/}{scores.tex}
-  \caption{The F1 and AoC scores at various dropout values.}%
-  \label{tbl:dropout}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \multirow{2}[3]{*}{\# training samples} & \multicolumn{2}{c}{F1 score} & \multirow{2}[3]{*}{p} \\
+    \cmidrule(lr){2-3}
+    & \multicolumn{1}{c}{Baseline} & \multicolumn{1}{c}{Clusters} & \\
+    \midrule
+    50   & 0.830 (\emph{0.035}) & 0.839 (\emph{0.026}) & 0.40 \\
+    100  & 0.869 (\emph{0.025}) & 0.880 (\emph{0.017}) & 0.19 \\
+    400  & 0.903 (\emph{0.007}) & 0.910 (\emph{0.006}) & \textbf{0.005} \\
+    800  & 0.911 (\emph{0.008}) & 0.914 (\emph{0.007}) & 0.15 \\
+    1200 & 0.911 (\emph{0.011}) & 0.919 (\emph{0.011}) & \textbf{0.008} \\
+    \bottomrule
+  \end{tabular}
+  \caption{The values corresponding to \cref{fig:result}, comparing the
+    \texttt{Baseline} and \texttt{Clusters} model. The final column shows
+    that probability of the F1 scores of both models being drawn from the same
+  distribution.\label{tbl:base_cl}}
 \end{table}
-
-\FloatBarrier%
-\subsubsection{Weight decay}
-Similarly to the dropout plots, \cref{fig:decay_plots} shows the training loss
-over time and the precision-recall curve at various weight decay values. There
-are again no significant differences, with a value of \num{1e-4} performing just
-slightly better.
-
-\begin{figure}[tb]
-  \centering
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/decay/losses.pdf}
-    \caption{The average loss at each epoch.\\}%
-    \label{fig:decay_loss}
-  \end{subfigure}
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/decay/pr.pdf}
-    \caption{The average precision-recall curves at various decay values.}%
-    \label{fig:decay_pr}
-  \end{subfigure}
-  \caption{The loss over time (\subref{fig:decay_loss}) and the
-    precision-recall curve (\subref{fig:decay_pr}). In both cases, the values are
-    averaged over 10 trials.}%
-    \label{fig:decay_plots}
-\end{figure}
-
-\begin{figure}[tb]
-  \centering
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/decay/kde_f1.pdf}
-    \caption{Kernel density estimation}%
-    \label{fig:decay_kde}
-  \end{subfigure}
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/decay/boxplot_f1.pdf}
-    \caption{Boxplot}%
-    \label{fig:decay_box}
-  \end{subfigure}
-  \caption{A kernel density estimation and boxplot, based on the F1 score values
-  over 10 repeated trials.}%
-  \label{fig:decay_dists}
-\end{figure}
-
 \begin{table}[tb]
   \centering
-  \import{./figures/results/decay/}{scores.tex}
-  \caption{The F1 and AoC scores at various decay values.}%
-  \label{tbl:decay}
+  \begin{tabular}{lrrrr}
+    \toprule
+    \multirow{2}[3]{*}{\# training samples} & \multicolumn{2}{c}{F1 score} & \multirow{2}[3]{*}{p} \\
+    \cmidrule(lr){2-3}
+    & \multicolumn{1}{c}{Clusters} & \multicolumn{1}{c}{Clusters-LSTM} & \\
+    \midrule
+    50   & 0.839 (\emph{0.035}) & 0.820 (\emph{0.025}) & 0.43 \\
+    100  & 0.880 (\emph{0.017}) & 0.877 (\emph{0.022}) & 0.72 \\
+    400  & 0.910 (\emph{0.006}) & 0.913 (\emph{0.008}) & \textbf{0.027} \\
+    800  & 0.914 (\emph{0.007}) & 0.919 (\emph{0.005}) & 0.11 \\
+    1200 & 0.919 (\emph{0.011}) & 0.921 (\emph{0.005}) & 0.62 \\
+    \bottomrule
+  \end{tabular}
+  \caption{The values corresponding to \cref{fig:result}, comparing the
+    \texttt{Clusters} and \texttt{Clusters-LSTM} model. The final column shows
+    that probability of the F1 scores of both models being drawn from the same
+  distribution.\label{tbl:cl_cllstm}}
 \end{table}
-
-\FloatBarrier%
-
-\subsection{Models}
-\begin{figure}[tb]
-  \centering
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/models/losses.pdf}
-    \caption{The average loss at each epoch.\\}%
-    \label{fig:model_loss}
-  \end{subfigure}
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/models/pr.pdf}
-    \caption{The average precision-recall curves for the various models.}%
-    \label{fig:model_pr}
-  \end{subfigure}
-  \caption{The loss over time (\subref{fig:model_loss}) and the
-    precision-recall curve (\subref{fig:model_pr}). In both cases, the values are
-    averaged over 10 trials.}%
-    \label{fig:model_plots}
-\end{figure}
-
-Here the models described earlier (TODO: beschrijven en ernaar verwijzen) are
-tested with the default parameters of the CNN\@. Based on the previous results,
-the dropout rate was set to 0.5 and the decay to \num{1e-4}.
-The plots in \Cref{fig:model_plots} show a subtle but observable difference; the
-model using the full window jumps out of the pack in both cases, converging a
-little bit faster and being on top for most of the precision-recall curve,
-although the model with an additional CNN catches up at higher recalls.
-
-\begin{figure}[tb]
-  \centering
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/models/kde_f1.pdf}
-    \caption{Kernel density estimation}%
-    \label{fig:model_kde}
-  \end{subfigure}
-  \begin{subfigure}[t]{0.49\textwidth}
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/models/boxplot_f1.pdf}
-    \caption{Boxplot}%
-    \label{fig:model_box}
-  \end{subfigure}
-  \caption{A kernel density estimation and boxplot, based on the F1 score values
-  over 10 repeated trials.}%
-  \label{fig:model_dists}
-\end{figure}
-
-The boxplot in \cref{fig:model_box} paints a clear picture with three tiers of
-performance: the model without cluster labels performs worst, adding only the
-cluster of center of the window improves it a bit, while using the full window
-performs best with and without a CNN applied to it.
-\Cref{fig:model_dists} showns an interesting relation between the two top
-performing models. Their score distributions are clearly bimodal with both peaks
-occurring at roughly the same scores, indicating the possibly of getting caught
-in a local optimum. The real win of the simpler model without the CNN appears to
-be that it is far less likely to get stuck in that local optimum.
-
-\begin{table}[tb]
-  \centering
-  \import{./figures/results/models/}{scores.tex}
-  \caption{The F1 and AoC scores of the various models.}%
-  \label{tbl:model}
-\end{table}
-
-Significance values for the F1 score are given in \cref{tbl:model_sign}, which
-shows that every model is different from every other model using the common
-cutoff of $p <= 0.05$. The least convincing is the difference between the two
-best models (Full window and Window CNN), but given the still significant result
-it is reasonable to state that the Full window model is the clearly winner given
-its far more reliable ability to reach the global optimum.
-
-\begin{table}[tb]
-  \centering
-  \import{./figures/results/models/}{f1_sign.tex}
-  \caption{The probability for each pair of models that their F1 scores are
-  generated by the same underlying distribution (i.e.\ the probability of the
-  null hypothesis that the models perform the same being true).}%
-  \label{tbl:model_sign}
-\end{table}
-
-\subsection{Number of clusters}
-\Cref{fig:kmeans_box} shows the results of varying the number of clusters
-created in the final k-means clustering step.
-\begin{figure}[tb]
-  \centering
-    \centering
-    \includegraphics[width=\textwidth]{./figures/results/kmeans/boxplot_f1.pdf}
-    \caption{A boxplot based on the F1 scores of 10 repeated trials for various
-    amounts of clusters created by the k-means algorithm.}%
-    \label{fig:kmeans_box}
-\end{figure}
-
-\FloatBarrier%
 
 %%% Local Variables:
 %%% mode: latex
