@@ -243,8 +243,6 @@ def setup_and_train(
             "seq_len": buckets[0],
             "embed_size": params.embed_size,
             "filters": params.filters,
-            "dropout": params.dropout,
-            "num_layers": params.num_layers,
         }
         recurrent_model = CNNClassifier(**argdict)
 
