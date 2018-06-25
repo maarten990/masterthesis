@@ -21,15 +21,15 @@ overview of the two systems and how they interact.
 
 \subsection{Unsupervised}%
 \label{sec:unsup}
-The unsupervised algorithm intends to detect and classify blocks of text in the
+The unsupervised algorithm is inteded to detect and classify blocks of text in the
 PDF file; \Cref{fig:clustered} shows an example. This approach is based on
 work by \textcite{klampfl2014unsupervised}, and consists of two separate
 clustering steps. First, individual characters (the fundamental objects
 available in a PDF file) are clustered together into blocks of semantically
-relevant text. These would be paragraphs, section headers, page decoration, etc.
+relevant text. These could be, for example,  paragraphs, section headers or page decoration.
 By using the bounding boxes of the blocks, they can be clustered based on their
 shape and some additional metadata (e.g.\ occurrence of font types and sizes).
-The following subsections will go into details on the two clustering steps.
+The rest of this section will go into details on the two clustering steps.
 
 \begin{figure}[tb]
   \centering
@@ -62,13 +62,18 @@ coordinates of the two characters. The second parameter is called the
   distance of its elements:
   \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
 \end{itemize}
-As per \textcite{klampfl2014unsupervised}, single-linkage clustering performs
-best for this task due to its tendency to form long thin clusters. This is
-beneficial since text is somewhat long and thin in nature (especially words and
-sentences). As an additional bonus, while the general time complexity for HAC is
-in $\mathcal{O}(n^3)$, single-linkage clustering can be done in
-$\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more usable on
-realistic datasets.
+Additionally there are more involved linkage criteria, such as the Ward method
+which minimizes the variance within clusters. Although these more complex
+methods would generally be favored, in this specific context single-linkage
+clusters is actually the best option\citep{klampfl2014unsupervised}. This is due
+to its tendency to form long, thin clusters; this mirrors the nature of text, in
+particular words and sentences (which are just long, thin strings of letters and
+words respectively).
+As an additional bonus, it is the most computationally efficient method.
+While the general time complexity for HAC is
+in $\mathcal{O}(n^3)$, clever algorithms exist for single-linkage clustering
+that fall in $\mathcal{O}(n^2)$ \citep{sibson1973slink}, making it far more
+usable on larger datasets.
 
 \begin{figure}[tb]
   \centering
@@ -92,8 +97,7 @@ the desired blocks of text. Clustering can optionally be rerun using the newly
 found clusters as basic elements. This way, the document can incrementally be
 clustered from characters into words, words into lines, and finally lines into
 paragraphs. Both the level at which to cut the tree and the number of times to
-recluster are determined by trial and error based on the particular set of
-documents.
+recluster are to be manually tuned based on the particular set of documents.
 
 \subsubsection{K-Means}
 The extracted blocks from the previous step are then clustered according to
@@ -111,34 +115,36 @@ experimental purposes.
 \label{sec:sup}
 After the data is augmented by the previously described clustering algorithms,
 it's fed into a convolutional neural network for classification. Since the
-source PDFs have a dual column layout with rather short lines, a sliding window
-is used to add valuable context, with the center element in the window supplying
-the label (i.e.\ does or does not start a speech). The text content of this
-window is then entered into a standard convolutional neural network architecture
-similar to the one proposed by \textcite{kim2014conv}.  First an embedding layer
-is used to learn a high-dimensional representation of the words (no pre-trained
-embeddings were used because of both the specialized political domain of the
-data as well as a lack of quality pre-trained German models), followed by a
-number of convolutional filters with 1-max pooling. The output of the filters is
-then concatenated into a single feature vector, which is combined with the
-clustering data in one of three ways, which will all be evaluated:
+documents have a dual column layout (meaning each line of text is pretty short)
+and classification is based on the lines from the document, a sliding window is
+used to supply more context. The text content of this window is then tokenized
+(such that words as well as each individual punctuation mark are a token)
+and fed into a standard convolutional neural network
+architecture\citep{kim2014conv}, with the label (i.e.\ does or does not start a
+new speech) being provided by the center element of the window.
+First an embedding layer is used to learn a high-dimensional representation of
+the tokens (no pre-trained embeddings were used because of both the specialized
+political domain of the data as well as a lack of quality pre-trained German
+models), followed by a single convolutional layer, consisting of multiple
+filters each followed by 1-max pooling (a more in-depth explanation is provided
+in \cref{sec:conv}). The output of the filters is then concatenated into a
+single feature vector, which is combined with the clustering data in one of two
+ways, which will both be evaluated:
 \begin{enumerate}
-  \item The cluster type of the center element of the window is added to the
-    feature vector.
   \item The cluster types of each element in the window are added to the
     feature vector.
-  \item An additional smaller CNN is applied to the cluster types of each
+  \item An additional smaller LSTM is applied to the cluster types of each
     element in the window, the output of which is concatenated with the feature
     vector.
 \end{enumerate}
-The resulting feature vector is then fed into a standard fully-connected neural
-network. This network features one hidden layer with a ReLU activation
-($\mathrm{relu}(x) = \max(0, x)$) and a single output node with a sigmoid
-activation. The layout of this system is detailed in \cref{fig:model_full} along
-with its parameters and their baseline value.
+The resulting feature vector is then fed into a fully-connected neural network.
+This network features one hidden layer with a ReLU activation ($\mathrm{relu}(x)
+= \max(0, x)$) and a single output node with a sigmoid activation. The layout of
+this system is detailed in \cref{fig:model_full} along with its parameters and
+their baseline value.
 
 The network is trained for 100 epochs, stopping early once no significant
-improvement in training loss has been made for 10 epochs in a row. The
+improvement has been made on a small validation set for 10 epochs in a row. The
 optimisation process is done using the Adadelta\citep{adadelta}
 algorithm\footnote{Why not Adam\citep{adam}? The architecture\citep{kim2014conv}
 and survey paper\citep{zhang2015conv} that this work is based on both date to
@@ -146,15 +152,12 @@ roughly the year when the Adam paper was published, and thus likely predate the
 widespread acceptance of Adam as a de facto standard. Since a full analysis of
 different optimizers is outside the scope of this thesis and some quick informal
 tests showed no difference between using Adadelta or Adam, there is no reason to
-deviate from the survey.}, with
-binary cross-entropy as the loss function and the training data delivered in
-batches.  The loss might exhibit some up and down fluctuations after a minimum
-has been reached; to account for this, the best loss so far along with the
-corresponding model parameters is kept track of throughout the learning process.
-Once all the epochs have been completed, the output is the model instantiated
-with the parameters corresponding to the lowest loss that was obtained.
-Regularisation is done through a combination of dropout\citep{dropout} and an
-upper limit on the L2 norm of each weight vector\citep{l2norm}.
+deviate from the survey.}, with binary cross-entropy as the loss function and
+the training data delivered in batches. Regularisation is done through a
+combination of dropout\citep{dropout} and an upper limit on the L2 norm of each
+weight vector\citep{l2norm}. Further explanations of the optimisation process
+and the regularisation methods are provided in \cref{sec:optim} and
+\cref{sec:reg} respectively.
 
 \begin{figure}[p]
   \centering
@@ -178,7 +181,7 @@ upper limit on the L2 norm of each weight vector\citep{l2norm}.
 	Window size & 9 \\
 	Word embedding size & 300 \\
 	Number of filters & 100 \\
-	Filter sizes & 3, 5, 7 \\
+	Filter sizes & 4, 5, 6 \\
 	Activation & ReLU \\
 	Pooling type & 1-max \\
 	\bottomrule
@@ -195,6 +198,7 @@ upper limit on the L2 norm of each weight vector\citep{l2norm}.
 	\midrule
 	Number of hidden layers & 1 \\
 	Hidden layer size & 50 \\
+	Hidden layer activation & ReLU \\
 	Number of outputs & 1 \\
 	Output activation & Sigmoid \\
 	\bottomrule
@@ -223,7 +227,7 @@ upper limit on the L2 norm of each weight vector\citep{l2norm}.
   \caption{The model and its parameters.\label{fig:model_full}}
 \end{figure}
 
-\subsubsection{Optimisation process}
+\subsubsection{Optimisation process}\label{sec:optim}
 Optimisation is done using the Adadelta update rule\citep{adadelta}. This is
 easiest to explain by starting with the basic mini-batch stochastic gradient
 descent algorithm (SGD). At each iteration $t$, the network parameters $\theta$
@@ -285,7 +289,7 @@ similar to \cref{eq:rms}.
   \Delta\theta_t = \frac{RMS[\theta]_{t-1}}{RMS[g]_t} g_{t}
 \end{equation}
 
-\subsubsection{Regularisation}
+\subsubsection{Regularisation}\label{sec:reg}
 Dropout\citep{dropout} is a Regularisation method that is rather crude at first
 glance; on each batch update, each node in the neural network has a probability
 $p$ of outputting zero (i.e.\ the node being ``disabled''). As a result, nodes
@@ -317,17 +321,19 @@ norm of all weight vectors is added to the loss function --- in that the weights
 are not being continuously pushed towards zero, making it a milder form of
 regularisation that allows for a bit more complexity in the model.
 
-\subsubsection{Convolutional Neural Networks}
-\todo[inline]{This is kind of jumbled and out of place, might need to be deleted
-or moved to an appendix or something.}
-For the purposes of machine learning,
-text produces 3-dimensional data: there is a feature vector for each word, and
-some (either variable or predetermined through padding) amount of words per
-text. This makes each training sample a 2-dimensional matrix, which then gets
-stacked in the depth dimension to produce 3-dimensional training data. This is
-troublesome as the standard machine learning algorithms work on 2-dimensional
-data, assuming a feature vector for each sample rather than a matrix. There are
-three common methods to deal with this:
+\subsubsection{Convolutional Neural Networks}\label{sec:conv}
+In addition to explaining how a convolutional neural network works, this section
+will additionally go into why the choice was made to use a convolution neural
+network, rather than a recurrent neural network (which is more strongly
+associated with text processing) or any other machine learning algorithm.
+Starting with the basics, text is inherently troublesome because it produces
+3-dimensional data: there is a feature vector for each word, and some (either
+variable or predetermined through padding) amount of words per text. This makes
+each training sample a 2-dimensional matrix, which then gets stacked in the
+depth dimension to produce 3-dimensional training data. This clashes with the
+tendency of usual machine learning algorithms to work on 2-dimensional data,
+assuming a feature vector for each sample rather than a matrix. There are three
+common methods to deal with this:
 \begin{itemize}
 \item Bag of words
 \item Convolutional neural networks
@@ -335,14 +341,15 @@ three common methods to deal with this:
 \end{itemize}
 
 Aside from being completely different methods, they differ in a major way in how
-they handle the sequential nature of text. The bag of words approach is the
-simplest in that it simply disregards this sequential nature, instead creating
+they handle the sequential nature of text (i.e.\ the words in a sentence have a
+meaningful order). The bag of words approach is the
+simplest in that it simply disregards this sequential nature entirely, instead creating
 what is essentially a histogram of word occurrences. This downsamples each
-sample from a feature matrix to a feature vector, allowing the use of normal
-machine learning algorithms (commonly support vector machines). While the
-sequential information can be kept to some degree by use histograms of $n$-grams
-rather than words (unigrams), this causes the size of the input data to scale
-exponentially with the value of $n$.
+sample from a feature matrix to a feature vector, allowing the use of
+conventional machine learning algorithms (most commonly support vector
+machines). While the sequential information can be kept to some degree by using
+histograms of $n$-grams rather than words (unigrams), this causes the size of
+the input data to scale exponentially with the value of $n$.
 
 Convolutional neural networks (CNNs) work by taking a number of filters
 (sometimes called kernels or feature maps) of a specified size and convolving
@@ -367,24 +374,25 @@ input (minus a few due to missing the edges). The next step is to downsample
 this sequence by means of a \emph{max pooling} layer, which maps all values
 within a window to the maximum value amongst those values. While conceptually
 similar to a convolution, this step generally does not involve overlap, instead
-either setting the stride to the same value as the window size (usually 2)
+either setting the stride to the same value as the window size (usually 2) or
 reducing the entire sequence to 1 value (1-max pooling). The reason for this is
 twofold:
 \begin{enumerate}
-\item It downsamples the number of inputs, reducing the amount of parameters
+\item It downsamples the data, reducing the amount of parameters
   required further on in the network.
 \item It adds translation invariance to the feature detected by this filter. The
-  example filter of \cref{fig:cnn} appears to react strongly to the
-  presence of the word ``Hallo''. Without the pooling layer, changing the
-  location of the word ``Hallo'' in the input would similarly change the
+  example filter of \cref{fig:cnn} reacts strongly to the
+  first three words. Without the pooling layer, changing the
+  location of these words in the input would similarly change the
   location of the high activation in the intermediate representation; this would
-  be \emph{equivariance}. The more aggressively the pooling is applied, the
-  higher the degree of invariance.
+  be translation \emph{equivariance}. The more aggressively the pooling is
+  applied, the higher the degree of invariance (with full translational
+  invariance being achieved with 1-max pooling).
 \end{enumerate}
 This combination of convolution followed by pooling can be repeated multiple
 times as desired or until there is only a single value left as output from the
 filter. Finally, the outputs of all filters are concatenated and fed into a
-standard feedforward neural network.
+regular neural network.
 
 While CNN architectures in computer vision are generally very deep, they tend to
 be very shallow in natural language processing; commonly just a single
@@ -395,13 +403,13 @@ Recurrent neural networks (in particular LSTMs or GRUs) are seemingly the most
 natural fit for language processing, since they process an entire sequence and
 are therefore fully conditioned on the word order (as opposed to the
 convolutional neural networks which tend to learn translation invariant ngram
-features). Regardless, convolutional neural networks will be used in this
-research. This choice is based on two factors:
+features). In spite of this, the decision to use convolutional neural networks 
+is based on two factors:
 \begin{enumerate}
 \item In practise, the performance for classification tasks does not differ
-  between the two types of networks.\citep{cnnrnn}
+  between the convolutional and recurrent neural networks.\citep{cnnrnn}
 \item The computations in convolutional networks are highly independent of
-  each other, allowing for great paralellization (in particular with regards to
+  each other, allowing for great parallelization (in particular with regards to
   running on a GPU). In contrast, LSTMs are bottlenecked by the fact that each
   calculation is dependent on the previous calculations. As a result, CNNs
   achieve far higher training speeds.\citep{facebook}
