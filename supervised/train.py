@@ -92,6 +92,7 @@ def train(
     progbar: bool = False,
     max_norm: float = 0,
     validation_set: Optional[Tuple[Dataset, List[int]]] = None,
+    idx_only: bool = False,
 ) -> List[float]:
     """Train a Pytorch model.
 
@@ -106,6 +107,8 @@ def train(
     :param max_norm: Value to clip each weight vector's L2 norm at. If 0, no
         clipping is done.
     :param validation_set: Optional verification set to use for early stopping.
+    :param idx_only: Only use the indices of the clusterlabels rather than a
+        categorical vector.
     :returns: The value of the model's loss function at every epoch.
     """
     model.cuda() if gpu else model.cpu()
@@ -118,12 +121,14 @@ def train(
     f1_scores: List[float] = []
     best_f1 = 0.0
 
+    cluster_str = "cluster_data_only_idx" if idx_only else "cluster_data_full"
+
     stopping_counter = 0
     if progbar:
         t = trange(epochs, desc="Training")
     else:
         t = range(epochs)
-    for _ in t:
+    for i in t:
         epoch_loss = 0.0
 
         for batch in dataloader:
@@ -133,7 +138,7 @@ def train(
 
             for _, d in data.items():
                 X = d["data"]
-                c = d["cluster_data"]
+                c = d[cluster_str]
                 y = d["label"]
 
                 model.train()
@@ -156,7 +161,7 @@ def train(
         # check if the model is the best yet
         if validation_set:
             ds, buckets = validation_set
-            f1 = get_scores(model, buckets, ds, gpu)["F1"]
+            f1 = get_scores(model, buckets, ds, gpu, idx_only)["F1"]
             f1_scores.append(f1)
             if f1 > best_f1:
                 best_f1 = f1
@@ -174,6 +179,7 @@ def train(
 
         if early_stopping > 0:
             if stopping_counter >= early_stopping:
+                print(f"Stopping at iteration {i}")
                 break
 
         # update the progress bar
@@ -220,6 +226,7 @@ def setup_and_train(
     progbar: bool = True,
     max_norm: float = 0,
     validation_set: Optional[Dataset] = None,
+    idx_only: bool = False,
 ) -> Tuple[nn.Module, List[float], List[int]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
@@ -250,7 +257,16 @@ def setup_and_train(
     optimizer = optim_fn(model.parameters())
     valid = (validation_set, buckets) if validation_set else None
     losses = train(
-        model, optimizer, data, epochs, gpu, early_stopping, progbar, max_norm, valid
+        model,
+        optimizer,
+        data,
+        epochs,
+        gpu,
+        early_stopping,
+        progbar,
+        max_norm,
+        valid,
+        idx_only,
     )
 
     return model, losses, buckets

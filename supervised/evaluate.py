@@ -22,7 +22,7 @@ sns.set()
 
 
 def get_values(
-    model: nn.Module, dataloader: DataLoader, gpu: bool = True
+    model: nn.Module, dataloader: DataLoader, gpu: bool = True, idx_only: bool = False
 ) -> Tuple[List[float], List[float]]:
     """Get the classification output for the given dataset.
 
@@ -37,6 +37,8 @@ def get_values(
     predictions: List[float] = []
     true: List[float] = []
 
+    cluster_str = "cluster_data_only_idx" if idx_only else "cluster_data_full"
+
     for batch in dataloader:
         data = to_tensors(batch)
         if gpu:
@@ -44,7 +46,7 @@ def get_values(
 
         for _, d in data.items():
             X = d["data"]
-            c = d["cluster_data"]
+            c = d[cluster_str]
             y = d["label"]
 
             pred = model(X, c)
@@ -168,10 +170,16 @@ def plot(
 
 
 def get_scores(
-    model: nn.Module, buckets: List[int], dataset: Dataset, gpu: bool = True
+    model: nn.Module,
+    buckets: List[int],
+    dataset: Dataset,
+    gpu: bool = True,
+    idx_only: bool = False,
 ) -> Dict[str, Any]:
     p, r = precision_recall_values(
-        *get_values(model, get_iterator(dataset, buckets)[0], gpu=gpu)
+        *get_values(
+            model, get_iterator(dataset, buckets)[0], gpu=gpu, idx_only=idx_only
+        )
     )
 
     scores = {"F1": max_f1(p, r), "AoC": average_precision(p, r), "pr": (p, r)}
@@ -182,6 +190,7 @@ def cross_val(
     k: int,
     train_size: int,
     model_fns: List[Callable[[nn.Module], nn.Module]],
+    idx_only_list: List[bool],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
     dataset: Dataset,
     params: Any,
@@ -213,7 +222,7 @@ def cross_val(
             print(f"{len(trainset)} training samples, {len(testset)} testing samples")
             first_run = False
 
-        for i, model_fn in enumerate(model_fns):
+        for i, (model_fn, idx_only) in enumerate(zip(model_fns, idx_only_list)):
             model, loss, buckets = train.setup_and_train(
                 params,
                 model_fn,
@@ -226,6 +235,7 @@ def cross_val(
                 progbar=False,
                 max_norm=params.max_norm,
                 validation_set=validation_set,
+                idx_only=idx_only,
             )
             scores = get_scores(model, buckets, testset, gpu)
             losses[i].append(loss)
