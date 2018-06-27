@@ -246,33 +246,27 @@ def cross_val(
     return losses, PRs, F1s, APs
 
 
-def analyze(data, variable="variable", path=None):
+def analyze_wrapper(no_labels, full_window, with_rnn, variable="variable", path=None):
+    for size in no_labels.keys():
+        analyze(
+            {
+                "Baseline": no_labels[size],
+                "Clusters": full_window[size],
+                "Clusters-LSTM": with_rnn[size],
+            },
+            size,
+            "model",
+            "../report/figures/results/main_data",
+        )
+
+
+def analyze(data, size, variable="variable", path=None):
     # ensure the target folder exists
     if path and not os.path.isdir(path):
         os.makedirs(path)
 
     # extract the items from the dict to guarantee a consistent iteration order
     items = list(data.items())
-
-    print("Average convergence speed")
-    max_epoch = np.max(
-        [len(sample) for _, (losses, _, _, _) in items for sample in losses]
-    )
-    loss_dict = {
-        label: np.mean(
-            [
-                np.pad(sample, ((0, (max_epoch - len(sample)))), "edge")
-                for sample in losses
-            ],
-            axis=0,
-        )
-        for label, (losses, _, _, _) in items
-    }
-    plot(loss_dict, "epoch", "loss")
-    if path:
-        plt.savefig(f"{path}/losses.pdf")
-    plt.show()
-    print()
 
     print("Average P/R curve")
     pr_dict = {}
@@ -284,7 +278,7 @@ def analyze(data, variable="variable", path=None):
 
     plot(pr_dict, "recall", "precision")
     if path:
-        plt.savefig(f"{path}/pr.pdf")
+        plt.savefig(f"{path}/pr-{size}.pdf")
     plt.show()
     print()
 
@@ -294,25 +288,11 @@ def analyze(data, variable="variable", path=None):
         mean_pr = mean_of_pr([p for p, _ in pr], [r for _, r in pr])
         r = sorted(mean_pr.keys())
         p = [mean_pr[r] for r in r]
-        table.append(
-            [label, np.mean(f1), np.std(f1), np.mean(aps), np.std(aps), mean_aoc(p, r)]
-        )
+        table.append([label, np.mean(f1), np.std(f1)])
 
-    print(
-        tabulate(
-            table,
-            headers=[
-                variable,
-                "F1 mean",
-                "F1 stddev",
-                "AUC mean",
-                "AUC std",
-                "Area under averaged curve",
-            ],
-        )
-    )
+    print(tabulate(table, headers=[variable, "F1 mean", "F1 stddev"]))
     if path:
-        with open(f"{path}/scores.tex", "w") as f:
+        with open(f"{path}/scores-{size}.tex", "w") as f:
             f.write(
                 tabulate(
                     table,
@@ -332,41 +312,29 @@ def analyze(data, variable="variable", path=None):
         {
             variable: [label for label, (_, _, f1, _) in items for _ in f1],
             "F1 score": [score for _, (_, _, f1, _) in items for score in f1],
-            "Area under curve": [score for _, (_, _, _, aoc) in items for score in aoc],
         }
     )
 
     print()
-    print("F1 plots:")
-    for label, (_, _, f1, _) in items:
-        sns.distplot(df[df[variable] == label]["F1 score"], hist=False, label=label)
-    plt.legend()
-    if path:
-        plt.savefig(f"{path}/kde_f1.pdf")
-    plt.show()
-
     plt.figure()
     sns.boxplot(df[variable], df["F1 score"])
     if path:
-        plt.savefig(f"{path}/boxplot_f1.pdf")
+        plt.savefig(f"{path}/boxplot_f1-{size}.pdf")
     plt.show()
 
     print()
     print("Statistical significance (dependent T-test):")
     sign_table_f1 = []
-    sign_table_ap = []
-    for label_1, (_, _, f1_1, ap_1) in items:
+    for label_1, (_, _, f1_1, _) in items:
         sign_table_f1.append([label_1])
-        sign_table_ap.append([label_1])
-        for label_2, (_, _, f1_2, ap_2) in items:
+        for label_2, (_, _, f1_2, _) in items:
             sign_table_f1[-1].append(scipy.stats.ttest_rel(f1_1, f1_2, axis=0).pvalue)
-            sign_table_ap[-1].append(scipy.stats.ttest_rel(ap_1, ap_2, axis=0).pvalue)
 
     print("F1 score")
     print(tabulate(sign_table_f1, headers=[label for label, _ in items]))
 
     if path:
-        with open(f"{path}/f1_sign.tex", "w") as f:
+        with open(f"{path}/f1_sign-P{size}.tex", "w") as f:
             f.write(
                 tabulate(
                     sign_table_f1,
@@ -376,25 +344,36 @@ def analyze(data, variable="variable", path=None):
             )
 
 
-def analyze_size(data, variable="variable", path=None):
+def analyze_size(data, ax="training samples", variable="variable", path=None, use_hue=False):
     # ensure the target folder exists
     if path and not os.path.isdir(path):
         os.makedirs(path)
 
-    df_data = {"training samples": [], variable: [], "F1 score": []}
+    df_data = {ax: [], variable: [], "F1 score": []}
 
     for size, d in data.items():
         items = list(d.items())
-        df_data["training samples"] += [size for _, (_, _, f1, _) in items for _ in f1]
+        df_data[ax] += [size for _, (_, _, f1, _) in items for _ in f1]
         df_data[variable] += [label for label, (_, _, f1, _) in items for _ in f1]
         df_data["F1 score"] += [score for _, (_, _, f1, _) in items for score in f1]
 
     df = pd.DataFrame(df_data)
 
+    # overlay the plots in the same figure
     g = sns.factorplot(
-        x="training samples", y="F1 score", col=variable, data=df, kind="point"
+        x=ax, y="F1 score", hue=variable, data=df, kind="point"
     )
     g.set_titles("{col_name}")
     if path:
-        plt.savefig(f"{path}/factorplot_f1.pdf")
+        plt.savefig(f"{path}/factorplot_f1_hue.pdf")
+    plt.show()
+
+    # display the plots side by side
+    plt.figure()
+    g = sns.factorplot(
+        x=ax, y="F1 score", col=variable, data=df, kind="point"
+    )
+    g.set_titles("{col_name}")
+    if path:
+        plt.savefig(f"{path}/factorplot_f1_col.pdf")
     plt.show()

@@ -179,7 +179,6 @@ def train(
 
         if early_stopping > 0:
             if stopping_counter >= early_stopping:
-                print(f"Stopping at iteration {i}")
                 break
 
         # update the progress bar
@@ -188,6 +187,9 @@ def train(
                 epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
             )
             t.set_postfix({"loss": loss, "Δloss": loss_delta})
+    else:
+        # warn if the for-loop didn't break
+        print("Warning: did not stop early")
 
     if progbar:
         t.close()
