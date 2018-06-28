@@ -24,7 +24,7 @@ val usage = """
 Text block clustering.
 Usage:
   clusterer gui
-  clusterer [-d] <param_file> <xml> <file> <outpath>
+  clusterer [-d] <param_file> <xml_folder> <pdf_folder> <out_folder>
 
 Options:
   -d --debug  Emit a pdf with bounding box drawings.
@@ -34,18 +34,36 @@ var DEBUG = false
 
 fun main(args: Array<String>) {
     val opts = Docopt(usage).withHelp(true).parse(*args)
-
     if (opts["gui"] == true) {
         return Application.launch(gui.ClusterApp::class.java, *args)
     }
 
+    val xmls = File(opts["<xml_folder>"] as String).walk().map { it.path }.toList()
+    val pdfs = File(opts["<pdf_folder>"] as String).walk().map { it.path }.toList()
+    val outPaths = File(opts["<xml_folder>"] as String).walk()
+            .map {
+                (opts["<out_folder>"] as String) + "/" + it.name
+            }
+            .toList()
+
     DEBUG = opts["--debug"] as Boolean
     val conf = parseConfig(opts["<param_file>"] as String)
-    val blocks = conf.clusteringFunc(opts["<file>"] as String)
-    val labeled = conf.labelingFunc(blocks)
+    val blocksPerFile = pdfs.map { conf.clusteringFunc(it) }
 
-    insertIntoXml(opts["<xml>"] as String, opts["<file>"] as String,
-            opts["<outpath>"] as String, labeled)
+    // Flatten the list to performs the block labeling on all blocks at once, then translate it back to the list
+    // structure for putting it back into the right XML files.
+    val labeled = conf.labelingFunc(blocksPerFile.flatten())
+    val labeledPerFile = blocksPerFile
+            .flatMap {
+                it.map { file -> file.mapValues { (k, _) -> labeled.getOrDefault(k, 0) } }
+            }
+            .toList()
+
+    // skip the 0th index since it contains the main folder instead of the files due to the walk() output
+    for (i in 1 until xmls.size) {
+        println("Writing (${xmls[i]}, ${pdfs[i]}) to ${outPaths[i]}")
+        insertIntoXml(xmls[i], pdfs[i], outPaths[i], labeledPerFile[i])
+    }
 }
 
 fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
