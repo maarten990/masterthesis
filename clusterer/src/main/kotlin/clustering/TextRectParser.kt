@@ -19,6 +19,7 @@ class TextRectParser : PDFTextStripper() {
     private var fontID = 0
     private var fontToID = mutableMapOf<String, Int>()
     private var currentPage = 0
+    private var filename = ""
 
 
     init {
@@ -29,12 +30,13 @@ class TextRectParser : PDFTextStripper() {
      * Clear the chars list, populate it with the characters on the specified
      * page, and returns the list.
      */
-    fun getCharsOnPage(doc: PDDocument, page: Int): List<CharData> {
+    fun getCharsOnPage(doc: PDDocument, page: Int, filename: String): List<CharData> {
         chars.clear()
         fontToID.clear()
         this.startPage = page + 1
         this.endPage = page + 1
         currentPage = page + 1
+        this.filename = filename
         val dummy = OutputStreamWriter(ByteArrayOutputStream())
         writeText(doc, dummy)
 
@@ -51,7 +53,7 @@ class TextRectParser : PDFTextStripper() {
             }
 
             val data = CharData(it.xDirAdj, it.yBottom(), it.widthDirAdj,
-                    it.heightDir, it.unicode, it.fontSize, fontToID[fontStr]?.toFloat()!!, currentPage)
+                    it.heightDir, it.unicode, it.fontSize, fontToID[fontStr]?.toFloat()!!, currentPage, filename)
             chars.add(data)
         }
     }
@@ -62,7 +64,7 @@ class TextRectParser : PDFTextStripper() {
  */
 data class CharData(val left: Float, val bottom: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
-                    val fontID: Float, val page: Int) {
+                    val fontID: Float, val page: Int, val file: String) {
     val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
     val vecLabels: List<String> = listOf("left", "bottom", "width", "height", "fontsize", "fontID")
 

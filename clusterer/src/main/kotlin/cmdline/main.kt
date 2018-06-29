@@ -38,13 +38,23 @@ fun main(args: Array<String>) {
         return Application.launch(gui.ClusterApp::class.java, *args)
     }
 
-    val xmls = File(opts["<xml_folder>"] as String).walk().map { it.path }.toList()
-    val pdfs = File(opts["<pdf_folder>"] as String).walk().map { it.path }.toList()
+    val xmls = File(opts["<xml_folder>"] as String).walk()
+            .filter { it.isFile }
+            .map { it.path }
+            .toList()
+            .sorted()
+    val pdfs = xmls
+            .map {
+                (opts["<pdf_folder>"] as String) + "/" + File(it).nameWithoutExtension + ".pdf" 
+            }
+            .toList()
+            .sorted()
     val outPaths = File(opts["<xml_folder>"] as String).walk()
             .map {
                 (opts["<out_folder>"] as String) + "/" + it.name
             }
             .toList()
+            .sorted()
 
     DEBUG = opts["--debug"] as Boolean
     val conf = parseConfig(opts["<param_file>"] as String)
@@ -53,17 +63,25 @@ fun main(args: Array<String>) {
     // Flatten the list to performs the block labeling on all blocks at once, then translate it back to the list
     // structure for putting it back into the right XML files.
     val labeled = conf.labelingFunc(blocksPerFile.flatten())
-    val labeledPerFile = blocksPerFile
-            .flatMap {
-                it.map { file -> file.mapValues { (k, _) -> labeled.getOrDefault(k, 0) } }
-            }
-            .toList()
+    val (labeledPerFile, filenames) = toPages(labeled)
 
-    // skip the 0th index since it contains the main folder instead of the files due to the walk() output
-    for (i in 1 until xmls.size) {
-        println("Writing (${xmls[i]}, ${pdfs[i]}) to ${outPaths[i]}")
+    for (i in 0 until xmls.size) {
+        println("Writing (${xmls[i]}, ${pdfs[i]}) to ${outPaths[i]}. Using data from ${filenames[i]}")
         insertIntoXml(xmls[i], pdfs[i], outPaths[i], labeledPerFile[i])
     }
+}
+
+fun toPages(labeled: Map<CharData, Int>): Pair<MutableList<MutableMap<CharData, Int>>, List<String>> {
+    val out = mutableListOf<MutableMap<CharData, Int>>()
+    val files = labeled.map { (k, _) -> k.file }.distinct().toList().sorted()
+    val fileNameToIdx = files.mapIndexed { index, s -> Pair(s, index) }.toMap()
+    files.forEach { out.add(mutableMapOf()) }
+
+    labeled.forEach {
+        (text, label) -> out[fileNameToIdx[text.file]!!][text] = label
+    }
+
+    return Pair(out, files)
 }
 
 fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
@@ -74,7 +92,7 @@ fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<Char
 
     for (pagenum in 0 until doc.numberOfPages) {
         clusterer.vectorizer = Vectorizer.GEOM
-        blocks.add(clusterer.clusterFilePageDbscan(doc, pagenum, epsilon, minSamples))
+        blocks.add(clusterer.clusterFilePageDbscan(doc, pagenum, path, epsilon, minSamples))
     }
 
     doc.close()
@@ -90,7 +108,7 @@ fun cluster_hac(path: String, cutoff: Int): List<Map<CharData, Int>> {
 
     for (pagenum in 0 until doc.numberOfPages) {
         clusterer.vectorizer = Vectorizer.GEOM
-        blocks.add(clusterer.clusterFilePage(doc, pagenum).collectBelowCutoff(cutoff))
+        blocks.add(clusterer.clusterFilePage(doc, pagenum, path).collectBelowCutoff(cutoff))
     }
 
     doc.close()
@@ -154,7 +172,7 @@ fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<Ch
             if (DEBUG) {
                 pdf.drawRect(pdfPage, CharData(coords.left.toFloat(), (coords.bottom).toFloat(),
                         coords.width.toFloat(), coords.height.toFloat(),
-                        text.textContent, 0.0f, 0.0f, pageNum))
+                        text.textContent, 0.0f, 0.0f, pageNum, ""))
             }
 
             // for each block, check if the element's coords are within the block's

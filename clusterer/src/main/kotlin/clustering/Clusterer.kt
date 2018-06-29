@@ -47,18 +47,19 @@ class Clusterer {
     /**
      * Hierarchically cluster the text on a PDF page.
      */
-    fun clusterFilePage(document: PDDocument, pagenum: Int): Dendrogram {
+    fun clusterFilePage(document: PDDocument, pagenum: Int, filename: String): Dendrogram {
         val parser = TextRectParser()
-        val chars = parser.getCharsOnPage(document, pagenum)
+        val chars = parser.getCharsOnPage(document, pagenum, filename)
         return cluster(chars)
     }
 
     /**
      * Cluster the text on a PDF page using DBSCAN.
      */
-    fun clusterFilePageDbscan(document: PDDocument, pagenum: Int, epsilon: Float, minSamples: Int): Map<CharData, Int> {
+    fun clusterFilePageDbscan(document: PDDocument, pagenum: Int, filename: String,
+                              epsilon: Float, minSamples: Int): Map<CharData, Int> {
         val parser = TextRectParser()
-        val chars = parser.getCharsOnPage(document, pagenum)
+        val chars = parser.getCharsOnPage(document, pagenum, filename)
         return dbscan(chars, epsilon, minSamples)
     }
 }
@@ -76,6 +77,7 @@ fun getBoundingRect(chars: Collection<CharData>): CharData {
     val fontSize = getMode(chars.map(CharData::fontSize)) ?: 0.0f
     val fontID = getMode(chars.map(CharData::fontID)) ?: 0.0f
     val page = getMode(chars.map(CharData::page)) ?: 0
+    val filename = getMode(chars.map(CharData::file)) ?: ""
     val clusterText = chars
             // group clusters on the same line
             .groupBy { it.bottom }
@@ -88,7 +90,7 @@ fun getBoundingRect(chars: Collection<CharData>): CharData {
             .joinToString("\n", transform={ it.joinToString("", transform=CharData::ch) })
 
     return CharData(leftMost, botMost, rightMost - leftMost, topMost - botMost,
-            clusterText, fontSize, fontID, page)
+            clusterText, fontSize, fontID, page, filename)
 }
 
 

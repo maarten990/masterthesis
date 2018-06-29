@@ -26,7 +26,7 @@ class ClusterController: Controller() {
             for (pagenum in 0 until doc.numberOfPages) {
                 model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
                 clusterer.vectorizer = item.vectorizer
-                dendrograms.add(clusterer.clusterFilePage(doc, item.pagenum))
+                dendrograms.add(clusterer.clusterFilePage(doc, item.pagenum, item.path))
             }
 
             model.dendrogram.value = dendrograms.observable()
@@ -48,7 +48,7 @@ class ClusterController: Controller() {
             for (pagenum in 0 until doc.numberOfPages) {
                 model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
                 clusterer.vectorizer = item.vectorizer
-                merged.add(clusterer.clusterFilePageDbscan(doc, pagenum, item.epsilon, item.minSamples))
+                merged.add(clusterer.clusterFilePageDbscan(doc, pagenum, item.path, item.epsilon, item.minSamples))
             }
 
             doc.close()

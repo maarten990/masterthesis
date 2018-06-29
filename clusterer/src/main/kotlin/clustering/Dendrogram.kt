@@ -49,7 +49,7 @@ sealed class Dendrogram {
             return if (nodes.isNotEmpty())
                 nodes.last()
             else
-                LeafNode(CharData(0.0f, 0.0f, 0.0f, 0.0f, "", 0.0f, 0.0f, 0))
+                LeafNode(CharData(0.0f, 0.0f, 0.0f, 0.0f, "", 0.0f, 0.0f, 0, ""))
         }
     }
 }
