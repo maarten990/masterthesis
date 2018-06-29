@@ -62,17 +62,31 @@ fun main(args: Array<String>) {
 
     // Flatten the list to performs the block labeling on all blocks at once, then translate it back to the list
     // structure for putting it back into the right XML files.
-    val labeled = conf.labelingFunc(blocksPerFile.flatten())
-    val (labeledPerFile, filenames) = toPages(labeled)
+    conf.labelingFunc.let {
+        if (it is LabelingFunc.WithCentroids) {
+            val labeled = it.func(blocksPerFile.flatten())
+            val (labeledPerFile, filenames) = toPages(labeled)
 
-    for (i in 0 until xmls.size) {
-        println("Writing (${xmls[i]}, ${pdfs[i]}) to ${outPaths[i]}. Using data from ${filenames[i]}")
-        insertIntoXml(xmls[i], pdfs[i], outPaths[i], labeledPerFile[i])
+            for (i in 0 until xmls.size) {
+                println("Writing (${xmls[i]}, ${pdfs[i]}) to ${outPaths[i]}. Using data from ${filenames[i]}")
+                insertIntoXml(xmls[i], pdfs[i], outPaths[i], labeledPerFile[i])
+            }
+        }
+
+        else if (it is LabelingFunc.WithDist) {
+            val labeled = it.func(blocksPerFile.flatten())
+            val (labeledPerFile, filenames) = toPages(labeled)
+
+            for (i in 0 until xmls.size) {
+                println("Writing (${xmls[i]}, ${pdfs[i]}) to ${outPaths[i]}. Using data from ${filenames[i]}")
+                insertIntoXml(xmls[i], pdfs[i], outPaths[i], labeledPerFile[i])
+            }
+        }
     }
 }
 
-fun toPages(labeled: Map<CharData, Int>): Pair<MutableList<MutableMap<CharData, Int>>, List<String>> {
-    val out = mutableListOf<MutableMap<CharData, Int>>()
+fun <T>toPages(labeled: Map<CharData, T>): Pair<MutableList<MutableMap<CharData, T>>, List<String>> {
+    val out = mutableListOf<MutableMap<CharData, T>>()
     val files = labeled.map { (k, _) -> k.file }.distinct().toList().sorted()
     val fileNameToIdx = files.mapIndexed { index, s -> Pair(s, index) }.toMap()
     files.forEach { out.add(mutableMapOf()) }
@@ -136,7 +150,17 @@ fun labelDbscan(blocks: List<Map<CharData, Int>>, eps: Float, min_pts: Int): Map
     return clusterer.dbscan(clusterGroups.map(::getBoundingRect), eps, min_pts)
 }
 
-fun insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<CharData, Int>) {
+fun labelGmm(blocks: List<Map<CharData, Int>>, k: Int): Map<CharData, List<Double>> {
+    val clusterer = Clusterer()
+    clusterer.vectorizer = Vectorizer.ONLY_DIMS
+
+    // group the data into lists of chardata objects belonging to the same cluster, for the document as a whole
+    val clusterGroups = blocks.flatMap(::labelMappingToLists)
+
+    return clusterer.gmm(clusterGroups.map(::getBoundingRect), k)
+}
+
+fun <T>insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map<CharData, T>) {
     // group the labels by page
     val grouped = labels.entries
             .groupBy { it.key.page }

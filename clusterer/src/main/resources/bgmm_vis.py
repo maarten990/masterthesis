@@ -1,22 +1,23 @@
 import sys
 import numpy as np
-from sklearn.cluster import DBSCAN
+from sklearn.mixture import BayesianGaussianMixture
 
 
 def main():
     infile = sys.argv[1]
     outfile = sys.argv[2]
-    epsilon = float(sys.argv[3])
-    min_samples = int(sys.argv[4])
+    k = int(sys.argv[3])
 
     data = np.genfromtxt(infile, delimiter=',')
 
-    print('Received {} points, clustering with eps={}, min_samples={}'.format(
-        data.shape[0], epsilon, min_samples))
+    print('Received {} points, clustering with {} mixture components'.format(
+        data.shape[0], k
+    ))
 
     if data.size > 0:
-        clusterer = DBSCAN(eps=epsilon, min_samples=min_samples)
-        labels = clusterer.fit_predict(data)
+        clusterer = BayesianGaussianMixture(k)
+        clusterer.fit(data)
+        labels = clusterer.predict(data)
         print('Finished clustering')
     else:
         labels = []

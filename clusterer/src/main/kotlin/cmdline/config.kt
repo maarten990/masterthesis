@@ -18,6 +18,10 @@ class KmeansParams {
     var k: Int? = null
 }
 
+class GmmParams {
+    var k: Int? = null
+}
+
 class HacParams {
     var cutoff: Int? = null
 }
@@ -36,6 +40,9 @@ class LabelingMethod {
 
     @JsonProperty
     var kmeans: KmeansParams? = null
+
+    @JsonProperty
+    var gmm: GmmParams? = null
 }
 
 class ConfigFormat {
@@ -46,8 +53,14 @@ class ConfigFormat {
     var clustering: ClusteringMethod? = null
 }
 
+sealed class LabelingFunc {
+    data class WithCentroids(val func: (List<Map<CharData, Int>>) -> Map<CharData, Int>) : LabelingFunc()
+    data class WithDist(val func: (List<Map<CharData, Int>>) -> Map<CharData, List<Double>>) : LabelingFunc()
+    object Undefined : LabelingFunc()
+}
+
 data class Config(var clusteringFunc: (String) -> List<Map<CharData, Int>> = { _ -> listOf(mapOf()) },
-                  var labelingFunc: (List<Map<CharData, Int>>) -> Map<CharData, Int> = { _ -> (mapOf()) })
+                  var labelingFunc: LabelingFunc = LabelingFunc.Undefined)
 
 fun parseConfig(path: String): Config {
     val mapper = ObjectMapper(YAMLFactory())
@@ -61,7 +74,7 @@ fun parseConfig(path: String): Config {
             val min_pts = it.min_pts!!
             println("Labeling algorithm: dbscan, eps: $eps, min_pts: $min_pts")
 
-            conf.labelingFunc = { files -> labelDbscan(files, eps, min_pts) }
+            conf.labelingFunc = LabelingFunc.WithCentroids({ files -> labelDbscan(files, eps, min_pts) })
         }
     }
 
@@ -70,7 +83,16 @@ fun parseConfig(path: String): Config {
             val k = it.k!!
             println("Labeling algorithm: kmeans, k: $k")
 
-            conf.labelingFunc = { blocks -> labelClusters(blocks, k) }
+            conf.labelingFunc = LabelingFunc.WithCentroids{ blocks -> labelClusters(blocks, k) }
+        }
+    }
+
+    config.labeling?.gmm.let {
+        if (it != null) {
+            val k = it.k!!
+            println("Labeling algorithm: Gaussian mixture model, k: $k")
+
+            conf.labelingFunc = LabelingFunc.WithDist{ blocks -> labelGmm(blocks, k) }
         }
     }
 

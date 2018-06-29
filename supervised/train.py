@@ -92,7 +92,7 @@ def train(
     progbar: bool = False,
     max_norm: float = 0,
     validation_set: Optional[Tuple[Dataset, List[int]]] = None,
-    idx_only: bool = False,
+    use_dist: bool = False,
 ) -> List[float]:
     """Train a Pytorch model.
 
@@ -107,7 +107,7 @@ def train(
     :param max_norm: Value to clip each weight vector's L2 norm at. If 0, no
         clipping is done.
     :param validation_set: Optional verification set to use for early stopping.
-    :param idx_only: Only use the indices of the clusterlabels rather than a
+    :param use_dist: Only use the indices of the clusterlabels rather than a
         categorical vector.
     :returns: The value of the model's loss function at every epoch.
     """
@@ -121,7 +121,7 @@ def train(
     f1_scores: List[float] = []
     best_f1 = 0.0
 
-    cluster_str = "cluster_data_only_idx" if idx_only else "cluster_data_full"
+    cluster_str = "cluster_data_gmm" if use_dist else "cluster_data_full"
 
     stopping_counter = 0
     if progbar:
@@ -161,7 +161,7 @@ def train(
         # check if the model is the best yet
         if validation_set:
             ds, buckets = validation_set
-            f1 = get_scores(model, buckets, ds, gpu, idx_only)["F1"]
+            f1 = get_scores(model, buckets, ds, gpu, use_dist)["F1"]
             f1_scores.append(f1)
             if f1 > best_f1:
                 best_f1 = f1
@@ -228,7 +228,7 @@ def setup_and_train(
     progbar: bool = True,
     max_norm: float = 0,
     validation_set: Optional[Dataset] = None,
-    idx_only: bool = False,
+    use_dist: bool = False,
 ) -> Tuple[nn.Module, List[float], List[int]]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
@@ -268,7 +268,7 @@ def setup_and_train(
         progbar,
         max_norm,
         valid,
-        idx_only,
+        use_dist,
     )
 
     return model, losses, buckets

@@ -17,15 +17,6 @@ from tqdm import tqdm
 np.random.seed(100)
 
 
-class ClusterFmt(Enum):
-    # a concatenated sequence of the categorical labels of the whole window
-    FULL_WINDOW = auto()
-
-    # Same as full window, but with the indices instead of a categorical vector.
-    # Meant for use as input to a Pytorch embedding layer.
-    FULL_WINDOW_ONLY_IDX = auto()
-
-
 def full_window_fn(window, central_idx, num_clusterlabels):
     l = [
         to_onehot(
@@ -37,11 +28,12 @@ def full_window_fn(window, central_idx, num_clusterlabels):
     return np.concatenate(l)
 
 
-def full_window_only_idx_fn(window, central_idx, num_clusterlabels):
-    return [
-        int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0
+def full_window_dist_fn(window, central_idx, num_clusterlabels):
+    l = [
+        eval(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else ([0.0] * num_clusterlabels)
         for w in window
     ]
+    return np.concatenate(l)
 
 
 class Vocab:
@@ -61,6 +53,7 @@ class GermanDataset(Dataset):
     def __init__(
         self,
         files: List[str],
+        gmm_files: List[str],
         num_clusterlabels: int,
         negative_ratio: float,
         window_size: int,
@@ -68,27 +61,31 @@ class GermanDataset(Dataset):
         vocab: Optional[Vocab] = None,
         bag_of_words: bool = False,
     ) -> None:
-        self.files = files
-        self.vocab = create_dictionary(self.files) if not vocab else vocab
+        self.vocab = create_dictionary(files) if not vocab else vocab
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
 
-        for file in files:
+        for file, gmm_file in zip(files, gmm_files):
             xml = load_xml_from_disk(file)
+            xml_gmm = load_xml_from_disk(gmm_file)
             pos = xml.xpath('/pdf2xml/page/text[@is-speech="true"]')
             neg = xml.xpath('/pdf2xml/page/text[@is-speech="false"]')
+            pos_gmm = xml_gmm.xpath('/pdf2xml/page/text[@is-speech="true"]')
+            neg_gmm = xml_gmm.xpath('/pdf2xml/page/text[@is-speech="false"]')
 
-            for p in pos:
+            for p, p_gmm in zip(pos, pos_gmm):
                 window = xml_window(p, window_label_idx, window_size)
+                window_gmm = xml_window(p_gmm, window_label_idx, window_size)
                 if window:
-                    self.samples.append(self.vectorize_window(window))
-            for n in neg:
+                    self.samples.append(self.vectorize_window(window, window_gmm))
+            for n, n_gmm in zip(neg, neg_gmm):
                 window = xml_window(n, window_label_idx, window_size)
+                window_gmm = xml_window(n_gmm, window_label_idx, window_size)
                 if window:
-                    self.samples.append(self.vectorize_window(window))
+                    self.samples.append(self.vectorize_window(window, window_gmm))
 
         if negative_ratio != -1:
             self.equalize_ratio(negative_ratio)
@@ -211,7 +208,9 @@ class GermanDataset(Dataset):
         for train_indices, test_indices in splits:
             yield DataSubset(self, train_indices), DataSubset(self, test_indices)
 
-    def vectorize_window(self, window: List[etree._Element]) -> Sample:
+    def vectorize_window(
+            self, window: List[etree._Element], window_gmm: List[etree._Element]
+    ) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
         tokens = token_featurizer(window, tokenizer)
         y = get_label(window[self.window_label_idx])
@@ -231,8 +230,8 @@ class GermanDataset(Dataset):
         clusterlabels = full_window_fn(
             window, self.window_label_idx, self.num_clusterlabels
         )
-        clusterlabels_idx = full_window_only_idx_fn(
-            window, self.window_label_idx, self.num_clusterlabels
+        clusterlabels_gmm = full_window_dist_fn(
+            window_gmm, self.window_label_idx, self.num_clusterlabels
         )
 
         return {
@@ -240,7 +239,7 @@ class GermanDataset(Dataset):
                 "data": X,
                 "speaker_data": np.array(X_speaker),
                 "cluster_data_full": np.array(clusterlabels),
-                "cluster_data_only_idx": np.array(clusterlabels_idx),
+                "cluster_data_gmm": np.array(clusterlabels_gmm),
                 "label": np.array([y]),
             }
         }
@@ -339,7 +338,7 @@ class CollateWithBuckets:
                     sample_dict["speaker_data"], (0, amount), "constant"
                 ),
                 "cluster_data_full": sample_dict["cluster_data_full"],
-                "cluster_data_only_idx": sample_dict["cluster_data_only_idx"],
+                "cluster_data_gmm": sample_dict["cluster_data_gmm"],
                 "label": sample_dict["label"],
             }
         else:
@@ -347,7 +346,7 @@ class CollateWithBuckets:
                 "data": sample_dict["data"][:amount],
                 "speaker_data": sample_dict["speaker_data"][:amount],
                 "cluster_data_full": sample_dict["cluster_data_full"],
-                "cluster_data_only_idx": sample_dict["cluster_data_only_idx"],
+                "cluster_data_gmm": sample_dict["cluster_data_gmm"],
                 "label": sample_dict["label"],
             }
 
@@ -379,9 +378,9 @@ def to_tensors(sample: Sample) -> Sample:
             "cluster_data_full": Variable(
                 torch.from_numpy(sample_dict["cluster_data_full"])
             ).long(),
-            "cluster_data_only_idx": Variable(
-                torch.from_numpy(sample_dict["cluster_data_only_idx"])
-            ).long(),
+            "cluster_data_gmm": Variable(
+                torch.from_numpy(sample_dict["cluster_data_gmm"])
+            ).float(),
             "label": Variable(torch.from_numpy(sample_dict["label"])).float(),
         }
 
@@ -396,7 +395,7 @@ def to_gpu(sample: Sample) -> Sample:
                 "data": sample_dict["data"].cuda(),
                 "speaker_data": sample_dict["speaker_data"].cuda(),
                 "cluster_data_full": sample_dict["cluster_data_full"].cuda(),
-                "cluster_data_only_idx": sample_dict["cluster_data_only_idx"].cuda(),
+                "cluster_data_gmm": sample_dict["cluster_data_gmm"].cuda(),
                 "label": sample_dict["label"].cuda(),
             }
 
@@ -412,7 +411,7 @@ def to_cpu(sample: Sample) -> Sample:
             "data": sample_dict["data"].cpu(),
             "speaker_data": sample_dict["speaker_data"].cpu(),
             "cluster_data_full": sample_dict["cluster_data_full"].cpu(),
-            "cluster_data_only_idx": sample_dict["cluster_data_only_idx"].cpu(),
+            "cluster_data_gmm": sample_dict["cluster_data_gmm"].cpu(),
             "label": sample_dict["label"].cpu(),
         }
 

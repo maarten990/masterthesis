@@ -136,5 +136,6 @@ enum class Collector {
 
 enum class BlockLabeler {
     KMEANS,
-    DBSCAN;
+    DBSCAN,
+    GMM;
 }

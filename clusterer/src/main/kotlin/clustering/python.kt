@@ -54,6 +54,28 @@ class PythonEnv {
         }
     }
 
+    fun gmm(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, List<Double>> {
+        saveChardata(data, vectorizer)
+        val result = callPython("bgmm.py", k.toString())
+
+        return if (result.isNotEmpty()) {
+            data.zip(result).toMap()
+        } else {
+            mapOf()
+        }
+    }
+
+    fun gmm_vis(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, Int> {
+        saveChardata(data, vectorizer)
+        val result = callPython("bgmm_vis.py", k.toString())
+
+        return if (result.isNotEmpty()) {
+            data.zip(result[0]).toMap().mapValues { it.value.toInt() }
+        } else {
+            mapOf()
+        }
+    }
+
     private fun callPython(script: String, vararg args: String): List<List<Double>> {
         val stream = Thread.currentThread().contextClassLoader.getResourceAsStream(script)
         val contents = stream.bufferedReader().use { it.readText() }

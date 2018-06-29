@@ -37,6 +37,20 @@ class Clusterer {
     }
 
     /**
+     * Cluster a collection of items using a Gaussian mixture model.
+     */
+    fun gmm(chars: List<CharData>, k: Int): Map<CharData, List<Double>> {
+        return python.gmm(chars, vectorizer, k)
+    }
+
+    /**
+     * Cluster a collection of items using a Gaussian mixture model, returning only the most likely label.
+     */
+    fun gmm_vis(chars: List<CharData>, k: Int): Map<CharData, Int> {
+        return python.gmm_vis(chars, vectorizer, k)
+    }
+
+    /**
      * Recluster hierarchically based on the bounding rectangles of each cluster.
      */
     fun recluster(clusters: Collection<List<CharData>>): Dendrogram {

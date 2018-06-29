@@ -22,7 +22,7 @@ sns.set()
 
 
 def get_values(
-    model: nn.Module, dataloader: DataLoader, gpu: bool = True, idx_only: bool = False
+    model: nn.Module, dataloader: DataLoader, gpu: bool = True, use_dist: bool = False
 ) -> Tuple[List[float], List[float]]:
     """Get the classification output for the given dataset.
 
@@ -37,7 +37,7 @@ def get_values(
     predictions: List[float] = []
     true: List[float] = []
 
-    cluster_str = "cluster_data_only_idx" if idx_only else "cluster_data_full"
+    cluster_str = "cluster_data_gmm" if use_dist else "cluster_data_full"
 
     for batch in dataloader:
         data = to_tensors(batch)
@@ -174,11 +174,11 @@ def get_scores(
     buckets: List[int],
     dataset: Dataset,
     gpu: bool = True,
-    idx_only: bool = False,
+    use_dist: bool = False,
 ) -> Dict[str, Any]:
     p, r = precision_recall_values(
         *get_values(
-            model, get_iterator(dataset, buckets)[0], gpu=gpu, idx_only=idx_only
+            model, get_iterator(dataset, buckets)[0], gpu=gpu, use_dist=use_dist
         )
     )
 
@@ -190,7 +190,7 @@ def cross_val(
     k: int,
     train_size: int,
     model_fns: List[Callable[[nn.Module], nn.Module]],
-    idx_only_list: List[bool],
+    use_dist_list: List[bool],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
     dataset: Dataset,
     params: Any,
@@ -222,7 +222,7 @@ def cross_val(
             print(f"{len(trainset)} training samples, {len(testset)} testing samples")
             first_run = False
 
-        for i, (model_fn, idx_only) in enumerate(zip(model_fns, idx_only_list)):
+        for i, (model_fn, use_dist) in enumerate(zip(model_fns, use_dist_list)):
             model, loss, buckets = train.setup_and_train(
                 params,
                 model_fn,
@@ -235,7 +235,7 @@ def cross_val(
                 progbar=False,
                 max_norm=params.max_norm,
                 validation_set=validation_set,
-                idx_only=idx_only,
+                use_dist=use_dist,
             )
             scores = get_scores(model, buckets, testset, gpu)
             losses[i].append(loss)
@@ -246,18 +246,17 @@ def cross_val(
     return losses, PRs, F1s, APs
 
 
-def analyze_wrapper(no_labels, full_window, with_rnn, variable="variable", path=None):
-    for size in no_labels.keys():
-        analyze(
-            {
-                "Baseline": no_labels[size],
-                "Clusters": full_window[size],
-                "Clusters-LSTM": with_rnn[size],
-            },
-            size,
-            "model",
-            "../report/figures/results/main_data",
-        )
+def analyze_wrapper(baseline, kmeans, gmm, variable="variable", path=None):
+    for size in baseline.keys():
+        data = {
+            "baseline": baseline[size],
+            "k-means": kmeans[size],
+        }
+
+        if gmm is not None:
+            data["Clusters-LSTM"] = gmm[size]
+
+        analyze(data, size, "model", "../report/figures/results/main_data")
 
 
 def analyze(data, size, variable="variable", path=None):

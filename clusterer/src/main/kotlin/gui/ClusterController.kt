@@ -110,6 +110,7 @@ class ClusterController: Controller() {
             val labeled = when (model.item.labeler) {
                 BlockLabeler.KMEANS -> clusterer.kmeans(clusterGroups.map(::getBoundingRect), model.item.k)
                 BlockLabeler.DBSCAN -> clusterer.dbscan(clusterGroups.map(::getBoundingRect), model.item.epsilon, model.item.minSamples)
+                BlockLabeler.GMM -> clusterer.gmm_vis(clusterGroups.map(::getBoundingRect), model.item.k)
                 null -> mapOf()
             }
 
