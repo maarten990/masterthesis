@@ -104,20 +104,20 @@ class StateModel : ItemViewModel<ProgramState>() {
 
 enum class Vectorizer {
     ALL {
-        override fun function(data: CharData) = data.asVec
-        override fun labels(data: CharData) = data.vecLabels
+        override fun function(data: CharData) = data.asVec()
+        override fun labels(data: CharData) = data.vecLabels()
     },
     GEOM {
-        override fun function(data: CharData) = data.asGeomVec
-        override fun labels(data: CharData) = data.geomLabels
+        override fun function(data: CharData) = data.asGeomVec()
+        override fun labels(data: CharData) = data.geomLabels()
     },
     CENTROID {
-        override fun function(data: CharData) = data.asCentroidVec
-        override fun labels(data: CharData) = data.centroidLabels
+        override fun function(data: CharData) = data.asCentroidVec()
+        override fun labels(data: CharData) = data.centroidLabels()
     },
     ONLY_DIMS {
-        override fun function(data: CharData) = data.asDims
-        override fun labels(data: CharData) = data.dimsLabels
+        override fun function(data: CharData) = data.asDims()
+        override fun labels(data: CharData) = data.dimsLabels()
     };
 
     abstract fun function(data: CharData): List<Float>

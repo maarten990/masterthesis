@@ -4,6 +4,7 @@ import clustering.CharData
 import clustering.Clusterer
 import clustering.drawRect
 import clustering.getBoundingRect
+import com.fasterxml.jackson.module.kotlin.*
 import gui.Vectorizer
 import gui.labelMappingToLists
 import javafx.application.Application
@@ -32,6 +33,8 @@ Options:
 
 var DEBUG = false
 
+data class BlocksPickle(val blocks: List<List<Map<CharData, Int>>>)
+
 fun main(args: Array<String>) {
     val opts = Docopt(usage).withHelp(true).parse(*args)
     if (opts["gui"] == true) {
@@ -59,8 +62,8 @@ fun main(args: Array<String>) {
     DEBUG = opts["--debug"] as Boolean
     val conf = parseConfig(opts["<param_file>"] as String)
 
-    val fname = "blocks_${conf.clusteringFunc.toString()}.bin"
-    val blocksPerFile = loadObject<List<List<Map<CharData, Int>>>>(fname) ?: pdfs.map { conf.clusteringFunc(it) }
+    val fname = "blocks.bin"
+    val blocksPerFile = loadObject(fname) ?: pdfs.map { conf.clusteringFunc(it) }
     if (!File(fname).exists()) {
         saveObject(blocksPerFile, fname)
     }
@@ -103,20 +106,17 @@ fun <T>toPages(labeled: Map<CharData, T>): Pair<MutableList<MutableMap<CharData,
     return Pair(out, files)
 }
 
-fun saveObject(obj: Any, path: String) {
-    val fs = FileOutputStream(File(path))
-    val os = ObjectOutputStream(fs)
-    os.writeObject(obj)
+fun saveObject(obj: List<List<Map<CharData, Int>>>, path: String) {
+    val mapper = jacksonObjectMapper()
+    mapper.writeValue(File(path), BlocksPickle(obj))
 }
 
-inline fun <reified T>loadObject(path: String): T? {
+fun loadObject(path: String): List<List<Map<CharData, Int>>>? {
     val f = File(path)
+    val mapper = jacksonObjectMapper()
 
     return if (f.exists()) {
-        val fs = FileInputStream(f)
-        val os = ObjectInputStream(fs)
-
-        os.readObject() as? T
+        mapper.readValue<BlocksPickle>(f).blocks
     } else {
         null
     }

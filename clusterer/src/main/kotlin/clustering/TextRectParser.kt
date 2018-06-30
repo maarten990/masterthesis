@@ -63,21 +63,38 @@ class TextRectParser : PDFTextStripper() {
 /**
  * Class to hold the coordinates of a pdf character.
  */
-data class CharData(val left: Float, val bottom: Float, val width: Float,
-                    val height: Float, val ch: String, val fontSize: Float,
-                    val fontID: Float, val page: Int, val file: String) : Serializable {
-    val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
-    val vecLabels: List<String> = listOf("left", "bottom", "width", "height", "fontsize", "fontID")
+data class CharData(var left: Float, var bottom: Float, var width: Float,
+               var height: Float, var ch: String, var fontSize: Float,
+               var fontID: Float, var page: Int, var file: String) {
+    constructor(str: String) : this(0.0f, 0.0f, 0.0f, 0.0f, "", 0.0f, 0.0f, 0, "") {
+        val args = str.split("☝")
+        this.left = args[0].toFloat()
+        this.bottom = args[1].toFloat()
+        this.width = args[2].toFloat()
+        this.height = args[3].toFloat()
+        this.ch = args[4]
+        this.fontSize = args[5].toFloat()
+        this.fontID = args[6].toFloat()
+        this.page = args[7].toInt()
+        this.file = args[8]
+    }
 
-    val asGeomVec: List<Float> = listOf(left, left + width, bottom, bottom + height, fontSize, fontID)
-    val geomLabels: List<String> = listOf("left", "right", "bottom", "top", "fontsize", "fontID")
-
-    val asCentroidVec: List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
-    val centroidLabels: List<String> = listOf("x_coord", "y_coord", "fontsize", "fontID")
-
-    val asDims: List<Float> = listOf(width, height, fontSize, fontID)
-    val dimsLabels: List<String> = listOf("width", "height", "fontsize", "fontID")
+    override fun toString(): String {
+        return listOf(left, bottom, width, height, ch, fontSize, fontID, page, file).joinToString("☝") { it.toString() }
+    }
 }
+
+fun CharData.asVec(): List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
+fun CharData.vecLabels(): List<String> = listOf("left", "bottom", "width", "height", "fontsize", "fontID")
+
+fun CharData.asGeomVec(): List<Float> = listOf(left, left + width, bottom, bottom + height, fontSize, fontID)
+fun CharData.geomLabels(): List<String> = listOf("left", "right", "bottom", "top", "fontsize", "fontID")
+
+fun CharData.asCentroidVec(): List<Float> = listOf(left + (0.5f * width), bottom + (0.5f * height), fontSize, fontID)
+fun CharData.centroidLabels(): List<String> = listOf("x_coord", "y_coord", "fontsize", "fontID")
+
+fun CharData.asDims(): List<Float> = listOf(width, height, fontSize, fontID)
+fun CharData.dimsLabels(): List<String> = listOf("width", "height", "fontsize", "fontID")
 
 // extend TextPosition to get the y coordinate relative to a bottom-left origin
 fun TextPosition.yBottom(): Float {

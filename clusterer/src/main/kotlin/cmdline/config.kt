@@ -74,7 +74,7 @@ fun parseConfig(path: String): Config {
             val min_pts = it.min_pts!!
             println("Labeling algorithm: dbscan, eps: $eps, min_pts: $min_pts")
 
-            conf.labelingFunc = LabelingFunc.WithCentroids({ files -> labelDbscan(files, eps, min_pts) })
+            conf.labelingFunc = LabelingFunc.WithCentroids { files -> labelDbscan(files, eps, min_pts) }
         }
     }
 
@@ -83,7 +83,7 @@ fun parseConfig(path: String): Config {
             val k = it.k!!
             println("Labeling algorithm: kmeans, k: $k")
 
-            conf.labelingFunc = LabelingFunc.WithCentroids{ blocks -> labelClusters(blocks, k) }
+            conf.labelingFunc = LabelingFunc.WithCentroids { blocks -> labelClusters(blocks, k) }
         }
     }
 
@@ -92,7 +92,7 @@ fun parseConfig(path: String): Config {
             val k = it.k!!
             println("Labeling algorithm: Gaussian mixture model, k: $k")
 
-            conf.labelingFunc = LabelingFunc.WithDist{ blocks -> labelGmm(blocks, k) }
+            conf.labelingFunc = LabelingFunc.WithDist { blocks -> labelGmm(blocks, k) }
         }
     }
 
