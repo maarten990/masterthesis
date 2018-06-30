@@ -9,6 +9,7 @@ import java.awt.Color
 import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.io.OutputStreamWriter
+import java.io.Serializable
 
 /**
  * Modified textstripper which saves all the character positions in the chars
@@ -64,7 +65,7 @@ class TextRectParser : PDFTextStripper() {
  */
 data class CharData(val left: Float, val bottom: Float, val width: Float,
                     val height: Float, val ch: String, val fontSize: Float,
-                    val fontID: Float, val page: Int, val file: String) {
+                    val fontID: Float, val page: Int, val file: String) : Serializable {
     val asVec: List<Float> = listOf(left, bottom, width, height, fontSize, fontID)
     val vecLabels: List<String> = listOf("left", "bottom", "width", "height", "fontsize", "fontID")
 

@@ -14,7 +14,7 @@ import org.w3c.dom.Element
 import org.w3c.dom.Node
 import org.w3c.dom.NodeList
 import java.awt.Color
-import java.io.File
+import java.io.*
 import javax.xml.parsers.DocumentBuilderFactory
 import javax.xml.transform.TransformerFactory
 import javax.xml.transform.dom.DOMSource
@@ -58,7 +58,12 @@ fun main(args: Array<String>) {
 
     DEBUG = opts["--debug"] as Boolean
     val conf = parseConfig(opts["<param_file>"] as String)
-    val blocksPerFile = pdfs.map { conf.clusteringFunc(it) }
+
+    val fname = "blocks_${conf.clusteringFunc.toString()}.bin"
+    val blocksPerFile = loadObject<List<List<Map<CharData, Int>>>>(fname) ?: pdfs.map { conf.clusteringFunc(it) }
+    if (!File(fname).exists()) {
+        saveObject(blocksPerFile, fname)
+    }
 
     // Flatten the list to performs the block labeling on all blocks at once, then translate it back to the list
     // structure for putting it back into the right XML files.
@@ -96,6 +101,25 @@ fun <T>toPages(labeled: Map<CharData, T>): Pair<MutableList<MutableMap<CharData,
     }
 
     return Pair(out, files)
+}
+
+fun saveObject(obj: Any, path: String) {
+    val fs = FileOutputStream(File(path))
+    val os = ObjectOutputStream(fs)
+    os.writeObject(obj)
+}
+
+inline fun <reified T>loadObject(path: String): T? {
+    val f = File(path)
+
+    return if (f.exists()) {
+        val fs = FileInputStream(f)
+        val os = ObjectInputStream(fs)
+
+        os.readObject() as? T
+    } else {
+        null
+    }
 }
 
 fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
