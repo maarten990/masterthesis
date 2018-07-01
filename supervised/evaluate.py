@@ -376,3 +376,29 @@ def analyze_size(data, ax="training samples", variable="variable", path=None, us
     if path:
         plt.savefig(f"{path}/factorplot_f1_col.pdf")
     plt.show()
+
+
+def analyze_tseries(data, ax="training samples", variable="variable", path=None):
+    # ensure the target folder exists
+    if path and not os.path.isdir(path):
+        os.makedirs(path)
+
+    df_data = {ax: [], variable: [], "F1 score": [], "trial": []}
+
+    for size, d in data.items():
+        items = list(d.items())
+        df_data[ax] += [size for _, (_, _, f1, _) in items for _ in f1]
+        df_data[variable] += [label for label, (_, _, f1, _) in items for _ in f1]
+        df_data["F1 score"] += [score for _, (_, _, f1, _) in items for score in f1]
+        df_data["trial"] += [i for _, (_, _, f1, _) in items for i, _ in enumerate(f1)]
+
+    df = pd.DataFrame(df_data)
+
+    # overlay the plots in the same figure
+    sns.tsplot(
+        time=ax, value="F1 score", condition=variable, unit="trial", data=df,
+        err_style="ci_band", marker="o"
+    )
+    if path:
+        plt.savefig(f"{path}/tseries_f1.pdf")
+    plt.show()
