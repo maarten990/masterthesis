@@ -1,65 +1,134 @@
-
+\section{Evaluation}
 \FloatBarrier%
-The results of all three models tested with the basic parameters
-(\cref{tbl:params}) on various input sizes is shown in \cref{fig:result}. At
-very low training sizes, the F1 scores are about the same, with a very high
-variance. At higher training sizes, the \texttt{Clusters} model pulls ahead with
-a small, but statistically significant lead over the baseline
-(see \cref{tbl:base_cl} for the raw numbers). The \texttt{Clusters-LSTM} model
-performs similarly to the \texttt{Clusters} models, only scoring higher in a
-barely significant way at 400 samples. 
 
+For evaluation, two models are considered:
+\begin{itemize}
+  \item ``Baseline'', just a convolutional neural network without using the
+    clustering information.
+  \item ``K-Means'', similar to the baseline model with the addition of
+    clustering information into the final classification step.
+\end{itemize}
+All experiments were run 10 times using a \emph{shuffle split} algorithm; this
+is similar to k-fold cross validation, but without the restriction of having to
+use $k$ evenly sized splits. Instead, for each iteration $n$ training samples
+are randomly sampled while the rest is used for testing. This allows for more
+control over the number of samples to train on. Additionally, the sampling is
+stratified, meaning it maintains the ratio (1:1) of positive to negative samples
+in the dataset.
+
+Before directly comparing the two models, a good baseline value has to be
+determined for the two parameters in the model that are the most difficult to
+determine:
+\begin{enumerate}
+  \item the size of the sliding window applied to the input data
+  \item the number of clusters to detect in the blocks of text (i.e.\ the ``k''
+    in k-means)
+\end{enumerate}
+Although there are more parameters, they are related to the convolutional
+neural network; this means they can be set to pretty good values using prior
+knowledge, as well as the fact that convolutional neural networks are not hugely
+sensitive to their parameters. The effect of the sliding window size is explored
+in \cref{fig:window}. This shows a very clear downward trend as the window gets
+bigger, peaking at the low size of 2.
 \begin{figure}[tb]
   \centering
-  \includegraphics[width=\textwidth]{figures/results/main/factorplot_f1.pdf}
-  \caption{This figure compares the performance of the baseline model, using
-    only a CNN, to that of the model augmented with clustering. The vertical axis
-    shows the F1 score, averaged over 10 trials. The horizontal axis shows the
-    number of samples used for training (at a 1:1 ratio of positive to negative
-    samples). The vertical bars indicate confidence intervals, meaning that based on
-    the observed F1 scores and assuming normality, the true mean is 95\% likely to
-  fall within the shown interval.\label{fig:result}}
+  \includegraphics[width=0.8\textwidth]{figures/results/800-windowsize/tseries_f1.pdf}
+  \caption{This figure shows the F1 score with regards to the window size for
+    each model trained on 1200 training samples.  The vertical axis shows the F1
+    score, averaged over 10 trials; the horizontal axis shows the size of the
+    sliding window applied to the training data. The translucent bands around the
+    lines indicates the confidence intervals, meaning that based on the observed F1
+    scores and assuming normality, the true mean is 95\% likely to
+    fall within that interval. The dots on the lines indicate measurements.\label{fig:window}}
 \end{figure}
+
+Results for the number of cluster types are given in \cref{fig:numcluster}. In
+this case, the window size was fixed to the previously determined optimum of 5.
+The \texttt{Baseline} model was not tested due to it not using the clustering
+data.  Although the results seem all over the place with large confidence
+intervals, this is a bit of an illusion caused by the small range of F1 scores
+that they span. There is an odd spike at 7 clusters which is hard to explain,
+but might be caused by the probabilistic nature of the K-Means algorithm and the
+fact that the same clustering was used for each trial; the particular K-Means
+run when doing 7 clusters might have produced a below-average result.
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\textwidth]{figures/results/800-numcluster/tseries_f1.pdf}
+  \caption{This figure shows the performance with regards to the number of
+    cluster types for each model trained on 1200 training samples with a window
+    size of 5.  The vertical axis shows the F1 score, averaged over 10 trials;
+    the horizontal axis shows the number of cluster types considered in the
+    final clustering step.  The translucent bands around the lines indicates the
+    confidence intervals, meaning that based on the observed F1 scores and
+    assuming normality, the true mean is 95\% likely to fall within that interval.
+    The dots on the lines indicate measurements.\label{fig:numcluster}}
+\end{figure}
+
+The results of all three models tested with the basic parameters
+(\cref{tbl:params}) on various input sizes is shown in \cref{fig:result}. The
+K-Means model outperforms the baseline at every input size, and as expected more
+data greatly improves the performance, rising sharply up to 800 samples and
+rising more gradually from then on. The precise values are given in
+\cref{tbl:main}, along with $p$-values calculated through a two-tailed Student's
+T-test.
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\textwidth]{figures/results/main/factorplot_f1_hue.pdf}
+  \caption{This figure compares the performance of the baseline model, using
+    only a CNN, to that of the model augmented with K-Means clustering. The
+    vertical axis shows the F1 score, averaged over 10 trials. The horizontal
+    axis shows the number of samples used for training (at a 1:1 ratio of
+    positive to negative samples). The vertical bars indicate confidence
+    intervals, meaning that based on the observed F1 scores and assuming
+    normality, the true mean is 95\% likely to fall within the shown
+    interval.\label{fig:result}}
+\end{figure}
+
 \begin{table}[tb]
   \centering
-  \begin{tabular}{lrrrr}
+  \sisetup{%
+    table-number-alignment = right,
+    table-figures-integer  = 1,
+    table-figures-decimal  = 4,
+    table-unit-alignment   = center,
+    detect-all             = true
+  }
+  \robustify\bfseries
+  \robustify\em
+  \begin{tabular}{l
+    S[table-auto-round]
+    S[table-auto-round]
+    S[table-auto-round]
+    S[table-auto-round]
+    S[table-auto-round]
+  }
     \toprule
-    \multirow{2}[3]{*}{\# training samples} & \multicolumn{2}{c}{F1 score} & \multirow{2}[3]{*}{p} \\
-    \cmidrule(lr){2-3}
-    & \multicolumn{1}{c}{Baseline} & \multicolumn{1}{c}{Clusters} & \\
+    \multirow{3}[5]{*}{Num.\ training samples} & \multicolumn{4}{c}{F1 Score} & \multirow{3}[5]{*}{$p$-value} \\
+    \cmidrule(lr){2-5}
+    & \multicolumn{2}{c}{Baseline} & \multicolumn{2}{c}{K-Means} & \\
+    \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+    & {mean} & {std} & {mean} & {std} & \\
     \midrule
-    50   & 0.830 (\emph{0.035}) & 0.839 (\emph{0.026}) & 0.40 \\
-    100  & 0.869 (\emph{0.025}) & 0.880 (\emph{0.017}) & 0.19 \\
-    400  & 0.903 (\emph{0.007}) & 0.910 (\emph{0.006}) & \textbf{0.005} \\
-    800  & 0.911 (\emph{0.008}) & 0.914 (\emph{0.007}) & 0.15 \\
-    1200 & 0.911 (\emph{0.011}) & 0.919 (\emph{0.011}) & \textbf{0.008} \\
+    50   & 0.826324 & 0.0239358  & \bfseries 0.834709 & 0.0266555  & 0.198132 \\
+    100  & 0.860648 & 0.0222256  & \bfseries 0.86601  & 0.023512   & 0.344911 \\
+    400  & 0.926813 & 0.00858367 & \bfseries 0.936305 & 0.00750224 & \em\/0.00477517 \\
+    800  & 0.949605 & 0.00315041 & \bfseries 0.951964 & 0.00422667 & 0.0512679 \\
+    1200 & 0.951701 & 0.00383244 & \bfseries 0.954277 & 0.0034699  & \em 0.0470661 \\
+    1600 & 0.957737 & 0.00458451 & \bfseries 0.959859 & 0.00520081 & \em\/0.0496447 \\
     \bottomrule
   \end{tabular}
-  \caption{The values corresponding to \cref{fig:result}, comparing the
-    \texttt{Baseline} and \texttt{Clusters} model. The final column shows
-    that probability of the F1 scores of both models being drawn from the same
-  distribution.\label{tbl:base_cl}}
+  \caption{The F1 scores of both models compared at different sizes of the
+    training set. The reported means and standard deviations are based on 10
+    repeated trials on randomized subsets of the data, with the higher mean
+    between the two models bolded for emphasis. The last column indicates the
+    probability that the scores for the K-Means model are drawn from the same
+    distribution as those for the Baseline model (i.e.\ that their performance
+    is the same and any observed difference is due to chance); probabilities
+    below the usual $0.0.5$ cutoff for significance are rendered italic.
+\label{tbl:main}}
 \end{table}
-\begin{table}[tb]
-  \centering
-  \begin{tabular}{lrrrr}
-    \toprule
-    \multirow{2}[3]{*}{\# training samples} & \multicolumn{2}{c}{F1 score} & \multirow{2}[3]{*}{p} \\
-    \cmidrule(lr){2-3}
-    & \multicolumn{1}{c}{Clusters} & \multicolumn{1}{c}{Clusters-LSTM} & \\
-    \midrule
-    50   & 0.839 (\emph{0.035}) & 0.820 (\emph{0.025}) & 0.43 \\
-    100  & 0.880 (\emph{0.017}) & 0.877 (\emph{0.022}) & 0.72 \\
-    400  & 0.910 (\emph{0.006}) & 0.913 (\emph{0.008}) & \textbf{0.027} \\
-    800  & 0.914 (\emph{0.007}) & 0.919 (\emph{0.005}) & 0.11 \\
-    1200 & 0.919 (\emph{0.011}) & 0.921 (\emph{0.005}) & 0.62 \\
-    \bottomrule
-  \end{tabular}
-  \caption{The values corresponding to \cref{fig:result}, comparing the
-    \texttt{Clusters} and \texttt{Clusters-LSTM} model. The final column shows
-    that probability of the F1 scores of both models being drawn from the same
-  distribution.\label{tbl:cl_cllstm}}
-\end{table}
+
+\FloatBarrier%
 
 %%% Local Variables:
 %%% mode: latex
