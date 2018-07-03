@@ -20,6 +20,7 @@
 \usepackage{multirow}
 \usepackage{siunitx}
 \usepackage{cleveref}
+%\usepackage{floatpag}
 \usepackage[
     backend=biber,
     natbib=true,
@@ -52,6 +53,7 @@
 \addbibresource{library.bib} 
 
 \begin{document}
+% \floatpagestyle{empty}
 \newcommand{\vect}[1]{\ensuremath{\mathbf{#1}}}
 \newcommand{\loss}[1]{\ensuremath{\nabla_{\theta_{#1}} \mathcal{L}(\theta_{#1})}}
 

@@ -3,18 +3,37 @@
 
 For evaluation, two models are considered:
 \begin{itemize}
-  \item ``Baseline'', just a convolutional neural network without using the
+  \item ``Baseline'', a basic convolutional neural network without using the
     clustering information.
   \item ``K-Means'', similar to the baseline model with the addition of
     clustering information into the final classification step.
 \end{itemize}
-All experiments were run 10 times using a \emph{shuffle split} algorithm; this
-is similar to k-fold cross validation, but without the restriction of having to
-use $k$ evenly sized splits. Instead, for each iteration $n$ training samples
-are randomly sampled while the rest is used for testing. This allows for more
-control over the number of samples to train on. Additionally, the sampling is
-stratified, meaning it maintains the ratio (1:1) of positive to negative samples
-in the dataset.
+These models are tested based on two scenarios that differ in the source of the
+test set. In the first scenario, training and testing data are both pulled from
+the same pool of data. In the second scenario, all the training data is
+pulled from the most recent 18th electoral period, while the testing data comes
+from a number of files from electoral periods 13, 14, 16 and 17. This makes the
+problem more difficult in two ways:
+\begin{enumerate}
+  \item A change of electoral period means at least a partial change in
+    parliamentary members, which reduces the ability of the model to essentially
+    overfit on the names of members.
+  \item Although older documents use the same layout as newer ones, the PDF
+    files were generated using different software (electoral period 13 started
+    in 1994 and was the first period to use truly  digital documents --- older
+    documents are scanned versions of printed paper). This results in the flaky
+    PDF decompiler making different mistakes than it does on the newer
+    documents. This is a huge problem for rule-based systems; hopefully the
+    probabilistic nature of machine learning makes it more robust to this issue.
+\end{enumerate}
+In the first scenario, the experiments are run 10 times using a \emph{shuffle
+split} algorithm; this is similar to k-fold cross validation, but without the
+restriction of having to use $k$ evenly sized splits. Instead, for each
+iteration $n$ training samples are randomly sampled while the rest of the
+samples are used for testing. The second scenario uses the same method for
+generated a training set, but uses a separate, unchanging test set instead.
+Additionally, the sampling is stratified, meaning it maintains the ratio (1:1)
+of positive to negative samples in the dataset.
 
 Before directly comparing the two models, a good baseline value has to be
 determined for the two parameters in the model that are the most difficult to
@@ -27,22 +46,43 @@ determine:
 Although there are more parameters, they are related to the convolutional
 neural network; this means they can be set to pretty good values using prior
 knowledge, as well as the fact that convolutional neural networks are not hugely
-sensitive to their parameters. The effect of the sliding window size is explored
-in \cref{fig:window}. This shows a very clear downward trend as the window gets
-bigger, peaking at the low size of 2.
-\begin{figure}[tb]
+sensitive to their parameters.
+
+\subsection{Sliding Window Size}
+The effect of the sliding window size is explored
+in \cref{fig:window_new,fig:window_old}. Both cases show a clear downward trend as
+the window gets bigger, but peak at a different value. When testing on the full
+dataset a very small window size of 2 performs best, while testing on older
+electoral periods seems to require a bit more information and performs optimally
+at a size of 4. In addition, both testing scenarios show the same behaviour
+regarding the baseline and K-Means models: the K-Means model generally
+outperforms the baseline at suboptimal window sizes, but at the optimum their
+performance appears to be identical.
+\begin{figure}[p]
   \centering
-  \includegraphics[width=0.8\textwidth]{figures/results/800-windowsize/tseries_f1.pdf}
-  \caption{This figure shows the F1 score with regards to the window size for
-    each model trained on 1200 training samples.  The vertical axis shows the F1
-    score, averaged over 10 trials; the horizontal axis shows the size of the
-    sliding window applied to the training data. The translucent bands around the
-    lines indicates the confidence intervals, meaning that based on the observed F1
-    scores and assuming normality, the true mean is 95\% likely to
-    fall within that interval. The dots on the lines indicate measurements.\label{fig:window}}
+  \begin{subfigure}[b]{\textwidth}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/results/800-windowsize/tseries_f1.pdf}
+    \caption{Trained and tested using random samples from the full dataset.\label{fig:window_new}}
+  \end{subfigure}
+  \begin{subfigure}[b]{\textwidth}
+    \centering
+    \includegraphics[width=0.8\textwidth]{figures/results/800-windowsize_oldtest/tseries_f1.pdf}
+    \caption{Tested on older electoral periods not included in the training
+    set.\label{fig:window_old}}
+  \end{subfigure}
+  \caption{These figures shows the F1 score with regards to the sliding window
+    size for each model trained on 1200 training samples.  The vertical axis
+    shows the F1 score, averaged over 10 trials; the horizontal axis shows the
+    size of the sliding window applied to the training data. The translucent
+    bands around the lines indicates the confidence intervals, meaning that
+    based on the observed F1 scores and assuming normality, the true mean is
+    95\% likely to fall within that interval. The dots on the lines indicate
+    measurements.\label{fig:window}}
 \end{figure}
 
-Results for the number of cluster types are given in \cref{fig:numcluster}. In
+\subsection{Number of Clusters}
+Results for the number of clusters are given in \cref{fig:numcluster}. In
 this case, the window size was fixed to the previously determined optimum of 5.
 The \texttt{Baseline} model was not tested due to it not using the clustering
 data.  Although the results seem all over the place with large confidence
@@ -64,6 +104,7 @@ run when doing 7 clusters might have produced a below-average result.
     The dots on the lines indicate measurements.\label{fig:numcluster}}
 \end{figure}
 
+\subsection{Training Set Size}
 The results of all three models tested with the basic parameters
 (\cref{tbl:params}) on various input sizes is shown in \cref{fig:result}. The
 K-Means model outperforms the baseline at every input size, and as expected more
@@ -82,6 +123,19 @@ T-test.
     intervals, meaning that based on the observed F1 scores and assuming
     normality, the true mean is 95\% likely to fall within the shown
     interval.\label{fig:result}}
+\end{figure}
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\textwidth]{figures/results/main_window4_oldtest/tseries_f1.pdf}
+  \caption{This figure compares the performance of the baseline model, using
+    only a CNN, to that of the model augmented with K-Means clustering.  Tested
+    on a test set of older electoral periods not present in the training set.
+    The vertical axis shows the F1 score, averaged over 10 trials. The
+    horizontal axis shows the number of samples used for training (at a 1:1
+    ratio of positive to negative samples). The vertical bars indicate
+    confidence intervals, meaning that based on the observed F1 scores and
+    assuming normality, the true mean is 95\% likely to fall within the shown
+  interval.\label{fig:result_old}}
 \end{figure}
 
 \begin{table}[tb]
@@ -103,7 +157,7 @@ T-test.
     S[table-auto-round]
   }
     \toprule
-    \multirow{3}[5]{*}{Num.\ training samples} & \multicolumn{4}{c}{F1 Score} & \multirow{3}[5]{*}{$p$-value} \\
+    %\multirow{3}[5]{*}{Num.\ training samples} & \multicolumn{4}{c}{F1 Score} & \multirow{3}[5]{*}{p-value} \\
     \cmidrule(lr){2-5}
     & \multicolumn{2}{c}{Baseline} & \multicolumn{2}{c}{K-Means} & \\
     \cmidrule(lr){2-3} \cmidrule(lr){4-5}
@@ -124,8 +178,7 @@ T-test.
     probability that the scores for the K-Means model are drawn from the same
     distribution as those for the Baseline model (i.e.\ that their performance
     is the same and any observed difference is due to chance); probabilities
-    below the usual $0.0.5$ cutoff for significance are rendered italic.
-\label{tbl:main}}
+    below the usual $0.0.5$ cutoff for significance are rendered italic.\label{tbl:main}}
 \end{table}
 
 \FloatBarrier%

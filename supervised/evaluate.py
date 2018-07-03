@@ -256,7 +256,7 @@ def analyze_wrapper(baseline, kmeans, gmm, variable="variable", path=None):
         if gmm is not None:
             data["Clusters-LSTM"] = gmm[size]
 
-        analyze(data, size, "model", "../report/figures/results/main_data")
+        analyze(data, size, "model", path)
 
 
 def analyze(data, size, variable="variable", path=None):
