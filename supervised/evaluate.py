@@ -1,5 +1,6 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 import os
+import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -15,7 +16,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from data import get_iterator, to_gpu, to_tensors
+from data import GermanDataset, get_iterator, to_gpu, to_tensors
 import train
 
 sns.set()
@@ -193,11 +194,12 @@ def cross_val(
     use_dist_list: List[bool],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
     dataset: Dataset,
-    params: Any,
+    params: List[Any],
     early_stopping: int = 10,
     validation_set: Dataset = None,
     testset: Optional[Dataset] = None,
     gpu: bool = True,
+    batch_size: int = 50,
 ):
     if train_size == -1:
         folds = dataset.kfold(k)
@@ -212,7 +214,7 @@ def cross_val(
     test_on_holdout = testset is None
 
     first_run = True
-    for trainset, test in tqdm(folds, total=k):
+    for trainset, test in tqdm(folds, total=k, position=0):
         torch.cuda.empty_cache()
 
         if test_on_holdout:
@@ -222,18 +224,20 @@ def cross_val(
             print(f"{len(trainset)} training samples, {len(testset)} testing samples")
             first_run = False
 
-        for i, (model_fn, use_dist) in enumerate(zip(model_fns, use_dist_list)):
+        for i, (model_fn, use_dist, parameters) in enumerate(
+                zip(model_fns, use_dist_list, params)
+        ):
             model, loss, buckets = train.setup_and_train(
-                params,
+                parameters,
                 model_fn,
                 optim_fn,
                 dataset=trainset,
-                epochs=params.epochs,
-                batch_size=50,
+                epochs=parameters.epochs,
+                batch_size=batch_size,
                 gpu=gpu,
                 early_stopping=early_stopping,
-                progbar=False,
-                max_norm=params.max_norm,
+                progbar=1,
+                max_norm=parameters.max_norm,
                 validation_set=validation_set,
                 use_dist=use_dist,
             )
@@ -402,3 +406,67 @@ def analyze_tseries(data, ax="training samples", variable="variable", path=None)
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
     plt.show()
+
+
+def load_dataset(num_clusters=9, window_size=4, old_test=False):
+    fname = f"dataset_{num_clusters}_{window_size}_{old_test}.pkl"
+    if os.path.exists(fname):
+        with open(fname, 'rb') as f:
+            return pickle.load(f)
+
+    if window_size == 1:
+        window_label = 0
+    elif window_size % 2 == 0:
+        window_label = window_size // 2
+    else:
+        window_label = (window_size // 2) + 1
+
+    files = [f'../clustered_data/{num_clusters}/18{i:03d}.xml' for i in [1, 2, 3, 4, 5, 6, 210, 211]]
+    valid_files = [f'../clustered_data/{num_clusters}/18{i:03d}.xml' for i in [7, 209]]
+    test_files = [f'../clustered_data/{num_clusters}/{i}162.xml' for i in [14, 15, 16]]
+    all_files = files + valid_files + test_files
+
+    files_gmm = [f'../clustered_vgmm/{num_clusters}/18{i:03d}.xml' for i in [1, 2, 3, 4, 5, 6, 210, 211]]
+    valid_files_gmm = [f'../clustered_vgmm/{num_clusters}/18{i:03d}.xml' for i in [7, 209]]
+    test_files_gmm = [f'../clustered_vgmm/{num_clusters}/{i}162.xml' for i in [14, 15, 16]]
+    all_files_gmm = files_gmm + valid_files_gmm + test_files_gmm
+
+    vocab = GermanDataset(all_files, all_files_gmm, num_clusters, -1, window_size, window_label, char_tokens=True).vocab
+
+    validset = GermanDataset(
+        valid_files,
+        valid_files_gmm,
+        num_clusters,
+        1.0,
+        window_size,
+        window_label,
+        char_tokens=True,
+        vocab=vocab,
+    )
+
+    if old_test:
+        dataset = GermanDataset(
+            files, files_gmm, num_clusters, 1.0, window_size, window_label, char_tokens=True, vocab=vocab
+        )
+        testset = GermanDataset(
+            test_files, test_files_gmm, num_clusters, 1.0, window_size, window_label, char_tokens=True, vocab=vocab
+        )
+
+        retval = (dataset, validset, testset)
+    else:
+        dataset = GermanDataset(
+            files + test_files,
+            files_gmm + test_files_gmm,
+            num_clusters,
+            1.0,
+            window_size,
+            window_label,
+            char_tokens=True,
+            vocab=vocab,
+        )
+        retval = (dataset, validset)
+
+    with open(fname, 'wb') as f:
+        pickle.dump(retval, f)
+
+    return retval

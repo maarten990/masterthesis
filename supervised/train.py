@@ -78,7 +78,7 @@ def train(
     epochs: int = 100,
     gpu: bool = True,
     early_stopping: int = 0,
-    progbar: bool = False,
+    progbar: int = -1,
     max_norm: float = 0,
     validation_set: Optional[Tuple[Dataset, List[int]]] = None,
     use_dist: bool = False,
@@ -92,7 +92,7 @@ def train(
     :param gpu: If true, train on the gpu. Otherwise use the cpu.
     :param early_stopping: If 0, don't use early stopping. If positive, stop
         after that many epochs have yielded no improvement in loss.
-    :param progbar: Display a progress bar or not.
+    :param progbar: Display a progress at the given position, or none if < 0.
     :param max_norm: Value to clip each weight vector's L2 norm at. If 0, no
         clipping is done.
     :param validation_set: Optional verification set to use for early stopping.
@@ -113,8 +113,8 @@ def train(
     cluster_str = "cluster_data_gmm" if use_dist else "cluster_data_full"
 
     stopping_counter = 0
-    if progbar:
-        t = trange(epochs, desc="Training")
+    if progbar >= 0:
+        t = trange(epochs, desc="Training", position=progbar)
     else:
         t = range(epochs)
     for i in t:
@@ -171,7 +171,7 @@ def train(
                 break
 
         # update the progress bar
-        if progbar:
+        if progbar >= 0:
             loss_delta = (
                 epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
             )
@@ -180,7 +180,7 @@ def train(
         # warn if the for-loop didn't break
         print("Warning: did not stop early")
 
-    if progbar:
+    if progbar >= 0:
         t.close()
 
     model.load_state_dict(best_params)
@@ -214,7 +214,7 @@ def setup_and_train(
     batch_size: int = 32,
     gpu: bool = True,
     early_stopping: int = 0,
-    progbar: bool = True,
+    progbar: int = -1,
     max_norm: float = 0,
     validation_set: Optional[Dataset] = None,
     use_dist: bool = False,
