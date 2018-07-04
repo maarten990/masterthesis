@@ -24,7 +24,7 @@ from tqdm import trange
 import yaml
 
 from data import get_iterator, to_cpu, to_gpu, to_tensors
-from models import LSTMClassifier, CNNClassifier
+from models import CharCNN, CNNClassifier
 from evaluate import get_scores
 
 
@@ -48,23 +48,12 @@ class CNNParams:
         self.max_norm = max_norm
 
 
-class RNNParams:
-    """Parameters for an LSTMClassifier."""
+class CharCNNParams:
+    """Parameters for a CharCNN classifier."""
 
-    def __init__(
-        self,
-        embed_size: int,
-        dropout: float,
-        epochs: int,
-        num_layers: int,
-        hidden_size: int,
-        max_norm: float,
-    ) -> None:
-        self.embed_size = embed_size
+    def __init__(self, dropout: float, epochs: int, max_norm: float) -> None:
         self.dropout = dropout
         self.epochs = epochs
-        self.num_layers = num_layers
-        self.hidden_size = hidden_size
         self.max_norm = max_norm
 
 
@@ -217,7 +206,7 @@ def train_BoW(
 
 
 def setup_and_train(
-    params: Union[CNNParams, RNNParams],
+    params: Union[CNNParams, CharCNNParams],
     model_fn: Callable[[nn.Module], nn.Module],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
     dataset: Dataset,
@@ -233,18 +222,7 @@ def setup_and_train(
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     argdict: Dict[str, Any]
-    if isinstance(params, RNNParams):
-        buckets = [5, 10, 25, 50, 75, 100]
-        argdict = {
-            "input_size": len(dataset.vocab.token_to_idx) + 1,
-            "embed_size": params.embed_size,
-            "hidden_size": params.hidden_size,
-            "num_layers": params.num_layers,
-            "dropout": params.dropout,
-        }
-        recurrent_model = LSTMClassifier(**argdict)
-        data, _ = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
-    elif isinstance(params, CNNParams):
+    if isinstance(params, CNNParams):
         buckets = None
         data, buckets = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
         argdict = {
@@ -254,6 +232,14 @@ def setup_and_train(
             "filters": params.filters,
         }
         recurrent_model = CNNClassifier(**argdict)
+    elif isinstance(params, CharCNNParams):
+        buckets = None
+        data, buckets = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
+        argdict = {
+            "input_size": len(dataset.vocab.token_to_idx) + 1,
+            "seq_len": buckets[0],
+        }
+        recurrent_model = CharCNN(**argdict)
 
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
@@ -274,7 +260,7 @@ def setup_and_train(
     return model, losses, buckets
 
 
-def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
+def parse_params(params: Dict[str, Any]) -> Union[CNNParams, CharCNNParams, None]:
     """Parse a parameter dictinary and ensure it's valid.
 
     :param params: The parameter dict.
@@ -283,15 +269,15 @@ def parse_params(params: Dict[str, Any]) -> Union[CNNParams, RNNParams, None]:
     tp = params["type"]
     del params["type"]
 
-    constructor: Union[Type[CNNParams], Type[RNNParams]]
+    constructor: Union[Type[CNNParams], Type[CharCNNParams]]
     if tp == "cnn":
-        keys = ["embed_size", "filters", "dropout", "epochs", "num_layers"]
+        keys = ["embed_size", "filters", "dropout", "epochs", "num_layers", "max_norm"]
         constructor = CNNParams
-    elif tp == "rnn":
-        keys = ["embed_size", "hidden_size", "num_layers", "dropout", "epochs"]
-        constructor = RNNParams
+    elif tp == "charcnn":
+        keys = ["dropout", "epochs", "max_norm"]
+        constructor = CharCNNParams
     else:
-        print("Error: only cnn or rnn allowed as type.")
+        print("Error: only cnn or charcnn allowed as type.")
         return None
 
     for key in keys:

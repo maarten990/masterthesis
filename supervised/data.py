@@ -2,7 +2,7 @@
 
 
 from copy import copy
-from enum import auto, Enum
+import string
 from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
 from lxml import etree
@@ -15,6 +15,7 @@ from torch.autograd import Variable
 from tqdm import tqdm
 
 np.random.seed(100)
+charmap = string.ascii_letters + string.digits + string.punctuation
 
 
 def full_window_fn(window, central_idx, num_clusterlabels):
@@ -60,13 +61,15 @@ class GermanDataset(Dataset):
         window_label_idx: int = 0,
         vocab: Optional[Vocab] = None,
         bag_of_words: bool = False,
+        char_tokens: bool = False,
     ) -> None:
-        self.vocab = create_dictionary(files) if not vocab else vocab
+        self.vocab = create_dictionary(files, char_tokens) if not vocab else vocab
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
+        self.char_tokens = char_tokens
 
         for file, gmm_file in zip(files, gmm_files):
             xml = load_xml_from_disk(file)
@@ -212,8 +215,12 @@ class GermanDataset(Dataset):
             self, window: List[etree._Element], window_gmm: List[etree._Element]
     ) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
-        tokens = token_featurizer(window, tokenizer)
         y = get_label(window[self.window_label_idx])
+
+        if self.char_tokens:
+            tokens = char_tokenizer(window, tokenizer)
+        else:
+            tokens = token_featurizer(window, tokenizer)
 
         # lowercase as the tokens will also be lowercased
         speaker_tokens = tokenizer.tokenize(
@@ -438,14 +445,17 @@ def get_speaker(node: etree._Element) -> str:
         return ""
 
 
-def create_dictionary(paths: List[str]) -> Vocab:
-    tokenizer = nltk.tokenize.WordPunctTokenizer()
+def create_dictionary(paths: List[str], char_tokens=False) -> Vocab:
+    tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
     all_words: Set[str] = set()
 
     for path in tqdm(paths, desc="Creating dictionary"):
         xml = load_xml_from_disk(path)
         text = " ".join(xml.xpath("/pdf2xml/page/text/text()")).lower()
-        tokens = tokenizer.tokenize(text)
+        if char_tokens:
+            tokens = [char for token in tokenizer.tokenize(text) for char in token]
+        else:
+            tokens = tokenizer.tokenize(text)
         all_words |= set(tokens)
 
     word_to_idx = {w: i + 1 for i, w in enumerate(all_words)}
@@ -459,6 +469,16 @@ def token_featurizer(nodes, tokenizer):
     for node in nodes:
         text = " ".join(node.xpath(".//text()")).lower()
         tokens = tokenizer.tokenize(text)
+        out.extend(tokens)
+
+    return out
+
+
+def char_tokenizer(nodes, tokenizer):
+    out = []
+    for node in nodes:
+        text = " ".join(node.xpath(".//text()")).lower()
+        tokens = [char for token in tokenizer.tokenize(text) for char in token]
         out.extend(tokens)
 
     return out
