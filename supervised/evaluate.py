@@ -441,6 +441,7 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
     g.map_dataframe(plot)
     g.add_legend()
     g.set_titles("{col_name}")
+    g.set_axis_labels(ax, "F1 score")
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
     plt.show()
