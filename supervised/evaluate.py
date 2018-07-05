@@ -214,7 +214,7 @@ def cross_val(
     test_on_holdout = testset is None
 
     first_run = True
-    for trainset, test in tqdm(folds, total=k, position=0):
+    for trainset, test in tqdm(folds, total=k, position=1):
         torch.cuda.empty_cache()
 
         if test_on_holdout:
@@ -236,7 +236,7 @@ def cross_val(
                 batch_size=batch_size,
                 gpu=gpu,
                 early_stopping=early_stopping,
-                progbar=1,
+                progbar=0,
                 max_norm=parameters.max_norm,
                 validation_set=validation_set,
                 use_dist=use_dist,
@@ -403,6 +403,44 @@ def analyze_tseries(data, ax="training samples", variable="variable", path=None)
         time=ax, value="F1 score", condition=variable, unit="trial", data=df,
         err_style="ci_band", marker="o"
     )
+    if path:
+        plt.savefig(f"{path}/tseries_f1.pdf")
+    plt.show()
+
+
+def analyze_cnns(data, ax="training samples", variable="variable", path=None):
+    # ensure the target folder exists
+    if path and not os.path.isdir(path):
+        os.makedirs(path)
+
+    df_data = {"architecture": [], ax: [], variable: [], "F1 score": [], "trial": []}
+
+    for model, dset in data.items():
+        for size, d in dset.items():
+            items = list(d.items())
+            df_data["architecture"] += [model for _, (_, _, f1, _) in items for _ in f1]
+            df_data[ax] += [size for _, (_, _, f1, _) in items for _ in f1]
+            df_data[variable] += [label for label, (_, _, f1, _) in items for _ in f1]
+            df_data["F1 score"] += [score for _, (_, _, f1, _) in items for score in f1]
+            df_data["trial"] += [i for _, (_, _, f1, _) in items for i, _ in enumerate(f1)]
+
+    df = pd.DataFrame(df_data)
+
+    def plot(**kwargs):
+        sns.tsplot(
+            time=ax,
+            value="F1 score",
+            condition=variable,
+            unit="trial",
+            data=kwargs["data"],
+            err_style="ci_band",
+            marker="o"
+        )
+
+    g = sns.FacetGrid(df, col="architecture", legend_out=True)
+    g.map_dataframe(plot)
+    g.add_legend()
+    g.set_titles("{col_name}")
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
     plt.show()

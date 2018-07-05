@@ -121,7 +121,6 @@ class CharCNN(nn.Module):
             elif isinstance(op, nn.MaxPool1d):
                 output_seq_len = pool_output_len(op, output_seq_len)
 
-        print(output_seq_len)
         self.output_size = output_seq_len * 256
 
     def forward(self, inputs):
