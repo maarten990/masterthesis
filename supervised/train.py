@@ -172,10 +172,16 @@ def train(
 
         # update the progress bar
         if progbar >= 0:
-            loss_delta = (
-                epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
-            )
-            t.set_postfix({"loss": loss, "Δloss": loss_delta})
+            if validation_set:
+                f1_delta = (
+                    f1_scores[-1] - f1_scores[-2] if len(f1_scores) > 1 else 0
+                )
+                t.set_postfix({"f1": f1_scores[-1], "Δf1": f1_delta})
+            else:
+                loss_delta = (
+                    epoch_losses[-1] - epoch_losses[-2] if len(epoch_losses) > 1 else 0
+                )
+                t.set_postfix({"loss": loss, "Δloss": loss_delta})
     else:
         # warn if the for-loop didn't break
         print("Warning: did not stop early")

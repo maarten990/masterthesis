@@ -4,9 +4,9 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-def cnn_output_size(cnn: nn.Conv1d) -> int:
+def cnn_output_len(cnn: nn.Conv1d, seq_len: int) -> int:
     numerator = (
-        cnn.in_channels
+        seq_len
         + 2 * cnn.padding[0]
         - cnn.dilation[0] * (cnn.kernel_size[0] - 1)
         - 1
@@ -14,9 +14,19 @@ def cnn_output_size(cnn: nn.Conv1d) -> int:
     return (numerator // cnn.stride[0]) + 1
 
 
+def pool_output_len(pool: nn.Conv1d, seq_len: int) -> int:
+    numeration = (
+        seq_len
+        + 2 * pool.padding
+        - pool.dilation * (pool.kernel_size - 1)
+        - 1
+    )
+    return (numeration // pool.stride) + 1
+
+
 class Conv1dMultipleFilters(nn.Module):
 
-    def __init__(self, in_channels, kernel_sizes):
+    def __init__(self, in_channels, kernel_sizes, seq_len):
         super().__init__()
         self.convs = nn.ModuleList(
             [
@@ -25,7 +35,7 @@ class Conv1dMultipleFilters(nn.Module):
             ]
         )
 
-        self.output_size = int(sum([cnn_output_size(conv) for conv in self.convs]))
+        self.output_size = int(sum([cnn_output_len(conv, seq_len) for conv in self.convs]))
 
     def forward(self, inputs):
         filters = [conv(inputs) for conv in self.convs]
@@ -63,7 +73,7 @@ class CNNClassifier(nn.Module):
 
         self.network = nn.Sequential(
             TransposeEmbed(input_size, embed_size),
-            Conv1dMultipleFilters(embed_size, filters),
+            Conv1dMultipleFilters(embed_size, filters, seq_len),
             Pool1Max(),
             nn.ReLU(),
         )
@@ -82,27 +92,37 @@ class CharCNN(nn.Module):
 
     def __init__(self, input_size, seq_len, *args):
         super().__init__()
-        self.network = nn.Sequential(
-            nn.Conv1d(input_size, 256, 7, padding=0),
+        ops = [
+            nn.Conv1d(input_size, 256, 7, padding=(7 - 1) / 2),
             nn.MaxPool1d(3),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 7, padding=0),
+            nn.Conv1d(256, 256, 7, padding=(7 - 1) / 2),
             nn.MaxPool1d(3),
             nn.ReLU(),
 
-            nn.Conv1d(256, 256, 3, padding=0),
+            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 3, padding=0),
+            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 3, padding=0),
+            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 3, padding=0),
-            Pool1Max(),
+            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
+            nn.MaxPool1d(3),
             nn.ReLU(),
-        )
+        ]
+
+        self.network = nn.Sequential(*ops)
 
         self.input_size = input_size
-        self.output_size = 256
+        output_seq_len = seq_len
+        for op in ops:
+            if isinstance(op, nn.Conv1d):
+                output_seq_len = cnn_output_len(op, output_seq_len)
+            elif isinstance(op, nn.MaxPool1d):
+                output_seq_len = pool_output_len(op, output_seq_len)
+
+        print(output_seq_len)
+        self.output_size = output_seq_len * 256
 
     def forward(self, inputs):
         onehot = torch.Tensor(np.eye(self.input_size,
