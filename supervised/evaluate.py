@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Iterator, Optional, Tuple, Union
 import os
 import pickle
 
@@ -9,6 +9,7 @@ import scipy
 import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import precision_score, recall_score, precision_recall_curve
+from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.svm import SVC
 from tabulate import tabulate
 import torch
@@ -16,14 +17,18 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from data import GermanDataset, get_iterator, to_gpu, to_tensors
+from data import GermanDataset, get_iterator
 import train
 
 sns.set()
 
 
 def get_values(
-    model: nn.Module, dataloader: DataLoader, gpu: bool = True, use_dist: bool = False
+        model: nn.Module,
+        dataloader: DataLoader,
+        gpu: bool = True,
+        use_dist: bool = False,
+        use_chars: bool = False,
 ) -> Tuple[List[float], List[float]]:
     """Get the classification output for the given dataset.
 
@@ -38,22 +43,20 @@ def get_values(
     predictions: List[float] = []
     true: List[float] = []
 
-    cluster_str = "cluster_data_gmm" if use_dist else "cluster_data_full"
-
     for batch in dataloader:
-        data = to_tensors(batch)
+        batch.to_tensors()
         if gpu:
-            data = to_gpu(data)
+            batch.to_gpu()
 
-        for _, d in data.items():
-            X = d["data"]
-            c = d[cluster_str]
-            y = d["label"]
+        X = batch.X_chars if use_chars else batch.X_words
+        c = batch.clusters_gmm if use_dist else batch.clusters_kmeans
+        y = batch.label
 
-            pred = model(X, c)
-            pred = pred.detach().cpu().squeeze(dim=1).numpy()
-            predictions.extend(pred)
-            true.extend(y.detach().cpu().squeeze(dim=1).numpy())
+        pred = model(X, c)
+        pred = pred.detach().cpu().view(-1).numpy()
+        predictions.extend(pred)
+        true.extend(y.detach().cpu().view(-1).numpy())
+        batch.to_cpu()
 
     return predictions, true
 
@@ -172,19 +175,44 @@ def plot(
 
 def get_scores(
     model: nn.Module,
-    buckets: List[int],
+    wordlen: int,
+    charlen: int,
     dataset: Dataset,
     gpu: bool = True,
     use_dist: bool = False,
+    use_chars: bool = False,
 ) -> Dict[str, Any]:
     p, r = precision_recall_values(
         *get_values(
-            model, get_iterator(dataset, buckets)[0], gpu=gpu, use_dist=use_dist
+            model,
+            get_iterator(dataset, wordlen, charlen)[0],
+            gpu=gpu,
+            use_dist=use_dist,
+            use_chars=use_chars,
         )
     )
 
     scores = {"F1": max_f1(p, r), "AoC": average_precision(p, r), "pr": (p, r)}
     return scores
+
+
+def shuffle_split(
+        dataset: Dataset, k: int = 10, train_size: Union[float, int] = 0.9
+) -> Iterator[Tuple[List[int], List[int]]]:
+    """
+    Return stratified training and testing folds with the same data
+    distribution as the source data.
+    :param k: The number of folds.
+    :param train_size: If float, the proportion to use as training set. If
+    int, the absolute number of samples to use.
+    :returns: An iterator of (train, test) indices.
+    """
+    splitter = StratifiedShuffleSplit(n_splits=k, train_size=train_size, test_size=None)
+    labels = dataset.get_labels()
+    splits = splitter.split(np.zeros(len(dataset)), labels)
+
+    for train_indices, test_indices in splits:
+        yield train_indices, test_indices
 
 
 def cross_val(
@@ -193,41 +221,41 @@ def cross_val(
     model_fns: List[Callable[[nn.Module], nn.Module]],
     use_dist_list: List[bool],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
-    dataset: Dataset,
+    datasets: List[Dataset],
     params: List[Any],
     early_stopping: int = 10,
     validation_set: Dataset = None,
-    testset: Optional[Dataset] = None,
+    testsets: Optional[List[Dataset]] = None,
     gpu: bool = True,
     batch_size: int = 50,
 ):
-    if train_size == -1:
-        folds = dataset.kfold(k)
-    else:
-        folds = dataset.shuffle_split(k, train_size)
+    folds = shuffle_split(datasets[0], k, train_size)
 
     F1s: List[List[float]] = [[] for _ in model_fns]
     losses: List[List[List[float]]] = [[] for _ in model_fns]
     APs: List[List[float]] = [[] for _ in model_fns]
     PRs: List[List[float]] = [[] for _ in model_fns]
 
-    test_on_holdout = testset is None
+    test_on_holdout = testsets is None
 
     first_run = True
-    for trainset, test in tqdm(folds, total=k, position=1):
+    for train_indices, test_indices in tqdm(folds, total=k, position=1):
         torch.cuda.empty_cache()
 
-        if test_on_holdout:
-            testset = test
-
-        if first_run:
-            print(f"{len(trainset)} training samples, {len(testset)} testing samples")
-            first_run = False
-
-        for i, (model_fn, use_dist, parameters) in enumerate(
-                zip(model_fns, use_dist_list, params)
+        for i, (model_fn, use_dist, parameters, dataset, testset) in enumerate(
+            zip(model_fns, use_dist_list, params, datasets, testsets)
         ):
-            model, loss, buckets = train.setup_and_train(
+            trainset, holdout = dataset.split_on(train_indices, test_indices)
+            if test_on_holdout:
+                testset = holdout
+
+            if first_run:
+                print(
+                    f"{len(trainset)} training samples, {len(testset)} testing samples"
+                )
+                first_run = False
+
+            model, loss, wordlen, charlen, use_chars = train.setup_and_train(
                 parameters,
                 model_fn,
                 optim_fn,
@@ -241,7 +269,9 @@ def cross_val(
                 validation_set=validation_set,
                 use_dist=use_dist,
             )
-            scores = get_scores(model, buckets, testset, gpu)
+            scores = get_scores(
+                model, wordlen, charlen, testset, gpu, use_dist, use_chars
+            )
             losses[i].append(loss)
             F1s[i].append(scores["F1"])
             APs[i].append(scores["AoC"])
@@ -252,10 +282,7 @@ def cross_val(
 
 def analyze_wrapper(baseline, kmeans, gmm, variable="variable", path=None):
     for size in baseline.keys():
-        data = {
-            "baseline": baseline[size],
-            "k-means": kmeans[size],
-        }
+        data = {"baseline": baseline[size], "k-means": kmeans[size]}
 
         if gmm is not None:
             data["Clusters-LSTM"] = gmm[size]
@@ -347,7 +374,9 @@ def analyze(data, size, variable="variable", path=None):
             )
 
 
-def analyze_size(data, ax="training samples", variable="variable", path=None, use_hue=False):
+def analyze_size(
+    data, ax="training samples", variable="variable", path=None, use_hue=False
+):
     # ensure the target folder exists
     if path and not os.path.isdir(path):
         os.makedirs(path)
@@ -363,9 +392,7 @@ def analyze_size(data, ax="training samples", variable="variable", path=None, us
     df = pd.DataFrame(df_data)
 
     # overlay the plots in the same figure
-    g = sns.factorplot(
-        x=ax, y="F1 score", hue=variable, data=df, kind="point"
-    )
+    g = sns.factorplot(x=ax, y="F1 score", hue=variable, data=df, kind="point")
     g.set_titles("{col_name}")
     if path:
         plt.savefig(f"{path}/factorplot_f1_hue.pdf")
@@ -373,9 +400,7 @@ def analyze_size(data, ax="training samples", variable="variable", path=None, us
 
     # display the plots side by side
     plt.figure()
-    g = sns.factorplot(
-        x=ax, y="F1 score", col=variable, data=df, kind="point"
-    )
+    g = sns.factorplot(x=ax, y="F1 score", col=variable, data=df, kind="point")
     g.set_titles("{col_name}")
     if path:
         plt.savefig(f"{path}/factorplot_f1_col.pdf")
@@ -400,8 +425,13 @@ def analyze_tseries(data, ax="training samples", variable="variable", path=None)
 
     # overlay the plots in the same figure
     sns.tsplot(
-        time=ax, value="F1 score", condition=variable, unit="trial", data=df,
-        err_style="ci_band", marker="o"
+        time=ax,
+        value="F1 score",
+        condition=variable,
+        unit="trial",
+        data=df,
+        err_style="ci_band",
+        marker="o",
     )
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
@@ -422,7 +452,9 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
             df_data[ax] += [size for _, (_, _, f1, _) in items for _ in f1]
             df_data[variable] += [label for label, (_, _, f1, _) in items for _ in f1]
             df_data["F1 score"] += [score for _, (_, _, f1, _) in items for score in f1]
-            df_data["trial"] += [i for _, (_, _, f1, _) in items for i, _ in enumerate(f1)]
+            df_data["trial"] += [
+                i for _, (_, _, f1, _) in items for i, _ in enumerate(f1)
+            ]
 
     df = pd.DataFrame(df_data)
 
@@ -434,7 +466,7 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
             unit="trial",
             data=kwargs["data"],
             err_style="ci_band",
-            marker="o"
+            marker="o",
         )
 
     g = sns.FacetGrid(df, col="architecture", legend_out=True)
@@ -450,27 +482,47 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
 def load_dataset(num_clusters=9, window_size=4, old_test=False):
     fname = f"dataset_{num_clusters}_{window_size}_{old_test}.pkl"
     if os.path.exists(fname):
-        with open(fname, 'rb') as f:
+        with open(fname, "rb") as f:
             return pickle.load(f)
 
     if window_size == 1:
         window_label = 0
     elif window_size % 2 == 0:
-        window_label = window_size // 2
+        window_label = (window_size // 2) - 1
     else:
         window_label = (window_size // 2) + 1
 
-    files = [f'../clustered_data/{num_clusters}/18{i:03d}.xml' for i in [1, 2, 3, 4, 5, 6, 210, 211]]
-    valid_files = [f'../clustered_data/{num_clusters}/18{i:03d}.xml' for i in [7, 209]]
-    test_files = [f'../clustered_data/{num_clusters}/{i}162.xml' for i in [14, 15, 16]]
+    files = [
+        f"../clustered_data/{num_clusters}/18{i:03d}.xml"
+        for i in [1, 2, 3, 4, 5, 6, 210, 211]
+    ]
+    valid_files = [f"../clustered_data/{num_clusters}/18{i:03d}.xml" for i in [7, 209]]
+    test_files = [f"../clustered_data/{num_clusters}/{i}162.xml" for i in [14, 15, 16]]
     all_files = files + valid_files + test_files
 
-    files_gmm = [f'../clustered_vgmm/{num_clusters}/18{i:03d}.xml' for i in [1, 2, 3, 4, 5, 6, 210, 211]]
-    valid_files_gmm = [f'../clustered_vgmm/{num_clusters}/18{i:03d}.xml' for i in [7, 209]]
-    test_files_gmm = [f'../clustered_vgmm/{num_clusters}/{i}162.xml' for i in [14, 15, 16]]
+    files_gmm = [
+        f"../clustered_vgmm/{num_clusters}/18{i:03d}.xml"
+        for i in [1, 2, 3, 4, 5, 6, 210, 211]
+    ]
+    valid_files_gmm = [
+        f"../clustered_vgmm/{num_clusters}/18{i:03d}.xml" for i in [7, 209]
+    ]
+    test_files_gmm = [
+        f"../clustered_vgmm/{num_clusters}/{i}162.xml" for i in [14, 15, 16]
+    ]
     all_files_gmm = files_gmm + valid_files_gmm + test_files_gmm
 
-    vocab = GermanDataset(all_files, all_files_gmm, num_clusters, -1, window_size, window_label, char_tokens=True).vocab
+    vocab_set = GermanDataset(
+        all_files,
+        all_files_gmm,
+        num_clusters,
+        -1,
+        window_size,
+        window_label,
+    )
+    word_vocab = vocab_set.word_vocab
+    char_vocab = vocab_set.char_vocab
+    del vocab_set
 
     validset = GermanDataset(
         valid_files,
@@ -479,16 +531,30 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
         1.0,
         window_size,
         window_label,
-        char_tokens=True,
-        vocab=vocab,
+        word_vocab=word_vocab,
+        char_vocab=char_vocab,
     )
 
     if old_test:
         dataset = GermanDataset(
-            files, files_gmm, num_clusters, 1.0, window_size, window_label, char_tokens=True, vocab=vocab
+            files,
+            files_gmm,
+            num_clusters,
+            1.0,
+            window_size,
+            window_label,
+            word_vocab=word_vocab,
+            char_vocab=char_vocab,
         )
         testset = GermanDataset(
-            test_files, test_files_gmm, num_clusters, 1.0, window_size, window_label, char_tokens=True, vocab=vocab
+            test_files,
+            test_files_gmm,
+            num_clusters,
+            1.0,
+            window_size,
+            window_label,
+            word_vocab=word_vocab,
+            char_vocab=char_vocab,
         )
 
         retval = (dataset, validset, testset)
@@ -500,12 +566,12 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
             1.0,
             window_size,
             window_label,
-            char_tokens=True,
-            vocab=vocab,
+            word_vocab=word_vocab,
+            char_vocab=char_vocab,
         )
         retval = (dataset, validset)
 
-    with open(fname, 'wb') as f:
+    with open(fname, "wb") as f:
         pickle.dump(retval, f)
 
     return retval

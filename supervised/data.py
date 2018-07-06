@@ -1,7 +1,6 @@
 """Contains functions for loading and manipulating training data."""
 
 
-from copy import copy
 import string
 from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
@@ -19,22 +18,26 @@ charmap = string.ascii_letters + string.digits + string.punctuation
 
 
 def full_window_fn(window, central_idx, num_clusterlabels):
-    l = [
-        to_onehot(
-            int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0,
-            num_clusterlabels,
-        )
-        for w in window
-    ]
-    return np.concatenate(l)
+    return np.concatenate(
+        [
+            to_onehot(
+                int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0,
+                num_clusterlabels,
+            )
+            for w in window
+        ]
+    )
 
 
 def full_window_dist_fn(window, central_idx, num_clusterlabels):
-    l = [
-        eval(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else ([0.0] * num_clusterlabels)
-        for w in window
-    ]
-    return np.concatenate(l)
+    return np.concatenate(
+        [
+            eval(w.attrib["clusterLabel"])
+            if "clusterLabel" in w.attrib
+            else ([0.0] * num_clusterlabels)
+            for w in window
+        ]
+    )
 
 
 class Vocab:
@@ -46,7 +49,74 @@ class Vocab:
         self.idx_to_token = idx_to_token
 
 
-Sample = Dict[int, Dict[str, np.ndarray]]
+class Sample:
+
+    def __init__(self, X_words, X_chars, clusters_kmeans, clusters_gmm, label) -> None:
+        self.X_words = self.ensure_2d(X_words)
+        self.X_chars = self.ensure_2d(X_chars)
+        self.clusters_kmeans = self.ensure_2d(clusters_kmeans)
+        self.clusters_gmm = self.ensure_2d(clusters_gmm)
+        self.label = label
+
+    def __repr__(self) -> str:
+        return f"""Sample(
+    {self.X_words.shape}
+    {self.X_chars.shape}
+    {self.clusters_kmeans.shape}
+    {self.clusters_gmm.shape}
+    {self.label.shape}
+)"""
+
+    def __add__(self, other: "Sample") -> "Sample":
+        return Sample(
+            np.append(self.X_words, other.X_words, 0),
+            np.append(self.X_chars, other.X_chars, 0),
+            np.append(self.clusters_kmeans, other.clusters_kmeans, 0),
+            np.append(self.clusters_gmm, other.clusters_gmm, 0),
+            np.append(self.label, other.label, 0),
+        )
+
+    def ensure_2d(self, arr: np.ndarray) -> np.ndarray:
+        return np.expand_dims(arr, 0) if len(arr.shape) < 2 else arr
+
+    def to_tensors(self) -> "Sample":
+        self.X_words = Variable(torch.from_numpy(self.X_words)).long()
+        self.X_chars = Variable(torch.from_numpy(self.X_chars)).long()
+        self.clusters_kmeans = Variable(torch.from_numpy(self.clusters_kmeans)).long()
+        self.clusters_gmm = Variable(torch.from_numpy(self.clusters_gmm)).float()
+        self.label = Variable(torch.from_numpy(self.label)).float()
+
+        return self
+
+    def to_gpu(self) -> "Sample":
+        if torch.cuda.is_available():
+            self.X_words = self.X_words.cuda()
+            self.X_chars = self.X_chars.cuda()
+            self.clusters_kmeans = self.clusters_kmeans.cuda()
+            self.clusters_gmm = self.clusters_gmm.cuda()
+            self.label = self.label.cuda()
+
+        return self
+
+    def to_cpu(self) -> "Sample":
+        self.X_words = self.X_words.cpu()
+        self.X_chars = self.X_chars.cpu()
+        self.clusters_kmeans = self.clusters_kmeans.cpu()
+        self.clusters_gmm = self.clusters_gmm.cpu()
+        self.label = self.label.cpu()
+
+        return self
+
+    def pad(self, word_amount: int, char_amount: int) -> None:
+        if word_amount >= 0:
+            self.X_words = np.pad(self.X_words, [(0, 0), (0, word_amount)], "constant")
+        else:
+            self.X_words = self.X_words[:, :word_amount]
+
+        if char_amount >= 0:
+            self.X_chars = np.pad(self.X_chars, [(0, 0), (0, char_amount)], "constant")
+        else:
+            self.X_chars = self.X_chars[:, :char_amount]
 
 
 class GermanDataset(Dataset):
@@ -59,17 +129,21 @@ class GermanDataset(Dataset):
         negative_ratio: float,
         window_size: int,
         window_label_idx: int = 0,
-        vocab: Optional[Vocab] = None,
+        word_vocab: Optional[Vocab] = None,
+        char_vocab: Optional[Vocab] = None,
         bag_of_words: bool = False,
-        char_tokens: bool = False,
     ) -> None:
-        self.vocab = create_dictionary(files, char_tokens) if not vocab else vocab
+        self.word_vocab = (
+            create_dictionary(files, False) if not word_vocab else word_vocab
+        )
+        self.char_vocab = (
+            create_dictionary(files, True) if not char_vocab else char_vocab
+        )
         self.num_clusterlabels = num_clusterlabels
         self.window_size = window_size
         self.window_label_idx = window_label_idx
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
-        self.char_tokens = char_tokens
 
         for file, gmm_file in zip(files, gmm_files):
             xml = load_xml_from_disk(file)
@@ -97,12 +171,10 @@ class GermanDataset(Dataset):
         positives: List[int] = []
         negatives: List[int] = []
         for i, sample in enumerate(self.samples):
-            # the key (length) is not relevant, and we know there's only one item
-            for _, data in sample.items():
-                if (data["label"] == 1).all():
-                    positives.append(i)
-                else:
-                    negatives.append(i)
+            if (sample.label == 1).all():
+                positives.append(i)
+            else:
+                negatives.append(i)
 
         return positives, negatives
 
@@ -112,9 +184,7 @@ class GermanDataset(Dataset):
         """
         labels: List[int] = []
         for i, sample in enumerate(self.samples):
-            # the key (length) is not relevant, and we know there's only one item
-            for _, data in sample.items():
-                labels.append(data["label"])
+            labels.append(sample.label)
 
         return labels
 
@@ -211,28 +281,30 @@ class GermanDataset(Dataset):
         for train_indices, test_indices in splits:
             yield DataSubset(self, train_indices), DataSubset(self, test_indices)
 
+    def split_on(
+        self, train_indices: List[int], test_indices: List[int]
+    ) -> Tuple[Dataset, Dataset]:
+        return DataSubset(self, train_indices), DataSubset(self, test_indices)
+
     def vectorize_window(
-            self, window: List[etree._Element], window_gmm: List[etree._Element]
+        self, window: List[etree._Element], window_gmm: List[etree._Element]
     ) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
         y = get_label(window[self.window_label_idx])
 
-        if self.char_tokens:
-            tokens = char_tokenizer(window, tokenizer)
-        else:
-            tokens = token_featurizer(window, tokenizer)
-
-        # lowercase as the tokens will also be lowercased
-        speaker_tokens = tokenizer.tokenize(
-            get_speaker(window[self.window_label_idx]).lower()
-        )
+        word_tokens = token_featurizer(window, tokenizer)
+        char_tokens = char_tokenizer(window, tokenizer)
 
         if self.bag_of_words:
-            X = " ".join(tokens)
+            X_words = " ".join(word_tokens)
+            X_chars = " ".join(char_tokens)
         else:
-            X = np.array([self.vocab.token_to_idx.get(token, 0) for token in tokens])
-
-        X_speaker = [1 if token in speaker_tokens else 0 for token in tokens]
+            X_words = np.array(
+                [self.word_vocab.token_to_idx.get(token, 0) for token in word_tokens]
+            )
+            X_chars = np.array(
+                [self.char_vocab.token_to_idx.get(token, 0) for token in char_tokens]
+            )
 
         clusterlabels = full_window_fn(
             window, self.window_label_idx, self.num_clusterlabels
@@ -241,22 +313,21 @@ class GermanDataset(Dataset):
             window_gmm, self.window_label_idx, self.num_clusterlabels
         )
 
-        return {
-            len(X): {
-                "data": X,
-                "speaker_data": np.array(X_speaker),
-                "cluster_data_full": np.array(clusterlabels),
-                "cluster_data_gmm": np.array(clusterlabels_gmm),
-                "label": np.array([y]),
-            }
-        }
+        return Sample(
+            X_words,
+            X_chars,
+            np.array(clusterlabels),
+            np.array(clusterlabels_gmm),
+            np.array([y]),
+        )
 
 
 class DataSubset(GermanDataset):
 
     def __init__(self, data: GermanDataset, indices: List[int]) -> None:
         self.samples = [data.samples[i] for i in indices]
-        self.vocab = data.vocab
+        self.word_vocab = data.word_vocab
+        self.char_vocab = data.char_vocab
         self.num_clusterlabels = data.num_clusterlabels
 
 
@@ -280,149 +351,51 @@ def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._El
 
 
 def get_iterator(
-    dataset: Dataset, buckets: Optional[List[int]] = [40], batch_size: int = 32
-) -> Tuple[DataLoader, List[int]]:
-    if not buckets:
+    dataset: Dataset,
+    wordlen: Optional[int],
+    charlen: Optional[int],
+    batch_size: int = 32,
+) -> Tuple[DataLoader, int, int]:
+    if not wordlen:
         # find the bucket size that fits 90% of the data
-        sizes = [size for sample in dataset for size in sample.keys()]
+        sizes = [np.size(sample.X_words) for sample in dataset]
         cutoff = int(np.percentile(sizes, 90))
-        buckets = [cutoff]
+        wordlen = cutoff
+    if not charlen:
+        # find the bucket size that fits 90% of the data
+        sizes = [np.size(sample.X_chars) for sample in dataset]
+        cutoff = int(np.percentile(sizes, 90))
+        charlen = cutoff
+
     return (
         DataLoader(
-            dataset, batch_size=batch_size, collate_fn=CollateWithBuckets(buckets)
+            dataset,
+            batch_size=batch_size,
+            collate_fn=CollateWithSeqlen(wordlen, charlen),
         ),
-        buckets,
+        wordlen,
+        charlen,
     )
 
 
-class CollateWithBuckets:
+class CollateWithSeqlen:
 
-    def __init__(self, buckets: List[int]) -> None:
-        self.buckets = buckets
+    def __init__(self, word_len: int, char_len: int) -> None:
+        self.word_len = word_len
+        self.char_len = char_len
 
     def __call__(self, samples: List[Sample]) -> Sample:
         return self.bucket(samples)
 
     def bucket(self, samples: List[Sample]) -> Sample:
-        buckets = copy(self.buckets)
-        if buckets[-1] == -1:
-            buckets[-1] = max([size for sample in samples for size in sample.keys()])
-
-        out: Sample = {}
-        for sample in samples:
-            for size, s in sample.items():
-                for bucket_size in buckets:
-                    if size <= bucket_size:
-                        if bucket_size in out:
-                            out[bucket_size] = self.concat_samples(
-                                out[bucket_size], self.pad(s, bucket_size - size)
-                            )
-                        else:
-                            out[bucket_size] = ensure_2d(
-                                self.pad(s, bucket_size - size)
-                            )
-
-                        break
-                else:
-                    # truncate
-                    bucket_size = buckets[-1]
-                    if bucket_size in out:
-                        out[bucket_size] = self.concat_samples(
-                            out[bucket_size], self.pad(s, bucket_size - size)
-                        )
-                    else:
-                        out[bucket_size] = ensure_2d(self.pad(s, bucket_size - size))
+        out: Sample = None
+        for s in samples:
+            s.pad(
+                self.word_len - np.size(s.X_words), self.char_len - np.size(s.X_chars)
+            )
+            out = (out + (s)) if out else s
 
         return out
-
-    def pad(
-        self, sample_dict: Dict[str, np.ndarray], amount: int
-    ) -> Dict[str, np.ndarray]:
-        if amount >= 0:
-            return {
-                "data": np.pad(sample_dict["data"], (0, amount), "constant"),
-                "speaker_data": np.pad(
-                    sample_dict["speaker_data"], (0, amount), "constant"
-                ),
-                "cluster_data_full": sample_dict["cluster_data_full"],
-                "cluster_data_gmm": sample_dict["cluster_data_gmm"],
-                "label": sample_dict["label"],
-            }
-        else:
-            return {
-                "data": sample_dict["data"][:amount],
-                "speaker_data": sample_dict["speaker_data"][:amount],
-                "cluster_data_full": sample_dict["cluster_data_full"],
-                "cluster_data_gmm": sample_dict["cluster_data_gmm"],
-                "label": sample_dict["label"],
-            }
-
-    def concat_samples(
-        self, sample1: Dict[str, np.ndarray], sample2: Dict[str, np.ndarray]
-    ) -> Dict[str, np.ndarray]:
-        return {
-            key: np.append(ensure_2d(sample1[key]), ensure_2d(sample2[key]), 0)
-            for key in sample1.keys()
-        }
-
-
-def ensure_2d(arr: Union[np.ndarray, Dict[str, np.ndarray]]) -> np.ndarray:
-    if isinstance(arr, dict):
-        return {key: ensure_2d(value) for key, value in arr.items()}
-    else:
-        return np.expand_dims(arr, 0) if len(arr.shape) < 2 else arr
-
-
-def to_tensors(sample: Sample) -> Sample:
-    out: Sample = {}
-
-    for size, sample_dict in sample.items():
-        out[size] = {
-            "data": Variable(torch.from_numpy(sample_dict["data"])).long(),
-            "speaker_data": Variable(
-                torch.from_numpy(sample_dict["speaker_data"])
-            ).long(),
-            "cluster_data_full": Variable(
-                torch.from_numpy(sample_dict["cluster_data_full"])
-            ).long(),
-            "cluster_data_gmm": Variable(
-                torch.from_numpy(sample_dict["cluster_data_gmm"])
-            ).float(),
-            "label": Variable(torch.from_numpy(sample_dict["label"])).float(),
-        }
-
-    return out
-
-
-def to_gpu(sample: Sample) -> Sample:
-    if torch.cuda.is_available():
-        out: Sample = {}
-        for size, sample_dict in sample.items():
-            out[size] = {
-                "data": sample_dict["data"].cuda(),
-                "speaker_data": sample_dict["speaker_data"].cuda(),
-                "cluster_data_full": sample_dict["cluster_data_full"].cuda(),
-                "cluster_data_gmm": sample_dict["cluster_data_gmm"].cuda(),
-                "label": sample_dict["label"].cuda(),
-            }
-
-        return out
-    else:
-        return sample
-
-
-def to_cpu(sample: Sample) -> Sample:
-    out: Sample = {}
-    for size, sample_dict in sample.items():
-        out[size] = {
-            "data": sample_dict["data"].cpu(),
-            "speaker_data": sample_dict["speaker_data"].cpu(),
-            "cluster_data_full": sample_dict["cluster_data_full"].cpu(),
-            "cluster_data_gmm": sample_dict["cluster_data_gmm"].cpu(),
-            "label": sample_dict["label"].cpu(),
-        }
-
-    return out
 
 
 def load_xml_from_disk(path: str) -> etree._Element:

@@ -1,29 +1,13 @@
-"""
-Train the neural networks.
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
-Usage:
-train.py <paramfile> <files>... [options]
-train.py (-h | --help)
-
-Options:
-    -h --help                      Show this screen
-    --with_labels                  Include computed cluster labels.
-    -b <size> --batch_size=<size>  The batch size used for training.
-"""
-
-
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
-
-from docopt import docopt
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.svm import SVC
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import trange
-import yaml
 
-from data import get_iterator, to_cpu, to_gpu, to_tensors
+from data import get_iterator
 from models import CharCNN, CNNClassifier
 from evaluate import get_scores
 
@@ -80,8 +64,9 @@ def train(
     early_stopping: int = 0,
     progbar: int = -1,
     max_norm: float = 0,
-    validation_set: Optional[Tuple[Dataset, List[int]]] = None,
+    validation_set: Optional[Tuple[Dataset, int, int]] = None,
     use_dist: bool = False,
+    use_chars: bool = False,
 ) -> List[float]:
     """Train a Pytorch model.
 
@@ -98,6 +83,7 @@ def train(
     :param validation_set: Optional verification set to use for early stopping.
     :param use_dist: Only use the indices of the clusterlabels rather than a
         categorical vector.
+    :param use_chars: Only the CharCNN dataset.
     :returns: The value of the model's loss function at every epoch.
     """
     model.cuda() if gpu else model.cpu()
@@ -110,8 +96,6 @@ def train(
     f1_scores: List[float] = []
     best_f1 = 0.0
 
-    cluster_str = "cluster_data_gmm" if use_dist else "cluster_data_full"
-
     stopping_counter = 0
     if progbar >= 0:
         t = trange(epochs, desc="Training", position=progbar)
@@ -121,36 +105,34 @@ def train(
         epoch_loss = 0.0
 
         for batch in dataloader:
-            data = to_tensors(batch)
+            batch.to_tensors()
             if gpu:
-                data = to_gpu(data)
+                batch.to_gpu()
 
-            for _, d in data.items():
-                X = d["data"]
-                c = d[cluster_str]
-                y = d["label"]
+            X = batch.X_chars if use_chars else batch.X_words
+            c = batch.clusters_gmm if use_dist else batch.clusters_kmeans
+            y = batch.label
 
-                model.train()
-                y_pred = model(X, c)
-                loss = model.loss(y_pred, y)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
+            model.train()
+            y_pred = model(X, c)
+            loss = model.loss(y_pred.view(-1), y)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
 
-                if max_norm > 0:
-                    clip_norms(model, max_norm)
+            if max_norm > 0:
+                clip_norms(model, max_norm)
 
-                epoch_loss += loss.item()
-
-            to_cpu(data)
+            epoch_loss += loss.item()
+            batch.to_cpu()
 
         loss = epoch_loss / len(dataloader)
         epoch_losses.append(loss)
 
         # check if the model is the best yet
         if validation_set:
-            ds, buckets = validation_set
-            f1 = get_scores(model, buckets, ds, gpu, use_dist)["F1"]
+            ds, wordlen, charlen = validation_set
+            f1 = get_scores(model, wordlen, charlen, ds, gpu, use_dist, use_chars)["F1"]
             f1_scores.append(f1)
             if f1 > best_f1:
                 best_f1 = f1
@@ -224,32 +206,35 @@ def setup_and_train(
     max_norm: float = 0,
     validation_set: Optional[Dataset] = None,
     use_dist: bool = False,
-) -> Tuple[nn.Module, List[float], List[int]]:
+) -> Tuple[nn.Module, List[float], int, int, bool]:
     """Create a neural network model and train it."""
     recurrent_model: nn.Module
     argdict: Dict[str, Any]
+    use_chars: bool
+    seqlen: int
+    data, wordlen, charlen = get_iterator(dataset, None, None, batch_size=batch_size)
     if isinstance(params, CNNParams):
-        buckets = None
-        data, buckets = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
+        seqlen = wordlen
         argdict = {
-            "input_size": len(dataset.vocab.token_to_idx) + 1,
-            "seq_len": buckets[0],
+            "input_size": len(dataset.word_vocab.token_to_idx) + 1,
+            "seq_len": seqlen,
             "embed_size": params.embed_size,
             "filters": params.filters,
         }
         recurrent_model = CNNClassifier(**argdict)
+        use_chars = False
     elif isinstance(params, CharCNNParams):
-        buckets = None
-        data, buckets = get_iterator(dataset, buckets=buckets, batch_size=batch_size)
+        seqlen = charlen
         argdict = {
-            "input_size": len(dataset.vocab.token_to_idx) + 1,
-            "seq_len": buckets[0],
+            "input_size": len(dataset.char_vocab.token_to_idx) + 1,
+            "seq_len": seqlen,
         }
         recurrent_model = CharCNN(**argdict)
+        use_chars = True
 
     model = model_fn(recurrent_model)
     optimizer = optim_fn(model.parameters())
-    valid = (validation_set, buckets) if validation_set else None
+    valid = (validation_set, wordlen, charlen) if validation_set else None
     losses = train(
         model,
         optimizer,
@@ -261,53 +246,7 @@ def setup_and_train(
         max_norm,
         valid,
         use_dist,
+        use_chars,
     )
 
-    return model, losses, buckets
-
-
-def parse_params(params: Dict[str, Any]) -> Union[CNNParams, CharCNNParams, None]:
-    """Parse a parameter dictinary and ensure it's valid.
-
-    :param params: The parameter dict.
-    :returns: The parsed parameters.
-    """
-    tp = params["type"]
-    del params["type"]
-
-    constructor: Union[Type[CNNParams], Type[CharCNNParams]]
-    if tp == "cnn":
-        keys = ["embed_size", "filters", "dropout", "epochs", "num_layers", "max_norm"]
-        constructor = CNNParams
-    elif tp == "charcnn":
-        keys = ["dropout", "epochs", "max_norm"]
-        constructor = CharCNNParams
-    else:
-        print("Error: only cnn or charcnn allowed as type.")
-        return None
-
-    for key in keys:
-        if key not in params.keys():
-            print(f"Error: missing key {key}")
-            return None
-
-    return constructor(**params)
-
-
-def main():
-    args = docopt(__doc__)
-    paramfile = args["<paramfile>"]
-    files = args["<files>"]
-    with_labels = args["--with_labels"]
-    batch_size = args["--batch_size"]
-
-    with open(paramfile, "r") as f:
-        params = yaml.load(f)
-        p = parse_params(params)
-
-        losses = setup_and_train(p, with_labels, files, 100, int(batch_size))
-        print(losses)
-
-
-if __name__ == "__main__":
-    main()
+    return model, losses, wordlen, charlen, use_chars
