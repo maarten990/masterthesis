@@ -93,7 +93,8 @@ class CharCNN(nn.Module):
     def __init__(self, input_size, seq_len, *args):
         super().__init__()
         ops = [
-            nn.Conv1d(input_size, 256, 7, padding=(7 - 1) / 2),
+            TransposeEmbed(input_size, 16),
+            nn.Conv1d(16, 256, 7, padding=(7 - 1) / 2),
             nn.MaxPool1d(3),
             nn.ReLU(),
             nn.Conv1d(256, 256, 7, padding=(7 - 1) / 2),
@@ -124,10 +125,10 @@ class CharCNN(nn.Module):
         self.output_size = output_seq_len * 256
 
     def forward(self, inputs):
-        onehot = torch.Tensor(np.eye(self.input_size,
-                                     dtype='uint8')[inputs]).float().cuda()
-        onehot = onehot.permute(0, 2, 1)
-        out = self.network(onehot)
+        # onehot = torch.Tensor(np.eye(self.input_size,
+        #                              dtype='uint8')[inputs]).float().cuda()
+        # onehot = inputs.permute(0, 2, 1)
+        out = self.network(inputs)
         batch_size = inputs.size(0)
         return out.view(batch_size, -1)
 

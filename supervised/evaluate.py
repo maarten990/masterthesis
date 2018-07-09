@@ -494,21 +494,21 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
 
     files = [
         f"../clustered_data/{num_clusters}/18{i:03d}.xml"
-        for i in [1, 2, 3, 4, 5, 6, 210, 211]
+        for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
     ]
-    valid_files = [f"../clustered_data/{num_clusters}/18{i:03d}.xml" for i in [7, 209]]
     test_files = [f"../clustered_data/{num_clusters}/{i}162.xml" for i in [14, 15, 16]]
+    valid_files = [f"../clustered_data/{num_clusters}/{i}019.xml" for i in [14, 15, 16, 17]]
     all_files = files + valid_files + test_files
 
     files_gmm = [
-        f"../clustered_vgmm/{num_clusters}/18{i:03d}.xml"
-        for i in [1, 2, 3, 4, 5, 6, 210, 211]
-    ]
-    valid_files_gmm = [
-        f"../clustered_vgmm/{num_clusters}/18{i:03d}.xml" for i in [7, 209]
+        f"../clustered_vgmm_pruned/18{i:03d}.xml"
+        for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
     ]
     test_files_gmm = [
-        f"../clustered_vgmm/{num_clusters}/{i}162.xml" for i in [14, 15, 16]
+        f"../clustered_vgmm_pruned/{i}162.xml" for i in [14, 15, 16]
+    ]
+    valid_files_gmm = [
+        f"../clustered_vgmm_pruned/{i}019.xml" for i in [14, 15, 16, 17]
     ]
     all_files_gmm = files_gmm + valid_files_gmm + test_files_gmm
 
