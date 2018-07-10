@@ -207,7 +207,9 @@ def shuffle_split(
     int, the absolute number of samples to use.
     :returns: An iterator of (train, test) indices.
     """
-    splitter = StratifiedShuffleSplit(n_splits=k, train_size=train_size, test_size=None)
+    splitter = StratifiedShuffleSplit(
+        n_splits=k, train_size=train_size, test_size=None, random_state=100
+    )
     labels = dataset.get_labels()
     splits = splitter.split(np.zeros(len(dataset)), labels)
 
@@ -217,33 +219,34 @@ def shuffle_split(
 
 def cross_val(
     k: int,
-    train_size: int,
+    splitter: StratifiedShuffleSplit,
     model_fns: List[Callable[[nn.Module], nn.Module]],
     use_dist_list: List[bool],
     optim_fn: Callable[[Any], torch.optim.Optimizer],
-    datasets: List[Dataset],
+    dataset: Dataset,
     params: List[Any],
     early_stopping: int = 10,
     validation_set: Dataset = None,
-    testsets: Optional[List[Dataset]] = None,
+    testset: Optional[Dataset] = None,
     gpu: bool = True,
     batch_size: int = 50,
 ):
-    folds = shuffle_split(datasets[0], k, train_size)
+    folds = splitter.split(np.zeros(len(dataset)), dataset.get_labels())
 
     F1s: List[List[float]] = [[] for _ in model_fns]
     losses: List[List[List[float]]] = [[] for _ in model_fns]
     APs: List[List[float]] = [[] for _ in model_fns]
     PRs: List[List[float]] = [[] for _ in model_fns]
 
-    test_on_holdout = testsets is None
+    test_on_holdout = testset is None
 
     first_run = True
     for train_indices, test_indices in tqdm(folds, total=k, position=1):
+        print(train_indices)
         torch.cuda.empty_cache()
 
-        for i, (model_fn, use_dist, parameters, dataset, testset) in enumerate(
-            zip(model_fns, use_dist_list, params, datasets, testsets)
+        for i, (model_fn, use_dist, parameters) in enumerate(
+                zip(model_fns, use_dist_list, params)
         ):
             trainset, holdout = dataset.split_on(train_indices, test_indices)
             if test_on_holdout:

@@ -131,15 +131,16 @@ def train(
 
         # check if the model is the best yet
         if validation_set:
-            ds, wordlen, charlen = validation_set
-            f1 = get_scores(model, wordlen, charlen, ds, gpu, use_dist, use_chars)["F1"]
-            f1_scores.append(f1)
-            if f1 > best_f1:
-                best_f1 = f1
-                best_params = model.state_dict()
-                stopping_counter = 0
-            else:
-                stopping_counter += 1
+            if i % 5 == 0:
+                ds, wordlen, charlen = validation_set
+                f1 = get_scores(model, wordlen, charlen, ds, gpu, use_dist, use_chars)["F1"]
+                f1_scores.append(f1)
+                if f1 > best_f1:
+                    best_f1 = f1
+                    best_params = model.state_dict()
+                    stopping_counter = 0
+                else:
+                    stopping_counter += 1
         else:
             if loss < best_loss:
                 best_loss = loss

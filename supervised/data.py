@@ -13,7 +13,6 @@ from torch.utils.data import DataLoader, Dataset
 from torch.autograd import Variable
 from tqdm import tqdm
 
-np.random.seed(100)
 charmap = string.ascii_letters + string.digits + string.punctuation
 
 
@@ -66,6 +65,13 @@ class Sample:
     {self.clusters_gmm.shape}
     {self.label.shape}
 )"""
+
+    def __eq__(self, other: "Sample") -> str:
+        return (
+            np.all(self.X_words == other.X_words)
+            and np.all(self.X_chars == other.X_chars)
+            and np.all(self.label == other.label)
+        )
 
     def __add__(self, other: "Sample") -> "Sample":
         return Sample(
@@ -144,6 +150,7 @@ class GermanDataset(Dataset):
         self.window_label_idx = window_label_idx
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
+        self.rng = np.random.RandomState()
 
         for file, gmm_file in zip(files, gmm_files):
             xml = load_xml_from_disk(file)
@@ -196,8 +203,11 @@ class GermanDataset(Dataset):
         positives, negatives = self.get_pos_neg()
         neg_diff = len(negatives) - num_negative
         pos_diff = len(positives) - num_positive
-        neg_discard = np.random.choice(negatives, neg_diff, replace=False)
-        pos_discard = np.random.choice(positives, pos_diff, replace=False)
+
+        self.rng.seed(100)
+        neg_discard = self.rng.choice(negatives, neg_diff, replace=False)
+        pos_discard = self.rng.choice(positives, pos_diff, replace=False)
+        print(neg_discard)
         self.samples = [
             sample
             for i, sample in enumerate(self.samples)
@@ -232,8 +242,9 @@ class GermanDataset(Dataset):
             return_test = True
 
         positives, negatives = self.get_pos_neg()
-        pos_indices = np.random.choice(positives, train[0] + test[0], replace=False)
-        neg_indices = np.random.choice(negatives, train[1] + test[1], replace=False)
+        self.rng.seed(100)
+        pos_indices = self.rng.choice(positives, train[0] + test[0], replace=False)
+        neg_indices = self.rng.choice(negatives, train[1] + test[1], replace=False)
 
         train_indices = np.concatenate(
             (pos_indices[: train[0]], neg_indices[: train[0]])
