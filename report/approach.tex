@@ -99,7 +99,7 @@ clustered from characters into words, words into lines, and finally lines into
 paragraphs. Both the level at which to cut the tree and the number of times to
 recluster are to be manually tuned based on the particular set of documents.
 
-\subsubsection{K-Means}
+\subsubsection{Clustering}
 The extracted blocks from the previous step are then clustered according to
 their similarity based on the following metrics:
 \begin{itemize}
@@ -108,8 +108,28 @@ their similarity based on the following metrics:
   \item The ID of the most common font occurring in the cluster
   \item The size of the most common font occurring in the cluster
 \end{itemize}
-This is done using K-means clustering, with the value of $k$ being varied for
-experimental purposes.
+This is implemented two different ways, with their performance to be compared
+later on. The first method is a simple K-Means clustering, which works 
+as follows:
+\begin{enumerate}
+  \item Randomly initialize $k$ cluster centroids.
+  \item Assign each observation to its nearest centroid.
+  \item Recompute each centroid to be the mean of all of its assigned
+    observations.
+  \item Repeat steps 2 and 3 until the assignments stop changing.
+\end{enumerate}
+After the algorithm has converged, the clustering is defined by each
+observation's nearest cluster centroid; with $k$ clusters, each observation is
+assigned a $k$-dimensional one-hot vector.
+
+A more complex generalization of this is a mixture model. While K-Means has a
+hard boundary between clusters, in a mixture model each cluster is a probability
+distribution over the full space of observations. As a result, rather than
+ending up with a one-hot vector, with a mixture of $k$ distributions each
+observation is assigned a $k$-dimensional vector whose $i$th element gives the
+probability of belonging to the $i$th cluster. Of course, this added information
+comes at the price of a far more involved algorithm required to compute the
+distributions.
 
 \subsection{Supervised}%
 \label{sec:sup}
