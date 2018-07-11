@@ -1,6 +1,5 @@
 from typing import Any, Callable, Dict, List, Iterator, Optional, Tuple, Union
 import os
-import pickle
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -405,6 +404,7 @@ def analyze_size(
     plt.figure()
     g = sns.factorplot(x=ax, y="F1 score", col=variable, data=df, kind="point")
     g.set_titles("{col_name}")
+    plt.tight_layout()
     if path:
         plt.savefig(f"{path}/factorplot_f1_col.pdf")
     plt.show()
@@ -436,6 +436,7 @@ def analyze_tseries(data, ax="training samples", variable="variable", path=None)
         err_style="ci_band",
         marker="o",
     )
+    plt.tight_layout()
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
     plt.show()
@@ -472,11 +473,12 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
             marker="o",
         )
 
-    g = sns.FacetGrid(df, col="architecture", legend_out=True)
+    g = sns.FacetGrid(df, col="architecture", legend_out=False)
     g.map_dataframe(plot)
     g.add_legend()
     g.set_titles("{col_name}")
     g.set_axis_labels(ax, "F1 score")
+    plt.tight_layout()
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
     plt.show()

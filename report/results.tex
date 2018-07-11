@@ -60,20 +60,10 @@ outperforms the baseline at suboptimal window sizes, but at the optimum their
 performance appears to be identical.
 \begin{figure}[p]
   \centering
-  \begin{subfigure}[b]{\textwidth}
-    \centering
-    \includegraphics[width=0.8\textwidth]{figures/results/800-windowsize/tseries_f1.pdf}
-    \caption{Trained and tested using random samples from the full dataset.\label{fig:window_new}}
-  \end{subfigure}
-  \begin{subfigure}[b]{\textwidth}
-    \centering
-    \includegraphics[width=0.8\textwidth]{figures/results/800-windowsize_oldtest/tseries_f1.pdf}
-    \caption{Tested on older electoral periods not included in the training
-    set.\label{fig:window_old}}
-  \end{subfigure}
+  \includegraphics[width=\textwidth]{figures/results/2000-windowsize-old/tseries_f1.pdf}
   \caption{These figures shows the F1 score with regards to the sliding window
-    size for each model trained on 1200 training samples.  The vertical axis
-    shows the F1 score, averaged over 10 trials; the horizontal axis shows the
+    size for each model trained on 2000 training samples.  The vertical axis
+    shows the F1 score, averaged over 5 trials; the horizontal axis shows the
     size of the sliding window applied to the training data. The translucent
     bands around the lines indicates the confidence intervals, meaning that
     based on the observed F1 scores and assuming normality, the true mean is
@@ -93,7 +83,7 @@ fact that the same clustering was used for each trial; the particular K-Means
 run when doing 7 clusters might have produced a below-average result.
 \begin{figure}[tb]
   \centering
-  \includegraphics[width=\textwidth]{figures/results/800-numcluster/tseries_f1.pdf}
+  \includegraphics[width=\textwidth]{figures/results/2000-numclusters-old/tseries_f1.pdf}
   \caption{This figure shows the performance with regards to the number of
     cluster types for each model trained on 1200 training samples with a window
     size of 5.  The vertical axis shows the F1 score, averaged over 10 trials;
@@ -114,19 +104,7 @@ rising more gradually from then on. The precise values are given in
 T-test.
 \begin{figure}[tb]
   \centering
-  \includegraphics[width=\textwidth]{figures/results/main/factorplot_f1_hue.pdf}
-  \caption{This figure compares the performance of the baseline model, using
-    only a CNN, to that of the model augmented with K-Means clustering. The
-    vertical axis shows the F1 score, averaged over 10 trials. The horizontal
-    axis shows the number of samples used for training (at a 1:1 ratio of
-    positive to negative samples). The vertical bars indicate confidence
-    intervals, meaning that based on the observed F1 scores and assuming
-    normality, the true mean is 95\% likely to fall within the shown
-    interval.\label{fig:result}}
-\end{figure}
-\begin{figure}[tb]
-  \centering
-  \includegraphics[width=\textwidth]{figures/results/main_window4_oldtest/tseries_f1.pdf}
+  \includegraphics[width=\textwidth]{figures/results/training-size-old/tseries_f1.pdf}
   \caption{This figure compares the performance of the baseline model, using
     only a CNN, to that of the model augmented with K-Means clustering.  Tested
     on a test set of older electoral periods not present in the training set.
