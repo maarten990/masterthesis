@@ -482,19 +482,7 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
     plt.show()
 
 
-def load_dataset(num_clusters=9, window_size=4, old_test=False):
-    fname = f"dataset_{num_clusters}_{window_size}_{old_test}.pkl"
-    if os.path.exists(fname):
-        with open(fname, "rb") as f:
-            return pickle.load(f)
-
-    if window_size == 1:
-        window_label = 0
-    elif window_size % 2 == 0:
-        window_label = (window_size // 2) - 1
-    else:
-        window_label = (window_size // 2) + 1
-
+def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
     files = [
         f"../clustered_data/{num_clusters}/18{i:03d}.xml"
         for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
@@ -519,9 +507,9 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
         all_files,
         all_files_gmm,
         num_clusters,
-        -1,
-        window_size,
-        window_label,
+        11,
+        num_before,
+        num_after,
     )
     word_vocab = vocab_set.word_vocab
     char_vocab = vocab_set.char_vocab
@@ -531,9 +519,9 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
         valid_files,
         valid_files_gmm,
         num_clusters,
-        1.0,
-        window_size,
-        window_label,
+        11,
+        num_before,
+        num_after,
         word_vocab=word_vocab,
         char_vocab=char_vocab,
     )
@@ -543,9 +531,9 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
             files,
             files_gmm,
             num_clusters,
-            1.0,
-            window_size,
-            window_label,
+            11,
+            num_before,
+            num_after,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
         )
@@ -553,9 +541,9 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
             test_files,
             test_files_gmm,
             num_clusters,
-            1.0,
-            window_size,
-            window_label,
+            11,
+            num_before,
+            num_after,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
         )
@@ -566,15 +554,12 @@ def load_dataset(num_clusters=9, window_size=4, old_test=False):
             files + test_files,
             files_gmm + test_files_gmm,
             num_clusters,
-            1.0,
-            window_size,
-            window_label,
+            11,
+            num_before,
+            num_after,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
         )
         retval = (dataset, validset)
-
-    with open(fname, "wb") as f:
-        pickle.dump(retval, f)
 
     return retval

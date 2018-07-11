@@ -16,7 +16,7 @@ from tqdm import tqdm
 charmap = string.ascii_letters + string.digits + string.punctuation
 
 
-def full_window_fn(window, central_idx, num_clusterlabels):
+def full_window_fn(window, num_clusterlabels):
     return np.concatenate(
         [
             to_onehot(
@@ -28,7 +28,7 @@ def full_window_fn(window, central_idx, num_clusterlabels):
     )
 
 
-def full_window_dist_fn(window, central_idx, num_clusterlabels):
+def full_window_dist_fn(window, num_clusterlabels):
     return np.concatenate(
         [
             eval(w.attrib["clusterLabel"])
@@ -132,9 +132,9 @@ class GermanDataset(Dataset):
         files: List[str],
         gmm_files: List[str],
         num_clusterlabels: int,
-        negative_ratio: float,
-        window_size: int,
-        window_label_idx: int = 0,
+        num_gmm_clusters: int,
+        window_before: int,
+        window_after: int,
         word_vocab: Optional[Vocab] = None,
         char_vocab: Optional[Vocab] = None,
         bag_of_words: bool = False,
@@ -146,8 +146,9 @@ class GermanDataset(Dataset):
             create_dictionary(files, True) if not char_vocab else char_vocab
         )
         self.num_clusterlabels = num_clusterlabels
-        self.window_size = window_size
-        self.window_label_idx = window_label_idx
+        self.num_gmm_clusters = num_gmm_clusters
+        self.window_before = window_before
+        self.window_after = window_after
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
         self.rng = np.random.RandomState()
@@ -155,24 +156,33 @@ class GermanDataset(Dataset):
         for file, gmm_file in zip(files, gmm_files):
             xml = load_xml_from_disk(file)
             xml_gmm = load_xml_from_disk(gmm_file)
-            pos = xml.xpath('/pdf2xml/page/text[@is-speech="true"]')
-            neg = xml.xpath('/pdf2xml/page/text[@is-speech="false"]')
-            pos_gmm = xml_gmm.xpath('/pdf2xml/page/text[@is-speech="true"]')
-            neg_gmm = xml_gmm.xpath('/pdf2xml/page/text[@is-speech="false"]')
+            flatten_xml(xml)
+            flatten_xml(xml_gmm)
+
+            pos = xml.xpath('/pdf2xml/text[@is-speech="true"]')
+            neg = xml.xpath('/pdf2xml/text[@is-speech="false"]')[10:-10]
+            pos_gmm = xml_gmm.xpath('/pdf2xml/text[@is-speech="true"]')
+            neg_gmm = xml_gmm.xpath('/pdf2xml/text[@is-speech="false"]')[10:-10]
+
+            # take a random amount of negative samples equal to the number of
+            # positive samples
+            self.rng.seed(100)
+            indices = self.rng.choice(list(range(len(neg))), len(pos), replace=False)
+            neg = [neg[i] for i in indices]
+            neg_gmm = [neg_gmm[i] for i in indices]
 
             for p, p_gmm in zip(pos, pos_gmm):
-                window = xml_window(p, window_label_idx, window_size)
-                window_gmm = xml_window(p_gmm, window_label_idx, window_size)
+                assert(p.xpath(".//text()") == p_gmm.xpath(".//text()"))
+                window = xml_window(p, window_before, window_after)
+                window_gmm = xml_window(p_gmm, window_before, window_after)
                 if window:
-                    self.samples.append(self.vectorize_window(window, window_gmm))
+                    self.samples.append(self.vectorize_window(window, window_gmm, p))
             for n, n_gmm in zip(neg, neg_gmm):
-                window = xml_window(n, window_label_idx, window_size)
-                window_gmm = xml_window(n_gmm, window_label_idx, window_size)
+                assert(n.xpath(".//text()") == n_gmm.xpath(".//text()"))
+                window = xml_window(n, window_before, window_after)
+                window_gmm = xml_window(n_gmm, window_before, window_after)
                 if window:
-                    self.samples.append(self.vectorize_window(window, window_gmm))
-
-        if negative_ratio != -1:
-            self.equalize_ratio(negative_ratio)
+                    self.samples.append(self.vectorize_window(window, window_gmm, n))
 
     def get_pos_neg(self) -> Tuple[List[int], List[int]]:
         positives: List[int] = []
@@ -194,29 +204,6 @@ class GermanDataset(Dataset):
             labels.append(sample.label)
 
         return labels
-
-    def equalize_ratio(self, negative_ratio):
-        positives, negatives = self.get_pos_neg()
-        self.subsample(len(positives), len(positives))
-
-    def subsample(self, num_positive: int, num_negative: int) -> None:
-        positives, negatives = self.get_pos_neg()
-        neg_diff = len(negatives) - num_negative
-        pos_diff = len(positives) - num_positive
-
-        self.rng.seed(100)
-        neg_discard = self.rng.choice(negatives, neg_diff, replace=False)
-        pos_discard = self.rng.choice(positives, pos_diff, replace=False)
-        print(neg_discard)
-        self.samples = [
-            sample
-            for i, sample in enumerate(self.samples)
-            if i not in neg_discard and i not in pos_discard
-        ]
-
-        print(
-            f"Retrieved {len(positives)} positive samples, {len(negatives)} negative samples."
-        )
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -298,10 +285,13 @@ class GermanDataset(Dataset):
         return DataSubset(self, train_indices), DataSubset(self, test_indices)
 
     def vectorize_window(
-        self, window: List[etree._Element], window_gmm: List[etree._Element]
+        self,
+        window: List[etree._Element],
+        window_gmm: List[etree._Element],
+        center_elem: etree._Element,
     ) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
-        y = get_label(window[self.window_label_idx])
+        y = get_label(center_elem)
 
         word_tokens = token_featurizer(window, tokenizer)
         char_tokens = char_tokenizer(window, tokenizer)
@@ -318,10 +308,10 @@ class GermanDataset(Dataset):
             )
 
         clusterlabels = full_window_fn(
-            window, self.window_label_idx, self.num_clusterlabels
+            window, self.num_clusterlabels
         )
         clusterlabels_gmm = full_window_dist_fn(
-            window_gmm, self.window_label_idx, self.num_clusterlabels
+            window_gmm, self.num_gmm_clusters
         )
 
         return Sample(
@@ -342,18 +332,20 @@ class DataSubset(GermanDataset):
         self.num_clusterlabels = data.num_clusterlabels
 
 
-def xml_window(node: etree._Element, n_before: int, size: int) -> List[etree._Element]:
+def xml_window(node: etree._Element, n_before: int, n_after: int) -> List[etree._Element]:
     start = node
     for _ in range(n_before):
         prev = start.getprevious()
         if prev is not None:
-            start = start = prev
+            start = prev
         else:
-            break
+            print("Reached boundary!")
+            return []
 
     out = []
-    for _ in range(size):
+    for _ in range(n_before + n_after + 1):
         if start is None:
+            print("Reached boundary!")
             return []
         out.append(start)
         start = start.getnext()
@@ -413,6 +405,18 @@ def load_xml_from_disk(path: str) -> etree._Element:
     parser = etree.XMLParser(ns_clean=True, encoding="utf-8")
     with open(path, "r", encoding="utf-8") as f:
         return etree.fromstring(f.read().encode("utf-8"), parser)
+
+
+def flatten_xml(xml: etree._Element):
+    pages = xml.xpath('/pdf2xml/page')
+    children = []
+    for page in pages:
+        for child in page:
+            children.append(child)
+        xml.remove(page)
+
+    for child in children:
+        xml.append(child)
 
 
 def get_label(node: etree._Element) -> int:
