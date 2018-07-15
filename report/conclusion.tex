@@ -1,5 +1,12 @@
 \section{Conclusion}
-Todo: conclusion
+Segmenting political proceedings through the use of machine learning is a viable
+approach, reaching peak F1 scores of 0.96. When training data is very sparse,
+word-level convolutional neural networks are the best option; augmenting them
+with information regarding the document layout, whether through K-Means
+clustering or an infinite mixture model, offers no notable increase in
+performance. When more training data (roughly 1000 positive samples) is
+available, character-based convolutional neural networks outperform their
+word-based brethren only when augmented using infinite mixture model clustering.
 
 %%% Local Variables:
 %%% mode: latex
