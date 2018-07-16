@@ -181,13 +181,12 @@ def train_BoW(
     dataset: Dataset, vocab: Dict[str, int], ngram_range: Tuple[int, int] = (1, 1)
 ) -> Tuple[SVC, TfidfVectorizer]:
     vectorizer = TfidfVectorizer(
-        vocabulary=vocab, token_pattern=r"\w+|[^\w\s]", ngram_range=ngram_range
+        token_pattern=r"\w+|[^\w\s]", ngram_range=ngram_range
     )
     model = SVC(probability=True)
 
-    samples = [list(entry.values())[0]["data"] for entry in dataset]
-    labels = [list(entry.values())[0]["label"] for entry in dataset]
-    print(samples[0])
+    samples = [entry.X_words for entry in dataset]
+    labels = [entry.label for entry in dataset]
     X = vectorizer.fit_transform(samples)
 
     model.fit(X, labels)

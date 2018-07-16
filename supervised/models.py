@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -125,9 +124,6 @@ class CharCNN(nn.Module):
         self.output_size = output_seq_len * 256
 
     def forward(self, inputs):
-        # onehot = torch.Tensor(np.eye(self.input_size,
-        #                              dtype='uint8')[inputs]).float().cuda()
-        # onehot = inputs.permute(0, 2, 1)
         out = self.network(inputs)
         batch_size = inputs.size(0)
         return out.view(batch_size, -1)
@@ -177,13 +173,11 @@ class CategoricalClusterLabels(ClfBase):
         return self.network(combined)
 
 
-class ClusterLabelsChar(ClfBase):
+class OnlyClusterLabels(ClfBase):
 
     def __init__(self, recurrent_clf, n_labels, window_size, dropout, batch_norm=False):
-        super().__init__(dropout, recurrent_clf.output_size + (n_labels * window_size))
+        super().__init__(dropout, n_labels * window_size)
         self.recurrent_clf = recurrent_clf
 
     def forward(self, inputs, labels):
-        r_out = self.recurrent_clf(inputs)
-        combined = torch.cat([r_out, labels.float()], 1)
-        return self.network(combined)
+        return self.network(labels.float())

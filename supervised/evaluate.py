@@ -7,7 +7,7 @@ import pandas as pd
 import scipy
 import seaborn as sns
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import precision_score, recall_score, precision_recall_curve
+from sklearn.metrics import f1_score, precision_recall_curve
 from sklearn.model_selection import StratifiedShuffleSplit
 from sklearn.svm import SVC
 from tabulate import tabulate
@@ -61,21 +61,13 @@ def get_values(
 
 
 def evaluate_bow(
-    model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset, cutoff: float = 0.5
+        model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset
 ) -> Tuple[float, float]:
-    samples = [list(entry.values())[0]["data"] for entry in dataset]
-    true = [list(entry.values())[0]["label"] for entry in dataset]
+    samples = [entry.X_words for entry in dataset]
+    true = [entry.label for entry in dataset]
 
-    y = model.predict_proba(vectorizer.transform(samples))
-    predictions = np.where(y > cutoff, 1, 0)
-    predictions = np.argmax(predictions, axis=1)
-    if 1 not in predictions:
-        p = 1.0
-    else:
-        p = precision_score(true, predictions)
-    r = recall_score(true, predictions)
-
-    return p, r
+    y = model.predict(vectorizer.transform(samples))
+    return f1_score(true, y)
 
 
 def precision_recall_values(
@@ -282,6 +274,29 @@ def cross_val(
     return losses, PRs, F1s, APs
 
 
+def cross_val_bow(
+        k: int,
+        splitter: StratifiedShuffleSplit,
+        dataset: Dataset,
+        testset: Optional[Dataset] = None
+) -> List[float]:
+    folds = splitter.split(np.zeros(len(dataset)), dataset.get_labels())
+    test_on_holdout = testset is None
+    F1s: List[List[float]] = [[]]
+
+    for train_indices, test_indices in tqdm(folds, total=k, position=1):
+        trainset, holdout = dataset.split_on(train_indices, test_indices)
+        if test_on_holdout:
+            testset = holdout
+
+        model, vectorizer = train.train_BoW(
+            trainset, dataset.word_vocab, ngram_range=(1, 2)
+        )
+        F1s[0].append(evaluate_bow(model, vectorizer, testset))
+
+    return F1s, F1s, F1s, F1s
+
+
 def analyze_wrapper(baseline, kmeans, gmm, variable="variable", path=None):
     for size in baseline.keys():
         data = {"baseline": baseline[size], "k-means": kmeans[size]}
@@ -484,7 +499,8 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
     plt.show()
 
 
-def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
+def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
+                 bag_of_words=False):
     files = [
         f"../clustered_data/{num_clusters}/18{i:03d}.xml"
         for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
@@ -512,6 +528,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
         11,
         num_before,
         num_after,
+        bag_of_words=bag_of_words,
     )
     word_vocab = vocab_set.word_vocab
     char_vocab = vocab_set.char_vocab
@@ -526,6 +543,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
         num_after,
         word_vocab=word_vocab,
         char_vocab=char_vocab,
+        bag_of_words=bag_of_words,
     )
 
     if old_test:
@@ -538,6 +556,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
             num_after,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
+            bag_of_words=bag_of_words,
         )
         testset = GermanDataset(
             test_files,
@@ -548,6 +567,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
             num_after,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
+            bag_of_words=bag_of_words,
         )
 
         retval = (dataset, validset, testset)
@@ -561,6 +581,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False):
             num_after,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
+            bag_of_words=bag_of_words,
         )
         retval = (dataset, validset)
 

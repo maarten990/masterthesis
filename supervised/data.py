@@ -50,9 +50,20 @@ class Vocab:
 
 class Sample:
 
-    def __init__(self, X_words, X_chars, clusters_kmeans, clusters_gmm, label) -> None:
-        self.X_words = self.ensure_2d(X_words)
-        self.X_chars = self.ensure_2d(X_chars)
+    def __init__(self,
+                 X_words,
+                 X_chars,
+                 clusters_kmeans,
+                 clusters_gmm,
+                 label,
+                 bag_of_words: bool = False) -> None:
+
+        if bag_of_words:
+            self.X_words = X_words
+            self.X_chars = X_chars
+        else:
+            self.X_words = self.ensure_2d(X_words)
+            self.X_chars = self.ensure_2d(X_chars)
         self.clusters_kmeans = self.ensure_2d(clusters_kmeans)
         self.clusters_gmm = self.ensure_2d(clusters_gmm)
         self.label = label
@@ -320,6 +331,7 @@ class GermanDataset(Dataset):
             np.array(clusterlabels),
             np.array(clusterlabels_gmm),
             np.array([y]),
+            bag_of_words=self.bag_of_words,
         )
 
 
