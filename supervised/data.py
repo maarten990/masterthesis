@@ -1,6 +1,7 @@
 """Contains functions for loading and manipulating training data."""
 
 
+from enum import Enum
 import string
 from typing import Dict, Iterator, List, Optional, Set, Tuple, Union
 
@@ -16,27 +17,52 @@ from tqdm import tqdm
 charmap = string.ascii_letters + string.digits + string.punctuation
 
 
-def full_window_fn(window, num_clusterlabels):
-    return np.concatenate(
-        [
-            to_onehot(
-                int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0,
-                num_clusterlabels,
-            )
-            for w in window
-        ]
-    )
+def full_window_fn(
+        window,
+        num_clusterlabels,
+        center=None,
+        func=lambda x: np.mean(x, axis = 0),
+):
+    if center is not None:
+        return to_onehot(
+            int(
+                center.attrib["clusterLabel"]
+            ) if "clusterLabel" in center.attrib else 0,
+            num_clusterlabels,
+        )
+    else:
+        return func(
+            [
+                to_onehot(
+                    int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0,
+                    num_clusterlabels,
+                )
+                for w in window
+            ],
+        )
 
 
-def full_window_dist_fn(window, num_clusterlabels):
-    return np.concatenate(
-        [
-            eval(w.attrib["clusterLabel"])
-            if "clusterLabel" in w.attrib
+def full_window_dist_fn(
+        window,
+        num_clusterlabels,
+        center=None,
+        func=lambda x: np.mean(x, axis = 0),
+):
+    if center is not None:
+        return (
+            eval(center.attrib["clusterLabel"])
+            if "clusterLabel" in center.attrib
             else ([0.0] * num_clusterlabels)
-            for w in window
-        ]
-    )
+        )
+    else:
+        return func(
+            [
+                eval(w.attrib["clusterLabel"])
+                if "clusterLabel" in w.attrib
+                else ([0.0] * num_clusterlabels)
+                for w in window
+            ],
+        )
 
 
 class Vocab:
@@ -136,6 +162,9 @@ class Sample:
             self.X_chars = self.X_chars[:, :char_amount]
 
 
+ClusterHandling = Enum("ClusterHandling", "CONCAT MEAN CENTER")
+
+
 class GermanDataset(Dataset):
 
     def __init__(
@@ -149,6 +178,7 @@ class GermanDataset(Dataset):
         word_vocab: Optional[Vocab] = None,
         char_vocab: Optional[Vocab] = None,
         bag_of_words: bool = False,
+        cluster_handling: ClusterHandling = ClusterHandling.CONCAT
     ) -> None:
         self.word_vocab = (
             create_dictionary(files, False) if not word_vocab else word_vocab
@@ -163,6 +193,7 @@ class GermanDataset(Dataset):
         self.samples: List[Sample] = []
         self.bag_of_words = bag_of_words
         self.rng = np.random.RandomState()
+        self.cluster_handling = cluster_handling
 
         for file, gmm_file in zip(files, gmm_files):
             xml = load_xml_from_disk(file)
@@ -187,13 +218,13 @@ class GermanDataset(Dataset):
                 window = xml_window(p, window_before, window_after)
                 window_gmm = xml_window(p_gmm, window_before, window_after)
                 if window:
-                    self.samples.append(self.vectorize_window(window, window_gmm, p))
+                    self.samples.append(self.vectorize_window(window, window_gmm, p, p_gmm))
             for n, n_gmm in zip(neg, neg_gmm):
                 assert(n.xpath(".//text()") == n_gmm.xpath(".//text()"))
                 window = xml_window(n, window_before, window_after)
                 window_gmm = xml_window(n_gmm, window_before, window_after)
                 if window:
-                    self.samples.append(self.vectorize_window(window, window_gmm, n))
+                    self.samples.append(self.vectorize_window(window, window_gmm, n, n_gmm))
 
     def get_pos_neg(self) -> Tuple[List[int], List[int]]:
         positives: List[int] = []
@@ -299,10 +330,11 @@ class GermanDataset(Dataset):
         self,
         window: List[etree._Element],
         window_gmm: List[etree._Element],
-        center_elem: etree._Element,
+        center_kmeans: etree._Element,
+        center_gmm: etree._Element,
     ) -> Sample:
         tokenizer = nltk.tokenize.RegexpTokenizer(r"\w+|[^\w\s]")
-        y = get_label(center_elem)
+        y = get_label(center_kmeans)
 
         word_tokens = token_featurizer(window, tokenizer)
         char_tokens = char_tokenizer(window, tokenizer)
@@ -318,11 +350,21 @@ class GermanDataset(Dataset):
                 [self.char_vocab.token_to_idx.get(token, 0) for token in char_tokens]
             )
 
+        use_center_kmeans, use_center_gmm = {
+            ClusterHandling.CENTER: (center_kmeans, center_gmm),
+        }.get(self.cluster_handling, (None, None))
+
+        cluster_fn = {
+            ClusterHandling.CENTER: None,
+            ClusterHandling.CONCAT: lambda x: np.concatenate(x),
+            ClusterHandling.MEAN: lambda x: np.mean(x, axis=0),
+        }[self.cluster_handling]
+
         clusterlabels = full_window_fn(
-            window, self.num_clusterlabels
+            window, self.num_clusterlabels, use_center_kmeans, cluster_fn
         )
         clusterlabels_gmm = full_window_dist_fn(
-            window_gmm, self.num_gmm_clusters
+            window_gmm, self.num_gmm_clusters, use_center_gmm, cluster_fn
         )
 
         return Sample(

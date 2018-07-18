@@ -16,7 +16,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from data import GermanDataset, get_iterator
+from data import ClusterHandling, GermanDataset, get_iterator
 import train
 
 sns.set()
@@ -499,8 +499,12 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
     plt.show()
 
 
-def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
-                 bag_of_words=False):
+def load_dataset(num_clusters=9,
+                 num_before=1,
+                 num_after=1,
+                 old_test=False,
+                 bag_of_words=False,
+                 cluster_handling=ClusterHandling.CONCAT):
     files = [
         f"../clustered_data/{num_clusters}/18{i:03d}.xml"
         for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
@@ -529,6 +533,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
         num_before,
         num_after,
         bag_of_words=bag_of_words,
+        cluster_handling=cluster_handling,
     )
     word_vocab = vocab_set.word_vocab
     char_vocab = vocab_set.char_vocab
@@ -544,6 +549,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
         word_vocab=word_vocab,
         char_vocab=char_vocab,
         bag_of_words=bag_of_words,
+        cluster_handling=cluster_handling,
     )
 
     if old_test:
@@ -557,6 +563,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
             bag_of_words=bag_of_words,
+            cluster_handling=cluster_handling,
         )
         testset = GermanDataset(
             test_files,
@@ -568,6 +575,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
             bag_of_words=bag_of_words,
+            cluster_handling=cluster_handling,
         )
 
         retval = (dataset, validset, testset)
@@ -582,6 +590,7 @@ def load_dataset(num_clusters=9, num_before=1, num_after=1, old_test=False,
             word_vocab=word_vocab,
             char_vocab=char_vocab,
             bag_of_words=bag_of_words,
+            cluster_handling=cluster_handling,
         )
         retval = (dataset, validset)
 

@@ -163,8 +163,8 @@ class NoClusterLabels(ClfBase):
 
 class CategoricalClusterLabels(ClfBase):
 
-    def __init__(self, recurrent_clf, n_labels, window_size, dropout, batch_norm=False):
-        super().__init__(dropout, recurrent_clf.output_size + (n_labels * window_size))
+    def __init__(self, recurrent_clf, n_cluster_params, dropout, batch_norm=False):
+        super().__init__(dropout, recurrent_clf.output_size + n_cluster_params)
         self.recurrent_clf = recurrent_clf
 
     def forward(self, inputs, labels):
@@ -175,8 +175,8 @@ class CategoricalClusterLabels(ClfBase):
 
 class OnlyClusterLabels(ClfBase):
 
-    def __init__(self, recurrent_clf, n_labels, window_size, dropout, batch_norm=False):
-        super().__init__(dropout, n_labels * window_size)
+    def __init__(self, recurrent_clf, n_cluster_params, dropout, batch_norm=False):
+        super().__init__(dropout, n_cluster_params)
         self.recurrent_clf = recurrent_clf
 
     def forward(self, inputs, labels):
