@@ -19,7 +19,8 @@ Mixture model'' respectively. Although K-fold cross validation would seem to be
 a good way of comparing their relative performance, there are two properties of
 cross validation that make it less desirable in this case:
 \begin{itemize}
-  \item The size of the training set is an interesting variable to test, but
+  \item One of the more interesting variables in this context is the size of the
+  training set, but
     with cross validation it is directly tied to the number of iterations (e.g.\
     with a dataset of 1000 samples and 10 folds, each fold would have a
     training set of 100 samples).
@@ -73,7 +74,7 @@ are added.
 \begin{figure}[p]
   \centering
   \begin{subfigure}[b]{\textwidth}
-    \includegraphics[width=\textwidth]{figures/results/2000-windowsize-old/tseries_f1.pdf}
+    \includegraphics[width=\textwidth]{figures/results/2000-windowsize_forward-old/tseries_f1.pdf}
     \caption{The F1 score with regards to the sliding window size for each
     model.\label{fig:window}}
     \vspace*{\fill}

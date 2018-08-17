@@ -77,7 +77,7 @@ usable on larger datasets.
 
 \begin{figure}[tb]
   \centering
-  \begin{subfigure}[b]{0.40\textwidth} 
+  \begin{subfigure}[b]{0.40\textwidth}
     \centering
     \includegraphics[width=\textwidth]{figures/dendrogram1.png}
     \caption{Before}
@@ -109,7 +109,7 @@ their similarity based on the following metrics:
   \item The size of the most common font occurring in the cluster
 \end{itemize}
 This is implemented two different ways, with their performance to be compared
-later on. The first method is a simple K-Means clustering, which works 
+later on. The first method is a simple K-Means clustering, which works
 as follows:
 \begin{enumerate}
   \item Randomly initialize $k$ cluster centroids.
@@ -130,6 +130,20 @@ observation is assigned a $k$-dimensional vector whose $i$th element gives the
 probability of belonging to the $i$th cluster. Of course, this added information
 comes at the price of a far more involved algorithm required to compute the
 distributions.
+
+\subsubsection{Dirichlet Process Mixture Model}
+The mixture model can be described using a generative model. We start out with
+an infinite amount of distributions (analogous to the cluster centroids in the
+K-Means variant). Each generated sample is drawn from one of these
+distributions, governed by a Dirichlet process. The probability $w_k$ of the
+sample being drawn from the $k$'th distribution is given by
+\begin{equation}
+  w_k = \beta_k' \cdot \prod_{i=1}^{k-1} (1 - \beta_k')\,,
+\end{equation}
+where $\beta_k'$ is a random variable drawn from the distribution
+$\mathrm{Beta}(1, \alpha)$. This manner of generating a Dirichlet process is
+known as the \emph{stick-breaking process}
+
 
 \subsection{Supervised}%
 \label{sec:sup}
@@ -416,14 +430,14 @@ regular neural network.
 
 While CNN architectures in computer vision are generally very deep, they tend to
 be very shallow in natural language processing; commonly just a single
-convolution followed by 1-max pooling \citep{zhang2015conv}. 
+convolution followed by 1-max pooling \citep{zhang2015conv}.
 
 \subsubsection{Difference between convolutional and recurrent neural networks}
 Recurrent neural networks (in particular LSTMs or GRUs) are seemingly the most
 natural fit for language processing, since they process an entire sequence and
 are therefore fully conditioned on the word order (as opposed to the
 convolutional neural networks which tend to learn translation invariant ngram
-features). In spite of this, the decision to use convolutional neural networks 
+features). In spite of this, the decision to use convolutional neural networks
 is based on two factors:
 \begin{enumerate}
 \item In practise, the performance for classification tasks does not differ

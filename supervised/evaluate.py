@@ -477,23 +477,17 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
 
     df = pd.DataFrame(df_data)
 
-    def plot(**kwargs):
-        sns.tsplot(
-            time=ax,
-            value="F1 score",
-            condition=variable,
-            unit="trial",
-            data=kwargs["data"],
-            err_style="ci_band",
-            marker="o",
-        )
-
-    g = sns.FacetGrid(df, col="architecture", legend_out=False)
-    g.map_dataframe(plot)
-    g.add_legend()
+    g = sns.relplot(
+        x=ax,
+        y="F1 score",
+        hue=variable,
+        col="architecture",
+        data=df,
+        kind="line",
+        marker="o",
+        ci=90,
+    )
     g.set_titles("{col_name}")
-    g.set_axis_labels(ax, "F1 score")
-    plt.tight_layout()
     if path:
         plt.savefig(f"{path}/tseries_f1.pdf")
     plt.show()
