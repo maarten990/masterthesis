@@ -265,14 +265,14 @@ and the regularisation methods are provided in \cref{sec:optim} and
 Optimisation is done using the Adadelta update rule\citep{adadelta}. This is
 easiest to explain by starting with the basic mini-batch stochastic gradient
 descent algorithm (SGD). At each iteration $t$, the network parameters $\theta$
-are updated based on some calculation:
+are updated based on some calculated difference:
 \begin{equation}
-  \theta_{t+1} = \theta_{t} - \Delta\theta_t
+  \theta_{t+1} = \theta_{t} - \Delta\theta_t\,.
 \end{equation}
 The difference between optimization algorithms is how $\Delta\theta$ is
 calculated. With SGD, it is simply
 \begin{equation}
-  \Delta\theta_t = \mu \loss{t}
+  \Delta\theta_t = \mu \loss{t}\,,
 \end{equation}
 where $\mathcal{L}$ is the loss function (in this case, the binary cross entropy
 between the predicted labels and the true labels), and $\mu$ is an arbitrary
@@ -287,7 +287,7 @@ parameters are updated with a higher learning rate. This is done by simply
 dividing the learning rate with the L2 norm of the sum of all previous gradients:
 \begin{gather}
   g_{t} = \loss{t} \\
-  \Delta\theta_t = \frac{\mu}{\sqrt{\sum^{t}_{\mathcal{T}=1}g_{\mathcal{T}}^2}} g_{t}
+  \Delta\theta_t = \frac{\mu}{\sqrt{\sum^{t}_{\mathcal{T}=1}g_{\mathcal{T}}^2}} g_{t}\,.
 \end{gather}
 This has been found to work very well, in particular in natural language
 processing and computer vision where features are often sparse, but it has two
@@ -303,7 +303,7 @@ restricting the accumulation of gradients to a window of recent updates. First
 of all, the sum over all previous gradients is replaced by an exponentially
 decaying average of the squared gradients, referred to as $E[g^2]$:
 \begin{equation}\label{eq:rms}
-  E[g^2]_t = \rho E[g^2]_{t-1} + (1 - \rho) g_t^2
+  E[g^2]_t = \rho E[g^2]_{t-1} + (1 - \rho) g_t^2\,.
 \end{equation}
 Here $\rho$ is a constant representing the rate of decay; this decaying sum
 serves as a more efficient approximation of an actual window of past gradients,
@@ -312,15 +312,15 @@ of parameters in a neural network and the memory constraints of running on a GPU
 Substituting this into the Adagrad algorithm gives us:
 \begin{align}
   \Delta\theta_t &= \frac{\mu}{\sqrt{E[g^2]_t}} g_{t} \\
-		 &= \frac{\mu}{RMS[g]_t} g_{t}
+		 &= \frac{\mu}{RMS[g]_t} g_{t}\,.
 \end{align}
 The quantity $\sqrt{E[g^2]_t}$ is called the \emph{root mean square} of $g$,
 which occurs often enough in optimisation algorithms that it is often
 abbreviated as $RMS[g]$. As a final step, the learning rate $\mu$ is eliminated
 by replacing it with a decaying average of the previous gradient updates,
-similar to \cref{eq:rms}.
+similar to \cref{eq:rms}:
 \begin{equation}
-  \Delta\theta_t = \frac{RMS[\theta]_{t-1}}{RMS[g]_t} g_{t}
+  \Delta\theta_t = \frac{RMS[\theta]_{t-1}}{RMS[g]_t} g_{t}\,.
 \end{equation}
 
 \subsubsection{Regularisation}\label{sec:reg}
