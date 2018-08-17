@@ -13,7 +13,7 @@ if [[ -n $LABELING_K ]]; then
     sed -i'' -E "s/(\s*)k:(\s*)[0-9]+/\1k:\2$LABELING_K/" params.yml
 fi
 
-OUTFOLDER="../clustered-fixed-$LABELING_K"
+OUTFOLDER="../clustered_data/$LABELING_K"
 XMLFOLDER="../training_data"
 PDFFOLDER="../pdfs"
 mkdir -p "$OUTFOLDER"

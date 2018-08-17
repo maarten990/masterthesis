@@ -98,7 +98,7 @@ fun parseConfig(path: String): Config {
 
     config.clustering?.hac.let {
         if (it != null) {
-            val cutoff = it.cutoff!!
+            val cutoff = it.cutoff!!.toFloat()
             println("Clustering algorithm: HAC, cutoff: $cutoff")
 
             conf.clusteringFunc = { files -> cluster_hac(files, cutoff) }

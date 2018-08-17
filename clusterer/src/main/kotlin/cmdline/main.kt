@@ -138,7 +138,7 @@ fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<Char
     return blocks
 }
 
-fun cluster_hac(path: String, cutoff: Int): List<Map<CharData, Int>> {
+fun cluster_hac(path: String, cutoff: Float): List<Map<CharData, Int>> {
     val blocks = mutableListOf<Map<CharData, Int>>()
     // TODO: use all files
     val doc = PDDocument.load(File(path))

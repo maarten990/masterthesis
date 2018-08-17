@@ -11,7 +11,7 @@ class Clusterer {
     /**
      * Run kmeans clustering on the distances in the dendrogram, using a given cutoff point.
      */
-    fun clusterDistances(tree: Dendrogram, cutoff: Int): List<Double> {
+    fun clusterDistances(tree: Dendrogram, cutoff: Float): List<Double> {
         return python.cluster_distances(tree, cutoff)
     }
 
@@ -71,11 +71,20 @@ class Clusterer {
      * Cluster the text on a PDF page using DBSCAN.
      */
     fun clusterFilePageDbscan(document: PDDocument, pagenum: Int, filename: String,
-                              epsilon: Float, minSamples: Int): Map<CharData, Int> {
+                              epsilon: Float, minSamples: Int, use_gmm: Int = 0): Map<CharData, Int> {
         val parser = TextRectParser()
         val chars = parser.getCharsOnPage(document, pagenum, filename)
-        return dbscan(chars, epsilon, minSamples)
+
+        return if (use_gmm > 0) {
+            gmm(chars, use_gmm).mapValues { argmax(it.value) }
+        } else {
+            dbscan(chars, epsilon, minSamples)
+        }
     }
+}
+
+fun <T: Comparable<T>>argmax(xs: List<T>): Int {
+    return (0 until xs.size).maxBy { xs[it] }!!
 }
 
 /**

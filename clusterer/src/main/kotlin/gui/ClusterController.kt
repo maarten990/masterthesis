@@ -26,7 +26,7 @@ class ClusterController: Controller() {
             for (pagenum in 0 until doc.numberOfPages) {
                 model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
                 clusterer.vectorizer = item.vectorizer
-                dendrograms.add(clusterer.clusterFilePage(doc, item.pagenum, item.path))
+                dendrograms.add(clusterer.clusterFilePage(doc, pagenum, item.path))
             }
 
             model.dendrogram.value = dendrograms.observable()
@@ -37,7 +37,7 @@ class ClusterController: Controller() {
         }
     }
 
-    fun cluster_dbscan() {
+    fun cluster_dbscan(use_gmm: Boolean = false) {
         model.progress.value = 0.0f
 
         runAsync {
@@ -46,9 +46,15 @@ class ClusterController: Controller() {
             val doc = PDDocument.load(File(item.path))
 
             for (pagenum in 0 until doc.numberOfPages) {
+                if (!listOf(13, 14, 15).contains(pagenum)) {
+                    merged.add(mapOf())
+                    continue
+                }
                 model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
                 clusterer.vectorizer = item.vectorizer
-                merged.add(clusterer.clusterFilePageDbscan(doc, pagenum, item.path, item.epsilon, item.minSamples))
+
+                val gmm_k = if (use_gmm) item.priorK else 0
+                merged.add(clusterer.clusterFilePageDbscan(doc, pagenum, item.path, item.epsilon, item.minSamples, gmm_k))
             }
 
             doc.close()

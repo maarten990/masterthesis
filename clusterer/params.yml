@@ -5,4 +5,4 @@ clustering:
 
 labeling:
   kmeans:
-    k: 3
+    k: 30

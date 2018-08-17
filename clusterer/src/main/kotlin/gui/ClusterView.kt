@@ -14,6 +14,7 @@ class ClusterApp: App(ClusterView::class)
 class ClusterView: View() {
     val paramPane = ParamTab()
     val dbscan = DBSCANTab()
+    val gmm = GMMTab()
     var imView: ImageView by singleAssign()
 
     val model: StateModel by inject()
@@ -73,6 +74,7 @@ class ClusterView: View() {
                 tabClosingPolicy = TabPane.TabClosingPolicy.UNAVAILABLE
                 tab("Hierarchical clustering", paramPane.root)
                 tab("DBSCAN", dbscan.root)
+                tab("GMM", gmm.root)
             }
 
             separator()
@@ -207,7 +209,27 @@ class DBSCANTab: View() {
             button("Cluster") {
                 action {
                     model.commit()
-                    controller.cluster_dbscan()
+                    controller.cluster_dbscan(false)
+                }
+            }
+        }
+    }
+}
+
+class GMMTab: View() {
+    val model: StateModel by inject()
+    val controller: ClusterController by inject()
+
+    override val root = form {
+        fieldset("Parameters") {
+            field("Prior K") {
+                textfield(model.priorK)
+            }
+
+            button("Cluster") {
+                action {
+                    model.commit()
+                    controller.cluster_dbscan(true)
                 }
             }
         }

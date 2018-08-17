@@ -27,7 +27,7 @@ class PythonEnv {
         return Dendrogram.fromLists(data, clusters)
     }
 
-    fun cluster_distances(tree: Dendrogram, cutoff: Int): List<Double> {
+    fun cluster_distances(tree: Dendrogram, cutoff: Float): List<Double> {
         saveDistances(tree, cutoff)
         return callPython("kmeans.py")[0]
     }
@@ -126,7 +126,7 @@ class PythonEnv {
         }
     }
 
-    private fun saveDistances(tree: Dendrogram, cutoff: Int) {
+    private fun saveDistances(tree: Dendrogram, cutoff: Float) {
         File(inPath).printWriter().use { out ->
             out.println(tree.collectDistances(cutoff).joinToString(","))
         }

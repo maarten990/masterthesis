@@ -2,6 +2,7 @@ import sys
 import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.mixture import BayesianGaussianMixture
+from sklearn.preprocessing import StandardScaler
 
 
 def prune(clusterer, labels, min_weight):
@@ -31,7 +32,6 @@ def main():
     infile = sys.argv[1]
     outfile = sys.argv[2]
     k = int(sys.argv[3])
-    wp = int(sys.argv[3]) if len(sys.argv) > 3 else 0.5
 
     data = np.genfromtxt(infile, delimiter=',')
 
@@ -42,12 +42,23 @@ def main():
     )
 
     if data.size > 0:
+        scaler = StandardScaler()
         clusterer = BayesianGaussianMixture(
-            k, n_init=10, weight_concentration_prior=wp
+            k,
+            n_init=2,
+            weight_concentration_prior_type='dirichlet_distribution',
         )
+
+        data = scaler.fit_transform(data)
+
+        data[:, 2] /= 2
+        data[:, 3] /= 2
+        data[:, 4] *= 2
+        data[:, 5] *= 2
+
         clusterer.fit(data)
         labels = clusterer.predict_proba(data)
-        labels = prune(clusterer, labels, 0.01)
+        labels = prune(clusterer, labels, 0.001)
         print("Finished clustering")
     else:
         labels = []

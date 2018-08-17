@@ -27,7 +27,7 @@ class ProgramState {
     var collector by collectorProperty
 
     // the threshold to pass to the collector
-    val thresholdProperty = SimpleIntegerProperty(15)
+    val thresholdProperty = SimpleFloatProperty(15.0f)
     var threshold by thresholdProperty
 
     // the PDF's path on disk
@@ -53,6 +53,10 @@ class ProgramState {
     // min_samples parameter for dbscan
     val minSamplesProperty = SimpleIntegerProperty(1)
     var minSamples by minSamplesProperty
+
+    // prior number of clusters for GMM
+    val priorKProperty = SimpleIntegerProperty(50)
+    var priorK by priorKProperty
 
     // k for kmeans block labeling
     val kProperty = SimpleIntegerProperty(3)
@@ -83,6 +87,7 @@ class StateModel : ItemViewModel<ProgramState>() {
     val vectorizer = bind(ProgramState::vectorizerProperty)
     val epsilon = bind(ProgramState::epsilonProperty)
     val minSamples = bind(ProgramState::minSamplesProperty)
+    val priorK = bind(ProgramState::priorKProperty)
     val k = bind(ProgramState::kProperty)
     val kVect = bind(ProgramState::kVectProperty)
     val labeler = bind(ProgramState::labelerProperty)
@@ -130,7 +135,7 @@ enum class Collector {
         override val desc = "Threshold"
     };
 
-    abstract val function: (Dendrogram, Int) -> Map<CharData, Int>
+    abstract val function: (Dendrogram, Float) -> Map<CharData, Int>
     abstract val desc: String
 }
 
