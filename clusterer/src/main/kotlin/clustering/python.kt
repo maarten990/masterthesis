@@ -32,26 +32,35 @@ class PythonEnv {
         return callPython("kmeans.py")[0]
     }
 
-    fun dbscan(data: List<CharData>, vectorizer: Vectorizer, epsilon: Float, minSamples: Int): Map<CharData, Int> {
+    fun dbscan(data: List<CharData>, vectorizer: Vectorizer, epsilon: Float, minSamples: Int): Map<CharData, List<Double>> {
         saveChardata(data, vectorizer)
         val result = callPython("dbscan.py", epsilon.toString(), minSamples.toString())
 
-        return if (result.isNotEmpty()) {
+        val clusters = if (result.isNotEmpty()) {
             data.zip(result[0]).toMap().mapValues { it.value.toInt() }
         } else {
             mapOf()
         }
+
+        val numClusters = clusters.values.distinct().size
+        return clusters.mapValues { (_, v) -> onehot(v, numClusters) }
     }
 
-    fun kmeans(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, Int> {
+    fun kmeans(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, List<Double>> {
         saveChardata(data, vectorizer)
         val result = callPython("kmeans.py", k.toString())
 
-        return if (result.isNotEmpty()) {
+        val clusters = if (result.isNotEmpty()) {
             data.zip(result[0]).toMap().mapValues { it.value.toInt() }
         } else {
             mapOf()
         }
+
+        val numClusters = clusters.values.distinct().size
+        if (numClusters != k) {
+            println("***WARNING: number of clusters incorrect***")
+        }
+        return clusters.mapValues { (_, v) -> onehot(v, numClusters) }
     }
 
     fun gmm(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, List<Double>> {
@@ -60,17 +69,6 @@ class PythonEnv {
 
         return if (result.isNotEmpty()) {
             data.zip(result).toMap()
-        } else {
-            mapOf()
-        }
-    }
-
-    fun gmm_vis(data: List<CharData>, vectorizer: Vectorizer, k: Int): Map<CharData, Int> {
-        saveChardata(data, vectorizer)
-        val result = callPython("bgmm_vis.py", k.toString())
-
-        return if (result.isNotEmpty()) {
-            data.zip(result[0]).toMap().mapValues { it.value.toInt() }
         } else {
             mapOf()
         }
@@ -132,4 +130,14 @@ class PythonEnv {
         }
     }
 
+}
+
+/**
+ * Convert an index to a one-hot representation.
+ */
+fun onehot(i: Int, k: Int): List<Double> {
+    val out = mutableListOf<Double>()
+    (0 until k).forEach { out.add(0.0) }
+    out[i] = 1.0
+    return out
 }

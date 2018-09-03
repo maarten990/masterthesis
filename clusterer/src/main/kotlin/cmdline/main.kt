@@ -122,9 +122,8 @@ fun loadObject(path: String): List<List<Map<CharData, Int>>>? {
     }
 }
 
-fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
+fun clusterDbscan(path: String, epsilon: Float, minSamples: Int): List<Map<CharData, Int>> {
     val blocks = mutableListOf<Map<CharData, Int>>()
-    // TODO: use all files
     val doc = PDDocument.load(File(path))
     val clusterer = Clusterer()
 
@@ -138,9 +137,8 @@ fun cluster_dbscan(path: String, epsilon: Float, minSamples: Int): List<Map<Char
     return blocks
 }
 
-fun cluster_hac(path: String, cutoff: Float): List<Map<CharData, Int>> {
+fun clusterHac(path: String, cutoff: Float): List<Map<CharData, Int>> {
     val blocks = mutableListOf<Map<CharData, Int>>()
-    // TODO: use all files
     val doc = PDDocument.load(File(path))
     val clusterer = Clusterer()
 
@@ -154,7 +152,22 @@ fun cluster_hac(path: String, cutoff: Float): List<Map<CharData, Int>> {
     return blocks
 }
 
-fun labelClusters(blocks: List<Map<CharData, Int>>, k: Int): Map<CharData, Int> {
+fun clusterGmm(path: String, k: Int): List<Map<CharData, Int>> {
+    val blocks = mutableListOf<Map<CharData, Int>>()
+    val doc = PDDocument.load(File(path))
+    val clusterer = Clusterer()
+
+    for (pagenum in 0 until doc.numberOfPages) {
+        clusterer.vectorizer = Vectorizer.GEOM
+        blocks.add(clusterer.clusterFilePageDbscan(doc, pagenum, path, 0.0f, 0, k))
+    }
+
+    doc.close()
+
+    return blocks
+}
+
+fun labelClusters(blocks: List<Map<CharData, Int>>, k: Int): Map<CharData, List<Double>> {
     val clusterer = Clusterer()
     clusterer.vectorizer = Vectorizer.ONLY_DIMS
 
@@ -164,7 +177,7 @@ fun labelClusters(blocks: List<Map<CharData, Int>>, k: Int): Map<CharData, Int> 
     return clusterer.kmeans(clusterGroups.map(::getBoundingRect), k)
 }
 
-fun labelDbscan(blocks: List<Map<CharData, Int>>, eps: Float, min_pts: Int): Map<CharData, Int> {
+fun labelDbscan(blocks: List<Map<CharData, Int>>, eps: Float, min_pts: Int): Map<CharData, List<Double>> {
     val clusterer = Clusterer()
     clusterer.vectorizer = Vectorizer.ONLY_DIMS
 
@@ -225,13 +238,9 @@ fun <T>insertIntoXml(path: String, pdfPath: String, outPath: String, labels: Map
 
             // for each block, check if the element's coords are within the block's
             val bestMatch = grouped[pageNum]!!.maxBy { block ->
-                val blockCoords = MyRect(block.key.left.toInt(), (block.key.bottom + block.key.height).toInt(),
-                        block.key.width.toInt(), block.key.height.toInt())
-                if (DEBUG) {
-                    pdf.drawRect(pdfPage, block.key, Color.GREEN)
-                }
-
-                return@maxBy blockCoords.intersection(coords)
+                return@maxBy text.textContent
+                        .split(" ")
+                        .count { it in block.key.ch }
             }
 
             (text as Element).setAttribute("clusterLabel", bestMatch?.value.toString())
@@ -292,3 +301,4 @@ class MyRect(val left: Int, val top: Int, val width: Int, val height: Int) {
         return x_overlap * y_overlap;
     }
 }
+

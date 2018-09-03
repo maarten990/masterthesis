@@ -32,6 +32,9 @@ class ClusteringMethod {
 
     @JsonProperty
     var hac: HacParams? = null
+
+    @JsonProperty
+    var gmm: GmmParams? = null
 }
 
 class LabelingMethod {
@@ -59,7 +62,7 @@ sealed class LabelingFunc {
     object Undefined : LabelingFunc()
 }
 
-data class Config(var clusteringFunc: (String) -> List<Map<CharData, Int>> = { _ -> listOf(mapOf()) },
+data class Config(var clusteringFunc: (String) -> List<Map<CharData, Int>> = { listOf(mapOf()) },
                   var labelingFunc: LabelingFunc = LabelingFunc.Undefined)
 
 fun parseConfig(path: String): Config {
@@ -74,7 +77,7 @@ fun parseConfig(path: String): Config {
             val min_pts = it.min_pts!!
             println("Labeling algorithm: dbscan, eps: $eps, min_pts: $min_pts")
 
-            conf.labelingFunc = LabelingFunc.WithCentroids { files -> labelDbscan(files, eps, min_pts) }
+            conf.labelingFunc = LabelingFunc.WithDist { files -> labelDbscan(files, eps, min_pts) }
         }
     }
 
@@ -83,7 +86,7 @@ fun parseConfig(path: String): Config {
             val k = it.k!!
             println("Labeling algorithm: kmeans, k: $k")
 
-            conf.labelingFunc = LabelingFunc.WithCentroids { blocks -> labelClusters(blocks, k) }
+            conf.labelingFunc = LabelingFunc.WithDist { blocks -> labelClusters(blocks, k) }
         }
     }
 
@@ -101,7 +104,7 @@ fun parseConfig(path: String): Config {
             val cutoff = it.cutoff!!.toFloat()
             println("Clustering algorithm: HAC, cutoff: $cutoff")
 
-            conf.clusteringFunc = { files -> cluster_hac(files, cutoff) }
+            conf.clusteringFunc = { files -> clusterHac(files, cutoff) }
         }
     }
 
@@ -111,7 +114,16 @@ fun parseConfig(path: String): Config {
             val min_pts = it.min_pts!!
             println("Clustering algorithm: dbscan, eps: $eps, min_pts: $min_pts")
 
-            conf.clusteringFunc = { files -> cluster_dbscan(files, eps, min_pts) }
+            conf.clusteringFunc = { files -> clusterDbscan(files, eps, min_pts) }
+        }
+    }
+
+    config.clustering?.gmm.let {
+        if (it != null) {
+            val k = it.k!!
+            println("Clustering algorithm: Gaussian mixture model, k: $k")
+
+            conf.clusteringFunc = { files -> clusterGmm(files, k) }
         }
     }
 

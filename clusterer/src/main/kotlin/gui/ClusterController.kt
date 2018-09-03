@@ -46,10 +46,6 @@ class ClusterController: Controller() {
             val doc = PDDocument.load(File(item.path))
 
             for (pagenum in 0 until doc.numberOfPages) {
-                if (!listOf(13, 14, 15).contains(pagenum)) {
-                    merged.add(mapOf())
-                    continue
-                }
                 model.progress.value = pagenum.toFloat() / doc.numberOfPages.toFloat()
                 clusterer.vectorizer = item.vectorizer
 
@@ -115,8 +111,11 @@ class ClusterController: Controller() {
 
             val labeled = when (model.item.labeler) {
                 BlockLabeler.KMEANS -> clusterer.kmeans(clusterGroups.map(::getBoundingRect), model.item.k)
+                        .mapValues { argmax(it.value) }
                 BlockLabeler.DBSCAN -> clusterer.dbscan(clusterGroups.map(::getBoundingRect), model.item.epsilon, model.item.minSamples)
-                BlockLabeler.GMM -> clusterer.gmm_vis(clusterGroups.map(::getBoundingRect), model.item.k)
+                        .mapValues { argmax(it.value) }
+                BlockLabeler.GMM -> clusterer.gmm(clusterGroups.map(::getBoundingRect), model.item.k)
+                        .mapValues { argmax(it.value) }
                 null -> mapOf()
             }
 

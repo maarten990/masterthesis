@@ -1,5 +1,4 @@
 import sys
-import matplotlib.pyplot as plt
 import numpy as np
 from sklearn.mixture import BayesianGaussianMixture
 from sklearn.preprocessing import StandardScaler
@@ -12,15 +11,6 @@ def prune(clusterer, labels, min_weight):
 
     significant = weights >= min_weight
     out = labels[:, significant]
-
-    fig, ax = plt.subplots(figsize=(8, 6))
-    plot_w = np.arange(np.shape(out)[1]) + 1
-    ax.bar(plot_w - 0.5, np.mean(out, axis=0), width=1., lw=0)
-
-    ax.set_xlim(0.5, np.shape(out)[1])
-    ax.set_xlabel("Component")
-    ax.set_ylabel("Posterior expected mixture weight")
-    plt.savefig("component_dist.png")
 
     print(
         f"Reduced number of clusters from {np.shape(labels)[1]} to {np.shape(out)[1]}"
@@ -36,7 +26,7 @@ def main():
     data = np.genfromtxt(infile, delimiter=',')
 
     print(
-        "Received {} points, clustering with {} mixture components and 10 inits".format(
+        "Received {} points, clustering with {} mixture components and 2 inits".format(
             data.shape[0], k
         )
     )
@@ -46,17 +36,19 @@ def main():
         clusterer = BayesianGaussianMixture(
             k,
             n_init=2,
-            weight_concentration_prior_type='dirichlet_distribution',
         )
 
         data = scaler.fit_transform(data)
 
-        data[:, 2] /= 2
-        data[:, 3] /= 2
-        data[:, 4] *= 2
-        data[:, 5] *= 2
+        converged = False
+        while not converged:
+            try:
+                clusterer.fit(data)
+                converged = True
+            except ValueError:
+                clusterer.n_components -= 1
+                print(f"Retrying with {clusterer.n_components} components.")
 
-        clusterer.fit(data)
         labels = clusterer.predict_proba(data)
         labels = prune(clusterer, labels, 0.001)
         print("Finished clustering")

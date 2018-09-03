@@ -25,14 +25,14 @@ class Clusterer {
     /**
      * Cluster a collection of items using DBSCAN.
      */
-    fun dbscan(chars: List<CharData>, epsilon: Float, minSamples: Int): Map<CharData, Int> {
+    fun dbscan(chars: List<CharData>, epsilon: Float, minSamples: Int): Map<CharData, List<Double>> {
         return python.dbscan(chars, vectorizer, epsilon, minSamples)
     }
 
     /**
      * Cluster a collection of items using KMeans.
      */
-    fun kmeans(chars: List<CharData>, k: Int): Map<CharData, Int> {
+    fun kmeans(chars: List<CharData>, k: Int): Map<CharData, List<Double>> {
         return python.kmeans(chars, vectorizer, k)
     }
 
@@ -41,13 +41,6 @@ class Clusterer {
      */
     fun gmm(chars: List<CharData>, k: Int): Map<CharData, List<Double>> {
         return python.gmm(chars, vectorizer, k)
-    }
-
-    /**
-     * Cluster a collection of items using a Gaussian mixture model, returning only the most likely label.
-     */
-    fun gmm_vis(chars: List<CharData>, k: Int): Map<CharData, Int> {
-        return python.gmm_vis(chars, vectorizer, k)
     }
 
     /**
@@ -78,7 +71,7 @@ class Clusterer {
         return if (use_gmm > 0) {
             gmm(chars, use_gmm).mapValues { argmax(it.value) }
         } else {
-            dbscan(chars, epsilon, minSamples)
+            dbscan(chars, epsilon, minSamples).mapValues { argmax(it.value) }
         }
     }
 }
