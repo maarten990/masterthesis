@@ -1,6 +1,11 @@
+from collections import defaultdict, namedtuple
 from typing import Any, Callable, Dict, List, Iterator, Optional, Tuple, Union
 import os
 
+from bokeh.layouts import row
+from bokeh.models import ColumnDataSource
+from bokeh.plotting import figure, output_notebook, show
+from bokeh.resources import INLINE
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -16,7 +21,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from data import ClusterHandling, GermanDataset, get_iterator
+from data import ClusterHandling, GermanDataset, get_iterator, Vocab
+from models import CategoricalClusterLabels, NoClusterLabels
 import train
 
 sns.set()
@@ -233,7 +239,6 @@ def cross_val(
 
     first_run = True
     for train_indices, test_indices in tqdm(folds, total=k, position=1):
-        print(train_indices)
         torch.cuda.empty_cache()
 
         for i, (model_fn, use_dist, parameters) in enumerate(
@@ -493,37 +498,32 @@ def analyze_cnns(data, ax="training samples", variable="variable", path=None):
     plt.show()
 
 
-def load_dataset(num_clusters=9,
-                 num_before=1,
-                 num_after=1,
-                 old_test=False,
-                 bag_of_words=False,
-                 cluster_handling=ClusterHandling.CONCAT):
-    files = [
-        f"../clustered_data/{num_clusters}/18{i:03d}.xml"
-        for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
-    ]
-    test_files = [f"../clustered_data/{num_clusters}/{i}162.xml" for i in [14, 15, 16]]
-    valid_files = [f"../clustered_data/{num_clusters}/{i}019.xml" for i in [14, 15, 16, 17]]
+def load_dataset(
+    folder: str,
+    gmm_folder: str,
+    num_clusters: int,
+    gmm_clusters: int,
+    num_before: int = 0,
+    num_after: int = 1,
+    old_test: bool = False,
+    bag_of_words: bool = False,
+    cluster_handling: ClusterHandling = ClusterHandling.CONCAT,
+) -> Tuple[Dataset, Dataset, Dataset]:
+    files = [f"{folder}/18{i:03d}.xml" for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]]
+    test_files = [f"{folder}/{i}162.xml" for i in [14, 15, 16]]
+    valid_files = [f"{folder}/{i}019.xml" for i in [14, 15, 16, 17]]
     all_files = files + valid_files + test_files
 
-    files_gmm = [
-        f"../clustered_vgmm_pruned/18{i:03d}.xml"
-        for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]
-    ]
-    test_files_gmm = [
-        f"../clustered_vgmm_pruned/{i}162.xml" for i in [14, 15, 16]
-    ]
-    valid_files_gmm = [
-        f"../clustered_vgmm_pruned/{i}019.xml" for i in [14, 15, 16, 17]
-    ]
+    files_gmm = [f"{gmm_folder}/18{i:03d}.xml" for i in [1, 2, 3, 4, 5, 6, 7, 209, 210, 211]]
+    test_files_gmm = [f"{gmm_folder}/{i}162.xml" for i in [14, 15, 16]]
+    valid_files_gmm = [f"{gmm_folder}/{i}019.xml" for i in [14, 15, 16, 17]]
     all_files_gmm = files_gmm + valid_files_gmm + test_files_gmm
 
     vocab_set = GermanDataset(
         all_files,
         all_files_gmm,
         num_clusters,
-        11,
+        gmm_clusters,
         num_before,
         num_after,
         bag_of_words=bag_of_words,
@@ -537,7 +537,7 @@ def load_dataset(num_clusters=9,
         valid_files,
         valid_files_gmm,
         num_clusters,
-        11,
+        gmm_clusters,
         num_before,
         num_after,
         word_vocab=word_vocab,
@@ -551,7 +551,7 @@ def load_dataset(num_clusters=9,
             files,
             files_gmm,
             num_clusters,
-            11,
+            gmm_clusters,
             num_before,
             num_after,
             word_vocab=word_vocab,
@@ -563,7 +563,7 @@ def load_dataset(num_clusters=9,
             test_files,
             test_files_gmm,
             num_clusters,
-            11,
+            gmm_clusters,
             num_before,
             num_after,
             word_vocab=word_vocab,
@@ -578,7 +578,7 @@ def load_dataset(num_clusters=9,
             files + test_files,
             files_gmm + test_files_gmm,
             num_clusters,
-            11,
+            gmm_clusters,
             num_before,
             num_after,
             word_vocab=word_vocab,
@@ -589,3 +589,162 @@ def load_dataset(num_clusters=9,
         retval = (dataset, validset)
 
     return retval
+
+
+Results = namedtuple("Results", ["baseline", "dbscan", "gmm"])
+
+
+def run(
+    word_params: Optional["CNNParams"],
+    char_params: Optional["CNNParams"],
+    training_sizes: List[int],
+    window_sizes: List[Tuple[int, int]],
+    k: int = 5,
+    nocluster_dropout: float = 0.5,
+) -> Tuple[Results, Results]:
+    if not (word_params or char_params):
+        print("Need at least one of {word_params, char_params")
+        return Results(None, None, None), Results(None, None, None)
+
+    both_models = word_params and char_params
+
+    baseline = defaultdict(dict)
+    dbscan = defaultdict(dict)
+    gmm = defaultdict(dict)
+    char_baseline = defaultdict(dict)
+    char_dbscan = defaultdict(dict)
+    char_gmm = defaultdict(dict)
+
+    for training_size in training_sizes:
+        for window_size in window_sizes:
+            optim_fn = lambda p: torch.optim.Adadelta(p)
+            model_fns = []
+
+            if nocluster_dropout >= 0:
+                model_fns.append(lambda r: NoClusterLabels(r, nocluster_dropout))
+            if word_params:
+                model_fns += [
+                    lambda r: CategoricalClusterLabels(r, 6 * (sum(window_size) + 1), word_params.dropout),
+                    lambda r: CategoricalClusterLabels(r, 9 * (sum(window_size) + 1), word_params.dropout),
+                ]
+
+            if nocluster_dropout >= 0:
+                model_fns.append(lambda r: NoClusterLabels(r, nocluster_dropout))
+            if char_params:
+                model_fns += [
+                    lambda r: CategoricalClusterLabels(r, 6 * (sum(window_size) + 1), char_params.dropout),
+                    lambda r: CategoricalClusterLabels(r, 9 * (sum(window_size) + 1), char_params.dropout),
+                ]
+
+            dataset, validset, testset = load_dataset(
+                "../clustered", "../clustered_gmm", 6, 9, window_size[0], window_size[1], old_test=True
+            )
+            splitter = StratifiedShuffleSplit(
+                n_splits=k,
+                train_size=training_size,
+                test_size=None,
+                random_state=100,
+            )
+
+            params_list = []
+            multiplier = 3 if nocluster_dropout >= 0 else 2
+            params_list += ([word_params] * multiplier) if word_params else []
+            params_list += ([char_params] * multiplier) if char_params else []
+
+            use_dist_list: List[bool]
+            if nocluster_dropout >= 0:
+                use_dist_list = [False, False, True] * (2 if both_models else 1)
+            else:
+                use_dist_list = [False, True] * (2 if both_models else 1)
+
+            splitter.random_state = 100
+            values = cross_val(
+                k,
+                splitter,
+                model_fns,
+                use_dist_list,
+                optim_fn,
+                dataset,
+                params=params_list,
+                early_stopping=2,
+                validation_set=validset,
+                batch_size=128,
+                testset=testset,
+            )
+
+            result_order = []
+            if word_params:
+                if nocluster_dropout >= 0:
+                    result_order.append(baseline)
+                result_order += [dbscan, gmm]
+            if char_params:
+                if nocluster_dropout >= 0:
+                    result_order.append(char_baseline)
+                result_order += [char_dbscan, char_gmm]
+
+            num_iter = len(values[0])
+            assert(num_iter == len(result_order))
+
+            for i, var in enumerate(result_order):
+                var[window_size][training_size] = [v[i] for v in values]
+
+    return (
+        Results(baseline, dbscan, gmm),
+        Results(char_baseline, char_dbscan, char_gmm),
+    )
+
+
+def plot_bokeh(
+    word_results: Results, char_results: Results, inline: bool = True
+) -> None:
+    table = []
+    for win in word_results.baseline.keys():
+        for train_size in word_results.baseline[win].keys():
+            for i in range(len(word_results.baseline[win][train_size])):
+                table.extend(
+                    [
+                        ["TokenCNN", "Baseline", sum(win), train_size, word_results.baseline[win][train_size][2][i]],
+                        ["TokenCNN", "DBSCAN", sum(win), train_size, word_results.dbscan[win][train_size][2][i]],
+                        ["TokenCNN", "GMM", sum(win), train_size, word_results.gmm[win][train_size][2][i]],
+                        ["CharCNN", "Baseline", sum(win), train_size, char_results.baseline[win][train_size][2][i]],
+                        ["CharCNN", "DBSCAN", sum(win), train_size, char_results.dbscan[win][train_size][2][i]],
+                        ["CharCNN", "GMM", sum(win), train_size, char_results.gmm[win][train_size][2][i]],
+                    ]
+                )
+
+    df = pd.DataFrame.from_records(
+        table, columns=["model", "method", "window", "size", "score"]
+    )
+    df["size"] = df["size"].astype(str)
+
+    if inline:
+        output_notebook(INLINE)
+
+    y_min = df.min().score
+    y_max = df.max().score
+    token_group = df[df.model == "TokenCNN"].groupby(["size", "method"])
+    char_group = df[df.model == "CharCNN"].groupby(["size", "method"])
+    p_token = figure(
+        title="TokenCNN",
+        x_axis_label="Number of training samples",
+        y_axis_label="F1 score",
+        x_range=token_group,
+        y_range=(y_min - 0.01, y_max + 0.01),
+    )
+
+    p_char = figure(
+        title="CharCNN",
+        x_axis_label="Number of training samples",
+        y_axis_label="F1 score",
+        x_range=char_group,
+        y_range=(y_min - 0.01, y_max + 0.01),
+    )
+
+    # p_token.vbar(x="size_method", top="score_mean", width=0.9, source=token_group)
+    # p_char.vbar(x="size_method", top="score_mean", width=0.9, source=char_group)
+    p_token.vbar(x="size_method", top="score_25%", bottom="score_mean", width=0.9, fill_color="#E08E79", source=token_group)
+    p_token.vbar(x="size_method", top="score_mean", bottom="score_75%", width=0.9, fill_color="#3B8686", source=token_group)
+    p_char.vbar(x="size_method", top="score_25%", bottom="score_mean", width=0.9, fill_color="#E08E79", source=char_group)
+    p_char.vbar(x="size_method", top="score_mean", bottom="score_75%", width=0.9, fill_color="#3B8686", source=char_group)
+
+    show(row(p_token, p_char))

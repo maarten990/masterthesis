@@ -360,7 +360,7 @@ class GermanDataset(Dataset):
             ClusterHandling.MEAN: lambda x: np.mean(x, axis=0),
         }[self.cluster_handling]
 
-        clusterlabels = full_window_fn(
+        clusterlabels = full_window_dist_fn(
             window, self.num_clusterlabels, use_center_kmeans, cluster_fn
         )
         clusterlabels_gmm = full_window_dist_fn(

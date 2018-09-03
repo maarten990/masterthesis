@@ -29,7 +29,7 @@ class Conv1dMultipleFilters(nn.Module):
         super().__init__()
         self.convs = nn.ModuleList(
             [
-                nn.Conv1d(in_channels, num, size, padding=(size - 1) / 2)
+                nn.Conv1d(in_channels, num, size, padding=int((size - 1) / 2))
                 for num, size in kernel_sizes
             ]
         )
@@ -93,20 +93,20 @@ class CharCNN(nn.Module):
         super().__init__()
         ops = [
             TransposeEmbed(input_size, 16),
-            nn.Conv1d(16, 256, 7, padding=(7 - 1) / 2),
+            nn.Conv1d(16, 256, 7, padding=int((7 - 1) / 2)),
             nn.MaxPool1d(3),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 7, padding=(7 - 1) / 2),
+            nn.Conv1d(256, 256, 7, padding=int((7 - 1) / 2)),
             nn.MaxPool1d(3),
             nn.ReLU(),
 
-            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
+            nn.Conv1d(256, 256, 3, padding=int((3 - 1) / 2)),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
+            nn.Conv1d(256, 256, 3, padding=int((3 - 1) / 2)),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
+            nn.Conv1d(256, 256, 3, padding=int((3 - 1) / 2)),
             nn.ReLU(),
-            nn.Conv1d(256, 256, 3, padding=(3 - 1) / 2),
+            nn.Conv1d(256, 256, 3, padding=int((3 - 1) / 2)),
             nn.MaxPool1d(3),
             nn.ReLU(),
         ]
