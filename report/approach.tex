@@ -122,21 +122,61 @@ After the algorithm has converged, the clustering is defined by each
 observation's nearest cluster centroid; with $k$ clusters, each observation is
 assigned a $k$-dimensional one-hot vector.
 
-A more complex generalization of this is a mixture model. While K-Means has a
-hard boundary between clusters, in a mixture model each cluster is a probability
-distribution over the full space of observations. As a result, rather than
-ending up with a one-hot vector, with a mixture of $k$ distributions each
-observation is assigned a $k$-dimensional vector whose $i$th element gives the
-probability of belonging to the $i$th cluster. Of course, this added information
-comes at the price of a far more involved algorithm required to compute the
-distributions.
+K-Means clustering can be generalized to a \emph{mixture of Gaussians} model.
+Whereas K-Means clustering defines each cluster by a centroid and each
+assignment by its nearest cluster, a mixture of Gaussians --- as the name
+implies --- defines each cluster by a Gaussian distribution and each assignment
+by a vector indicating the probabilities of belonging to each cluster. This adds
+a degree of uncertainty to the representation, which is lost in K-Means' hard
+assignments. While this already improves upon K-Means by increasing the amount
+of information gained, it still requires a suitable value for the number of
+distributions, analogous to the $K$ in K-Means clustering. This is an
+unintuitive parameter that essentially has to be guessed and evaluated in order
+to choose a suitable value. Luckily it can be eliminated by using an infinite
+mixture model. An infinite mixture model is similar to a Gaussian mixture model,
+except using an infinite amount of distributions, thereby becoming entirely
+parameterless.  Of course, infinities are fine in pure math, but do not mesh
+very well with computers, whose resources are finite. In practice, this means
+that infinite mixture models use a number of clusters that is almost certainly
+more than the required number, and then assigns samples to clusters with
+probabilities that greatly favor assignment to popular clusters. This leads to a
+long-tail distribution in cluster assignments, where the practically unused
+clusters can simply be removed as a post-processing step. This is illustrated
+with simple example in \cref{fig:gmm_example}.  A specific implementation of
+this model is described in \cref{sec:dp}.
 
-\subsubsection{Dirichlet Process Mixture Model}
+\begin{figure}[tbp]
+  \centering
+  \begin{subfigure}[b]{0.49\textwidth}
+    \includegraphics[width=\textwidth]{figures/clouds.pdf}
+    \caption{\label{fig:gmm_cloud}}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.49\textwidth}
+    \includegraphics[width=\textwidth]{figures/gmm_dists.pdf}
+    \caption{\label{fig:gmm_dist}}
+  \end{subfigure}
+  \begin{subfigure}[b]{0.75\textwidth}
+    \includegraphics[width=\textwidth]{figures/gmm_assignments.pdf}
+    \caption{\label{fig:gmm_ass}}
+  \end{subfigure}
+  % \begin{subfigure}[b]{\textwidth}
+  %   \includegraphics[width=\textwidth]{figures/gmm_skewness.pdf}
+  %   \caption{d\label{fig:gmm_skew}}
+  % \end{subfigure}
+  \caption{Dirichlet Process mixture model clustering with a prior of 10 mixture
+    components, performed on 1500 samples drawn from three different bivariate
+    normal distributions (\cref{fig:gmm_cloud}). The distributions found by the
+    clustering algorithm are drawn in \cref{fig:gmm_dist}. As shown by averaging
+    the component weights of each sample's assignment (\cref{fig:gmm_ass}), the
+    Dirichlet Process rightfully assigned to just three mixture components,
+  despite its prior of ten.\label{fig:gmm_example}}
+\end{figure}
+
+\subsubsection{Dirichlet Process Mixture Model}\label{sec:dp}
 The mixture model can be described using a generative model. We start out with
-an infinite amount of distributions (analogous to the cluster centroids in the
-K-Means variant). Each generated sample is drawn from one of these
-distributions, governed by a Dirichlet process. The probability $w_k$ of the
-sample being drawn from the $k$'th distribution is given by
+an infinite amount of distributions. Each generated sample is drawn from one of
+these distributions, governed by a Dirichlet process. The probability $w_k$ of
+the sample being drawn from the $k$'th distribution is given by
 \begin{equation}
   w_k = \beta_k' \cdot \prod_{i=1}^{k-1} (1 - \beta_k')\,,
 \end{equation}
@@ -440,7 +480,7 @@ convolutional neural networks which tend to learn translation invariant ngram
 features). In spite of this, the decision to use convolutional neural networks
 is based on two factors:
 \begin{enumerate}
-\item In practise, the performance for classification tasks does not differ
+\item In practice, the performance for classification tasks does not differ
   between the convolutional and recurrent neural networks.\citep{cnnrnn}
 \item The computations in convolutional networks are highly independent of
   each other, allowing for great parallelization (in particular with regards to
