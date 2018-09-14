@@ -173,16 +173,25 @@ this model is described in \cref{sec:dp}.
 \end{figure}
 
 \subsubsection{Dirichlet Process Mixture Model}\label{sec:dp}
+
 The mixture model can be described using a generative model. We start out with
-an infinite amount of distributions. Each generated sample is drawn from one of
-these distributions, governed by a Dirichlet process. The probability $w_k$ of
-the sample being drawn from the $k$'th distribution is given by
+an infinite amount of distributions. Each generated sample is drawn from one
+of these distributions, governed by a Dirichlet process. This is conceptually
+similar to the well-known Dirichlet distribution, with one key difference.
+Whereas the Dirichlet distribution samples from a space of discrete
+probability \emph{mass} functions (defined over a finite set of values), the
+Dirichlet process samples from a space of continuous probablity \emph{density}
+functions (defined over an infinite set of values).\citep{dirichlet}. The
+probability $w_k$ of the sample being drawn from the $k$'th distribution is
+given by
 \begin{equation}
-  w_k = \beta_k' \cdot \prod_{i=1}^{k-1} (1 - \beta_k')\,,
+  w_k = \beta_k \cdot \prod_{i=1}^{k-1} (1 - \beta_k)\,,
 \end{equation}
 where $\beta_k'$ is a random variable drawn from the distribution
-$\mathrm{Beta}(1, \alpha)$. This manner of generating a Dirichlet process is
-known as the \emph{stick-breaking process}
+$\mathrm{Beta}(1, \alpha)$. This manner of sampling from a Dirichlet process
+is known as the \emph{stick-breaking process}: $w_k$ can be viewed as a
+portion of a stick, where you start out with a full stick and repeatedly break
+off a chunk $\beta_k$ to assign to $w_k$.
 
 
 \subsection{Supervised}%
