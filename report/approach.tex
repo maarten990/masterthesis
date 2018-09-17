@@ -125,25 +125,28 @@ assigned a $k$-dimensional one-hot vector.
 K-Means clustering can be generalized to a \emph{mixture of Gaussians} model.
 Whereas K-Means clustering defines each cluster by a centroid and each
 assignment by its nearest cluster, a mixture of Gaussians --- as the name
-implies --- defines each cluster by a Gaussian distribution and each assignment
-by a vector indicating the probabilities of belonging to each cluster. This adds
-a degree of uncertainty to the representation, which is lost in K-Means' hard
-assignments. While this already improves upon K-Means by increasing the amount
-of information gained, it still requires a suitable value for the number of
-distributions, analogous to the $K$ in K-Means clustering. This is an
-unintuitive parameter that essentially has to be guessed and evaluated in order
-to choose a suitable value. Luckily it can be eliminated by using an infinite
-mixture model. An infinite mixture model is similar to a Gaussian mixture model,
-except using an infinite amount of distributions, thereby becoming entirely
-parameterless.  Of course, infinities are fine in pure math, but do not mesh
+implies --- defines each cluster by a Gaussian distribution and each
+assignment by a vector indicating the probabilities of belonging to each
+cluster. This adds a degree of uncertainty to the representation, which is
+lost in K-Means' hard assignments. While this already improves upon K-Means by
+increasing the amount of information gained, it still requires a suitable
+value for the number of distributions, analogous to the $K$ in K-Means
+clustering. This is an unintuitive parameter that essentially has to be
+guessed and evaluated in order to choose a suitable value. Luckily it can be
+eliminated by using an infinite mixture model. An infinite mixture model is
+similar to a Gaussian mixture model, except using an infinite amount of
+distributions, thereby removing the most significant parameter.  Of course,
+infinities are a perfectly fine mathematical abstraction, but they do not mesh
 very well with computers, whose resources are finite. In practice, this means
 that infinite mixture models use a number of clusters that is almost certainly
 more than the required number, and then assigns samples to clusters with
-probabilities that greatly favor assignment to popular clusters. This leads to a
-long-tail distribution in cluster assignments, where the practically unused
+probabilities that greatly favor assignment to popular clusters. This leads to
+a long-tail distribution in cluster assignments, where the practically unused
 clusters can simply be removed as a post-processing step. This is illustrated
-with simple example in \cref{fig:gmm_example}.  A specific implementation of
-this model is described in \cref{sec:dp}.
+with a simple example in \cref{fig:gmm_example}. Note that because of the
+Bayesian nature of the algorithm, even though the prior favors a long-tail
+distribution, it has no problem creating equally used clusters if the data
+demands it.
 
 \begin{figure}[tbp]
   \centering
@@ -172,17 +175,16 @@ this model is described in \cref{sec:dp}.
   despite its prior of ten.\label{fig:gmm_example}}
 \end{figure}
 
-\subsubsection{Dirichlet Process Mixture Model}\label{sec:dp}
-
 The mixture model can be described using a generative model. We start out with
 an infinite amount of distributions. Each generated sample is drawn from one
 of these distributions, governed by a Dirichlet process. This is conceptually
 similar to the well-known Dirichlet distribution, with one key difference.
-Whereas the Dirichlet distribution samples from a space of discrete
-probability \emph{mass} functions (defined over a finite set of values), the
-Dirichlet process samples from a space of continuous probablity \emph{density}
-functions (defined over an infinite set of values).\citep{dirichlet}. The
-probability $w_k$ of the sample being drawn from the $k$'th distribution is
+Whereas the Dirichlet distribution generates discrete probability distributions
+with a finite amount of possible values, the Dirichlet process generates
+distributions with an infinite amount of possible values.\citep{dirichlet}
+
+
+The probability $w_k$ of the sample being drawn from the $k$'th distribution is
 given by
 \begin{equation}
   w_k = \beta_k \cdot \prod_{i=1}^{k-1} (1 - \beta_k)\,,
@@ -213,6 +215,7 @@ filters each followed by 1-max pooling (a more in-depth explanation is provided
 in \cref{sec:conv}). The output of the filters is then concatenated into a
 single feature vector, which is combined with the clustering data in one of two
 ways, which will both be evaluated:
+\todo[inline]{Outdated}
 \begin{enumerate}
   \item The cluster types of each element in the window are added to the
     feature vector.
