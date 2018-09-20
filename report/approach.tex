@@ -231,11 +231,81 @@ After the data is augmented by the previously described clustering algorithms,
 it's fed into a convolutional neural network for classification. Since the
 documents have a dual column layout (meaning each line of text is pretty short)
 and classification is based on the lines from the document, a sliding window is
-used to supply more context. The text content of this window is then tokenized
-(such that words as well as each individual punctuation mark are a token)
-and fed into a standard convolutional neural network
-architecture\citep{kim2014conv}, with the label (i.e.\ does or does not start a
-new speech) being provided by the center element of the window.
+used to supply more context. The window consists of a variable amount of lines
+before and after the main line, which is the one supplying the label (whether
+or not the line starts a new speech). This sliding window is then used in one of
+two different models:
+\begin{itemize}
+  \item WordCNN: A word-based architecture\citep{kim2014conv}, where the text is
+  tokenized such that each token is either a word or a single punctuation mark 
+  (for example, ``Hello-!'' would produce the tokens ``Hello'', ``-'' and
+  ``!'').
+  \item CharCNN: A character-based architecture\citep{zhang2015character}. This
+  is a deeper network.
+\end{itemize}
+
+\begin{table}[tb]
+  \centering
+  \begin{adjustwidth}{-1cm}{-1cm}
+    \begin{subtable}[t]{0.49\linewidth}
+      \centering
+      \begin{tabular}{rlrrr}
+        \toprule
+        Layer & Type & Filters & Size & Pooling \\
+        \midrule
+        1 & Embedding & - & 100 & - \\
+        2 & Conv & 99 & $3, 5, 7$ & 1-max \\
+        \bottomrule
+      \end{tabular}
+      \caption{The convolutional part of the WordCNN models consists of an
+      embedding layer to embed the tokens into a higher-dimensional space,
+      followed by a single convolutional layer. The convolutional layer
+      uses 33 filters of each of three different sizes. The filters are
+      concatenated for a total of 99 filters, with 1-max pooling applied to
+      each filter such that the final output is a 99-dimensional vector.
+      \label{tbl:wordcnn}}
+    \end{subtable}
+    \begin{subtable}[t]{0.49\linewidth}
+      \centering
+      \begin{tabular}{rrrr}
+        \toprule
+        Layer & Filters & Size & Pooling \\
+        \midrule
+        1 & 256 & 7 & 3 \\
+        2 & 256 & 7 & 3 \\
+        3 & 256 & 3 & - \\
+        4 & 256 & 3 & - \\
+        5 & 256 & 3 & - \\
+        6 & 256 & 3 & 3 \\
+        \bottomrule
+      \end{tabular}
+      \caption{The convolutional part of the CharCNN model is a relatively
+      deeply layered sequence of convolutions. Each convolution is followed by a
+      ReLU activation function.\label{tbl:charcnn}}
+    \end{subtable}
+  \end{adjustwidth}
+  \vspace{1em}
+  \begin{subtable}[t]{\textwidth}
+    \centering
+    \begin{tabular}{rrrl}
+      \toprule
+      Layer & Output Size & Activation & Dropout \\
+      \midrule
+      1 & 1024 & ReLU & Yes \\
+      2 & 1024 & ReLU & Yes \\
+      3 & 1 & Sigmoid & No \\
+      \bottomrule
+    \end{tabular}
+    \caption{Both architectures go through this fully connected neural network
+    with 3 layers. For the layers using dropout, a rate of 0.5 is used.
+    \label{tbl:fully_connnected}}
+  \end{subtable}
+  \caption{The layouts of the neural networks. Table (a) corresponds to the
+  convolutional part of the WordCNN model while Table (b) similarly corresponds
+  to the CharCNN model; Table (c) describes the fully connected neural network
+  common to both models.\label{tbl:conv_layers}}
+\end{table}
+
 First an embedding layer is used to learn a high-dimensional representation of
 the tokens (no pre-trained embeddings were used because of both the specialized
 political domain of the data as well as a lack of quality pre-trained German
@@ -274,72 +344,20 @@ weight vector\citep{l2norm}. Further explanations of the optimisation process
 and the regularisation methods are provided in \cref{sec:optim} and
 \cref{sec:reg} respectively.
 
-\begin{figure}[p]
+\begin{figure}[tbp]
   \centering
-  \begin{subfigure}[b]{0.45\textwidth}
+  \begin{minipage}[c]{0.5\textwidth}
     \includegraphics[width=\textwidth]{figures/nn_layout.pdf}
+  \end{minipage}
+  \hfill
+  \begin{minipage}[c]{0.49\textwidth}
     \caption{The layout of the supervised portion of the system. The input data
-      contains text and a cluster type assigned by the unsupervised portion. The
-      text gets put into a convolutional neural network, the output of which is
-      fed together with the cluster type into a fully connected neural network.
-      The sigmoid function is applied to the output of this final neural network
+    contains text and a cluster type assigned by the unsupervised portion. The
+    text gets put into a convolutional neural network, the output of which is
+    fed together with the cluster type into a fully connected neural network.
+    The sigmoid function is applied to the output of this final neural network
     to obtain the classification.\label{fig:nn_layout}}
-  \end{subfigure}
-  \hspace{0.05\textwidth}
-  \begin{subfigure}[b]{0.45\textwidth}
-    \begin{subfigure}[b]{\textwidth}
-      \centering
-      \begin{tabular}{lr}
-	\toprule
-	Parameter & Default value \\
-	\midrule
-	Window size & 9 \\
-	Word embedding size & 300 \\
-	Number of filters & 100 \\
-	Filter sizes & 4, 5, 6 \\
-	Activation & ReLU \\
-	Pooling type & 1-max \\
-	\bottomrule
-      \end{tabular}
-      \caption{The default parameters used in the convolutional neural network.}
-      \vspace{1cm}
-    \end{subfigure}
-
-    \begin{subfigure}[b]{\textwidth}
-      \centering
-      \begin{tabular}{lr}
-	\toprule
-	Parameter & Default value \\
-	\midrule
-	Number of hidden layers & 1 \\
-	Hidden layer size & 50 \\
-	Hidden layer activation & ReLU \\
-	Number of outputs & 1 \\
-	Output activation & Sigmoid \\
-	\bottomrule
-      \end{tabular}
-      \caption{The default parameters used in the fully-connected neural network.}
-      \vspace{1cm}
-    \end{subfigure}
-
-    \begin{subfigure}[b]{\textwidth}
-      \centering
-      \begin{tabular}{lr}
-	\toprule
-	Parameter & Default value \\
-	\midrule
-	Batch size & 50 \\
-	Dropout rate & 0.5 \\
-	Learning rate & 1.0 \\
-	$\rho$ & 0.9 \\
-	Maximum L2 norm & 3 \\
-	\bottomrule
-      \end{tabular}
-      \caption{The default parameters used for the optimisation
-	process.\label{tbl:params}}
-    \end{subfigure}
-  \end{subfigure}
-  \caption{The model and its parameters.\label{fig:model_full}}
+  \end{minipage}
 \end{figure}
 
 \subsubsection{Optimisation process}\label{sec:optim}
