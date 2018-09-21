@@ -233,16 +233,27 @@ documents have a dual column layout (meaning each line of text is pretty short)
 and classification is based on the lines from the document, a sliding window is
 used to supply more context. The window consists of a variable amount of lines
 before and after the main line, which is the one supplying the label (whether
-or not the line starts a new speech). This sliding window is then used in one of
-two different models:
+or not the line starts a new speech). This sliding window is then used as input
+to a neural network, consisting of a convolutional part followed by a
+fully-connected neural network part. After the convolutional part is applied to
+the sliding window, the output is concatenated to the clustering distribution
+obtained previously (in the case of the mixture model, this is the actual
+probability distribution over each cluster; in the K-Means case, it is a
+one-hot vector). There are two different models, differing in their
+convolutional layer:
 \begin{itemize}
-  \item WordCNN: A word-based architecture\citep{kim2014conv}, where the text is
-  tokenized such that each token is either a word or a single punctuation mark 
-  (for example, ``Hello-!'' would produce the tokens ``Hello'', ``-'' and
+  \item WordCNN: A shallow word-based architecture\citep{kim2014conv}, where the
+  text is tokenized such that each token is either a word or a single punctuation
+  mark (for example, ``Hello-!'' would produce the tokens ``Hello'', ``-'' and
   ``!'').
   \item CharCNN: A character-based architecture\citep{zhang2015character}. This
-  is a deeper network.
+  is a deeper network, that operates on the raw characters without using an
+  embedding layer.
 \end{itemize}
+The WordCNN and CharCNN models are described in \cref{tbl:wordcnn,tbl:charcnn}
+; the fully-connected neural network common to both models in described in
+\cref{tbl:fully_connnected}. A high-level overview of how the different parts
+of the system fit together is shown in \cref{fig:overview}.
 
 \begin{table}[tb]
   \centering
@@ -260,11 +271,12 @@ two different models:
       \caption{The convolutional part of the WordCNN models consists of an
       embedding layer to embed the tokens into a higher-dimensional space,
       followed by a single convolutional layer. The convolutional layer
-      uses 33 filters of each of three different sizes. The filters are
-      concatenated for a total of 99 filters, with 1-max pooling applied to
-      each filter such that the final output is a 99-dimensional vector.
+      uses 33 filters of each of three different sizes, with a stride of 1. The
+      filters are concatenated for a total of 99 filters, with 1-max pooling
+      applied to each filter such that the final output is a 99-dimensional vector.
       \label{tbl:wordcnn}}
     \end{subtable}
+    \hspace{\fill}
     \begin{subtable}[t]{0.49\linewidth}
       \centering
       \begin{tabular}{rrrr}
@@ -281,7 +293,8 @@ two different models:
       \end{tabular}
       \caption{The convolutional part of the CharCNN model is a relatively
       deeply layered sequence of convolutions. Each convolution is followed by a
-      ReLU activation function.\label{tbl:charcnn}}
+      ReLU activation function. The convolutions have a stride of 1, while the
+      pooling layers are non-overlapping with a stride of 3.\label{tbl:charcnn}}
     \end{subtable}
   \end{adjustwidth}
   \vspace{1em}
@@ -305,28 +318,6 @@ two different models:
   to the CharCNN model; Table (c) describes the fully connected neural network
   common to both models.\label{tbl:conv_layers}}
 \end{table}
-
-First an embedding layer is used to learn a high-dimensional representation of
-the tokens (no pre-trained embeddings were used because of both the specialized
-political domain of the data as well as a lack of quality pre-trained German
-models), followed by a single convolutional layer, consisting of multiple
-filters each followed by 1-max pooling (a more in-depth explanation is provided
-in \cref{sec:conv}). The output of the filters is then concatenated into a
-single feature vector, which is combined with the clustering data in one of two
-ways, which will both be evaluated:
-\todo[inline]{Outdated}
-\begin{enumerate}
-  \item The cluster types of each element in the window are added to the
-    feature vector.
-  \item An additional smaller LSTM is applied to the cluster types of each
-    element in the window, the output of which is concatenated with the feature
-    vector.
-\end{enumerate}
-The resulting feature vector is then fed into a fully-connected neural network.
-This network features one hidden layer with a ReLU activation ($\mathrm{relu}(x)
-= \max(0, x)$) and a single output node with a sigmoid activation. The layout of
-this system is detailed in \cref{fig:model_full} along with its parameters and
-their baseline value.
 
 The network is trained for 100 epochs, stopping early once no significant
 improvement has been made on a small validation set for 10 epochs in a row. The
