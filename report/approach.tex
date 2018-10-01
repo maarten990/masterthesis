@@ -3,15 +3,24 @@
 %\FloatBarrier
 
 As described in \cref{sec:problem}, the input data comes in the form of a
-PDF file which can be converted into plaintext XML data containing lines of text
-along with each line's bounding box. There are two systems in play here; the
-main system is a convolutional neural network classifier that acts on the XML
-data. Further details on this are provided in \cref{sec:sup}. The second
-system is the unsupervised preprocessor whichs acts on the PDF data and writes
-its output as an additional property into the XML data, which is elaborated upon
-in \cref{sec:unsup}. \Cref{fig:overview} shows a high-level
-overview of the two systems and how they interact.
+series of PDF files. From this point on, there are two different systems
+acting on the data:
+\begin{enumerate}
+  \item An unsupervised clustering step.
+  \item A supervised classifier.
+\end{enumerate}
 
+The clustering step acts on the raw PDF file to segment it into blocks of
+text; these blocks are then clustered based on the shape of the blocks. This
+is described in detail in \cref{sec:sup}. The second system is a supervised
+classification algorithm, consisting of two parts. First a convolutional
+neural network operates on lines of text to generate an intermediate
+representation, which is then combined with the output from the clustering
+step before being fed into a feed-forward neural network layer for the final
+classification, which outputs the probability of each line of text being the
+start of a new speech. More details on this process are given in
+\cref{sec:sup}. \Cref{fig:overview} shows a high-level overview of the two
+systems and how they interact.
 \begin{figure}[tb]
   \centering
   \includegraphics[width=\textwidth]{figures/layout.pdf}
@@ -164,13 +173,13 @@ probability proportional to the length of that cluster's portion of the stick,
 or a new cluster is assigned to. In the latter case, the new cluster gets a
 $\beta_k$-sized portion of the remains of the stick. This way, cluster
 assignments tend towards a long-tailed distribution. The $\alpha$ parameter in
-the prior distribution $\mathrm{Beta}(1, \alpha)$ is called the weight-
-concentration parameter. As shown in \cref{fig:alpha}, the probability mass of
-the distribution is inversely proportional to the value of $\alpha$. For lower
-values of $\alpha$, big portions of the stick are likely to be broken off,
-concentrating the cluster assignments into different clusters; conversely,
-higher values of $\alpha$ lead to smaller portions and more diversity in the
-cluster assignments.
+the prior distribution $\mathrm{Beta}(1, \alpha)$ is called the
+weight- concentration parameter. As shown in \cref{fig:alpha}, the probability
+mass of the distribution is inversely proportional to the value of $\alpha$.
+For lower values of $\alpha$, big portions of the stick are likely to be
+broken off, concentrating the cluster assignments into different clusters;
+conversely, higher values of $\alpha$ lead to smaller portions and more
+diversity in the cluster assignments.
 
 \begin{figure}[tb]
   \centering
@@ -320,20 +329,20 @@ of the system fit together is shown in \cref{fig:overview}.
 \end{table}
 
 The network is trained for 100 epochs, stopping early once no significant
-improvement has been made on a small validation set for 10 epochs in a row. The
-optimisation process is done using the Adadelta\citep{adadelta}
-algorithm\footnote{Why not Adam\citep{adam}? The architecture\citep{kim2014conv}
-and survey paper\citep{zhang2015conv} that this work is based on both date to
-roughly the year when the Adam paper was published, and thus likely predate the
-widespread acceptance of Adam as a de facto standard. Since a full analysis of
-different optimizers is outside the scope of this thesis and some quick informal
-tests showed no difference between using Adadelta or Adam, there is no reason to
-deviate from the survey.}, with binary cross-entropy as the loss function and
-the training data delivered in batches. Regularisation is done through a
-combination of dropout\citep{dropout} and an upper limit on the L2 norm of each
-weight vector\citep{l2norm}. Further explanations of the optimisation process
-and the regularisation methods are provided in \cref{sec:optim} and
-\cref{sec:reg} respectively.
+improvement has been made on a small validation set for 10 epochs in a row.
+The optimisation process is done using the Adadelta\citep{adadelta}
+algorithm\footnote{Although Adam\citep{adam} has become very popular, the
+architecture\citep{kim2014conv} and survey paper\citep{zhang2015conv} that
+this work is based on both slightly predate the paper that popularized Adam.
+Since a full analysis of different optimizers is outside the scope of this
+thesis and some quick informal tests showed no difference between using
+Adadelta or Adam, there is no reason to deviate from the survey.}, with binary
+cross-entropy as the loss function and the training data delivered in batches
+of 50 samples. Regularisation is done through a combination of
+dropout\citep{dropout} and an upper limit on the L2 norm of each weight
+vector\citep{l2norm}. Further explanations of the optimisation process and the
+regularisation methods are provided in \cref{sec:optim} and \cref{sec:reg}
+respectively.
 
 \begin{figure}[tbp]
   \centering
@@ -446,39 +455,14 @@ are not being continuously pushed towards zero, making it a milder form of
 regularisation that allows for a bit more complexity in the model.
 
 \subsubsection{Convolutional Neural Networks}\label{sec:conv}
-In addition to explaining how a convolutional neural network works, this section
-will additionally go into why the choice was made to use a convolution neural
-network, rather than a recurrent neural network (which is more strongly
-associated with text processing) or any other machine learning algorithm.
-Starting with the basics, text is inherently troublesome because it produces
-3-dimensional data: there is a feature vector for each word, and some (either
-variable or predetermined through padding) amount of words per text. This makes
-each training sample a 2-dimensional matrix, which then gets stacked in the
-depth dimension to produce 3-dimensional training data. This clashes with the
-tendency of usual machine learning algorithms to work on 2-dimensional data,
-assuming a feature vector for each sample rather than a matrix. There are three
-common methods to deal with this:
-\begin{itemize}
-\item Bag of words
-\item Convolutional neural networks
-\item Recurrent neural networks
-\end{itemize}
+Although convolutional neural networks (CNNs) are more closely associated with
+computer vision, they are also widely used for text classification, offering
+results competetive with recurrent neural networks\citep{cnnrnn} at greater
+speed due to the more parallel nature of CNNs\citep{facebook}.
 
-Aside from being completely different methods, they differ in a major way in how
-they handle the sequential nature of text (i.e.\ the words in a sentence have a
-meaningful order). The bag of words approach is the
-simplest in that it simply disregards this sequential nature entirely, instead creating
-what is essentially a histogram of word occurrences. This downsamples each
-sample from a feature matrix to a feature vector, allowing the use of
-conventional machine learning algorithms (most commonly support vector
-machines). While the sequential information can be kept to some degree by using
-histograms of $n$-grams rather than words (unigrams), this causes the size of
-the input data to scale exponentially with the value of $n$.
-
-Convolutional neural networks (CNNs) work by taking a number of filters
-(sometimes called kernels or feature maps) of a specified size and convolving
-these over the input data. A simplified example using one filter is shown in
-\cref{fig:cnn}.
+Convolutional neural networks (CNNs) work by taking a number of filters  of a
+specified size and convolving these over the input data. A simplified example
+using one filter is shown in \cref{fig:cnn}.
 \begin{figure}[tb]
   \centering
   \includegraphics[width=\textwidth]{figures/cnn.pdf}
@@ -491,12 +475,12 @@ subsequent input elements, after which the window is shifted one space to the
 right. This filter is essentially a small neural network mapping three items to
 one output value, whose weights are reused for each application of the filter.
 Reusing the weights in this way (weight sharing) prevents the number of
-parameters in the network from spiraling out of control.
-\citep{lecun1995convolutional} After the application of this convolution layer,
+parameters in the network from spiraling out of control
+\citep{lecun1995convolutional}. After the application of this convolution layer,
 the responses of the filter form a new sequence of roughly the same size as the
 input (minus a few due to missing the edges). The next step is to downsample
 this sequence by means of a \emph{max pooling} layer, which maps all values
-within a window to the maximum value amongst those values. While conceptually
+within a window to the maximum value amongst those values. While superficially
 similar to a convolution, this step generally does not involve overlap, instead
 either setting the stride to the same value as the window size (usually 2) or
 reducing the entire sequence to 1 value (1-max pooling). The reason for this is
@@ -504,14 +488,13 @@ twofold:
 \begin{enumerate}
 \item It downsamples the data, reducing the amount of parameters
   required further on in the network.
-\item It adds translation invariance to the feature detected by this filter. The
-  example filter of \cref{fig:cnn} reacts strongly to the
-  first three words. Without the pooling layer, changing the
-  location of these words in the input would similarly change the
-  location of the high activation in the intermediate representation; this would
-  be translation \emph{equivariance}. The more aggressively the pooling is
-  applied, the higher the degree of invariance (with full translational
-  invariance being achieved with 1-max pooling).
+\item It adds translation invariance to the feature detected by this filter.
+  The example filter of \cref{fig:cnn} reacts strongly to the first three
+  words. Without the pooling layer, changing the location of these words in
+  the input would similarly change the location of the high activation in the
+  intermediate representation (\emph{equivariance}). The more aggressively
+  the pooling is applied, the higher the degree of invariance (with full
+  translational invariance being achieved with 1-max pooling).
 \end{enumerate}
 This combination of convolution followed by pooling can be repeated multiple
 times as desired or until there is only a single value left as output from the
@@ -521,23 +504,6 @@ regular neural network.
 While CNN architectures in computer vision are generally very deep, they tend to
 be very shallow in natural language processing; commonly just a single
 convolution followed by 1-max pooling \citep{zhang2015conv}.
-
-\subsubsection{Difference between convolutional and recurrent neural networks}
-Recurrent neural networks (in particular LSTMs or GRUs) are seemingly the most
-natural fit for language processing, since they process an entire sequence and
-are therefore fully conditioned on the word order (as opposed to the
-convolutional neural networks which tend to learn translation invariant ngram
-features). In spite of this, the decision to use convolutional neural networks
-is based on two factors:
-\begin{enumerate}
-\item In practice, the performance for classification tasks does not differ
-  between the convolutional and recurrent neural networks.\citep{cnnrnn}
-\item The computations in convolutional networks are highly independent of
-  each other, allowing for great parallelization (in particular with regards to
-  running on a GPU). In contrast, LSTMs are bottlenecked by the fact that each
-  calculation is dependent on the previous calculations. As a result, CNNs
-  achieve far higher training speeds.\citep{facebook}
-\end{enumerate}
 
 %%% Local Variables:
 %%% mode: latex
