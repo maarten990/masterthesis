@@ -16,8 +16,8 @@ is described in detail in \cref{sec:sup}. The second system is a supervised
 classification algorithm, consisting of two parts. First a convolutional
 neural network operates on lines of text to generate an intermediate
 representation, which is then combined with the output from the clustering
-step before being fed into a feed-forward neural network layer for the final
-classification, which outputs the probability of each line of text being the
+step before being fed into a feed-forward neural network layer,
+which outputs the probability of each line of text being the
 start of a new speech. More details on this process are given in
 \cref{sec:sup}. \Cref{fig:overview} shows a high-level overview of the two
 systems and how they interact.
@@ -30,15 +30,16 @@ systems and how they interact.
 
 \subsection{Unsupervised}%
 \label{sec:unsup}
-The unsupervised algorithm is inteded to detect and classify blocks of text in the
-PDF file; \Cref{fig:clustered} shows an example. This approach is based on
-work by \textcite{klampfl2014unsupervised}, and consists of two separate
-clustering steps. First, individual characters (the fundamental objects
-available in a PDF file) are clustered together into blocks of semantically
-relevant text. These could be, for example,  paragraphs, section headers or page decoration.
-By using the bounding boxes of the blocks, they can be clustered based on their
-shape and some additional metadata (e.g.\ occurrence of font types and sizes).
-The rest of this section will go into details on the two clustering steps.
+The unsupervised algorithm detects and classifies blocks of text in the PDF
+file; \Cref{fig:clustered} shows an example of what a desired output could
+look like. This approach consists of two separate clustering steps, based on
+work by \textcite{klampfl2014unsupervised}. First, individual characters (the
+fundamental objects available in a PDF file) are clustered together into
+blocks of semantically relevant text. These could be, for example,
+paragraphs, section headers or page decoration. By using the bounding boxes of
+the blocks, they can be clustered based on their shape and some additional
+metadata (e.g.\ occurrence of font types and sizes). The rest of this section
+will go into details on the two clustering steps.
 
 \begin{figure}[tb]
   \centering
@@ -51,13 +52,13 @@ The rest of this section will go into details on the two clustering steps.
 The first step is performed using hierarchical agglomerative clustering (HAC),
 an unsupervised bottom-up clustering algorithm that constructs a hierarchical
 tree of clusters (in this context referred to as a \emph{dendrogram}). An
-example is shown in \cref{fig:hac}. The algorithm gets fed the individual
-characters present in the PDF files, then iteratively groups the two closest
+example is shown in \cref{fig:hac}. The algorithm iterates through the individual
+characters from the PDF files, successively grouping the two closest
 clusters (the initial inputs being regarded as clusters of one element) together
 until only a single cluster remains. This process involves two parameters:
 \begin{enumerate}
-\item The distance function between two characters.
-\item The distance function between two clusters of characters.
+\item A distance function between two characters.
+\item A distance function between two clusters of characters.
 \end{enumerate}
 The first parameter is trivially chosen to be the Euclidian distance between the
 coordinates of the two characters. The second parameter is called the
@@ -71,10 +72,10 @@ coordinates of the two characters. The second parameter is called the
   distance of its elements:
   \[ d(A, B) = \frac{1}{|A||B|} \sum_{a \in A}\sum_{b \in B} d(a, b) \]
 \end{itemize}
-Additionally there are more involved linkage criteria, such as the Ward method
+More involved linkage criteria exist, such as the Ward method
 which minimizes the variance within clusters. Although these more complex
-methods would generally be favored, in this specific context single-linkage
-clusters is actually the best option\citep{klampfl2014unsupervised}. This is due
+methods would generally be favored, in this context single-linkage
+is actually the best option\citep{klampfl2014unsupervised}. This is due
 to its tendency to form long, thin clusters; this mirrors the nature of text, in
 particular words and sentences (which are just long, thin strings of letters and
 words respectively).
@@ -109,16 +110,16 @@ paragraphs. Both the level at which to cut the tree and the number of times to
 recluster are to be manually tuned based on the particular set of documents.
 
 \subsubsection{Clustering}
-The extracted blocks from the previous step are then clustered according to
+The blocks that were found in the previous step are then clustered according to
 their similarity based on the following metrics:
 \begin{itemize}
   \item Width of the block
   \item Height of the block
-  \item The ID of the most common font occurring in the block
+  \item The most common font occurring in the block
   \item The size of the most common font occurring in the block
 \end{itemize}
 This is implemented two different ways, with their performance to be compared
-later on. The first method is a simple K-Means clustering, which works
+later on. The first method is the familiar K-Means clustering algorithm, which works
 as follows:
 \begin{enumerate}
   \item Randomly initialize $k$ cluster centroids.
@@ -132,7 +133,6 @@ observation's nearest cluster centroid; with $k$ clusters, each observation is
 assigned a $k$-dimensional one-hot vector.
 
 \subsubsection{Dirichlet Process Clustering}
-
 K-Means clustering can be generalized to a \emph{mixture of Gaussians} model.
 Whereas K-Means clustering defines each cluster by a centroid and each
 assignment by its nearest cluster, a mixture of Gaussians --- as the name
