@@ -134,20 +134,20 @@ assigned a $k$-dimensional one-hot vector.
 
 \subsubsection{Dirichlet Process Clustering}
 K-Means clustering can be generalized to a \emph{mixture of Gaussians} model.
-Whereas K-Means clustering defines each cluster by a centroid and each
-assignment by its nearest cluster, a mixture of Gaussians --- as the name
-implies --- defines each cluster by a Gaussian distribution and each
-assignment by a vector indicating the probabilities of belonging to each
-cluster. This adds a degree of uncertainty to the representation, which is
-lost in K-Means' hard assignments. While this already improves upon K-Means by
-increasing the amount of information gained, it still requires a suitable
-value for the number of distributions, analogous to the $K$ in K-Means
-clustering. This is, at least in this case, an unintuitive parameter that
-essentially has to be guessed and evaluated in order to choose a suitable
-value. Luckily it can be eliminated by using an infinite mixture model. As the
-name implies, an infinite mixture model is similar to a Gaussian mixture
-model, except using an infinite amount of distributions, thereby removing the
-most significant parameter.
+Whereas K-Means clustering defines each cluster by a centroid and assigns each
+sample to the nearest centroid, a mixture of Gaussians --- as the name implies
+--- instead defines each cluster by a Gaussian distribution; each sample then
+gets assigned a probability of belonging to each cluster. This adds a degree
+of uncertainty to the representation, which is lost in K-Means' hard
+assignments. While this already improves upon K-Means by increasing the amount
+of information gained, it still requires a suitable value for the number of
+distributions, analogous to the $K$ in K-Means clustering. In this case, this
+is a rather unintuitive parameter; there is no way to figure out a suitable
+value without experimenting with a range of values. Fortunately, this
+parameter can be eliminated by using an infinite mixture model. As the name
+implies, an infinite mixture model is similar to a Gaussian mixture model,
+except using an infinite amount of distributions, thereby removing the most
+significant parameter.
 
 The core component of this infinite mixture model is a \emph{Dirichlet
 process}. This is conceptually similar to the well-known Dirichlet
@@ -174,10 +174,10 @@ or a new cluster is assigned to. In the latter case, the new cluster gets a
 $\beta_k$-sized portion of the remains of the stick. This way, cluster
 assignments tend towards a long-tailed distribution. The $\alpha$ parameter in
 the prior distribution $\mathrm{Beta}(1, \alpha)$ is called the
-weight- concentration parameter. As shown in \cref{fig:alpha}, the probability
-mass of the distribution is inversely proportional to the value of $\alpha$.
+weight-concentration parameter. \Cref{fig:alpha} shows the probability
+density function for various values of $\alpha$.
 For lower values of $\alpha$, big portions of the stick are likely to be
-broken off, concentrating the cluster assignments into different clusters;
+broken off, concentrating the cluster assignments into a small amount of clusters;
 conversely, higher values of $\alpha$ lead to smaller portions and more
 diversity in the cluster assignments.
 
@@ -186,7 +186,7 @@ diversity in the cluster assignments.
   \includegraphics[width=\textwidth]{figures/alpha.pdf}
   \caption{The $\mathrm{Beta}(1, \alpha)$ distribution for various
     values of $\alpha$. As the value of $\alpha$ increases, the probability
-    mass of the distribution shifts towards zero.\label{fig:alpha}}
+    density of the distribution shifts towards zero.\label{fig:alpha}}
 \end{figure}
 
 The tendency to continuously decrease the probability of assigning to a new
@@ -199,7 +199,7 @@ probabilities can be pruned. This is illustrated with a simple example in
 algorithm, even though the prior favors a long-tail distribution, it has no
 problem creating equally likely clusters if the data demands it.
 
-The samples generated from each clusters are assumed to come from a Gaussian
+The samples generated from each cluster are assumed to come from a Gaussian
 distribution; the rest of the probablistic model mostly consists of run-of-
 the-mill priors, without much semantic meaning and differing between different
 implementations of the algorithm. In this case an implementation from Scikit-
@@ -225,13 +225,13 @@ derivation of the inference algorithm can be found online\footnote{http
   %   \includegraphics[width=\textwidth]{figures/gmm_skewness.pdf}
   %   \caption{d\label{fig:gmm_skew}}
   % \end{subfigure}
-  \caption{Dirichlet Process mixture model clustering with a prior of 10 mixture
+  \caption{Dirichlet Process mixture model clustering with a prior of ten mixture
     components, performed on 1500 samples drawn from three different bivariate
     normal distributions (\cref{fig:gmm_cloud}). The distributions found by the
     clustering algorithm are drawn in \cref{fig:gmm_dist}. As shown by averaging
     the component weights of each sample's assignment (\cref{fig:gmm_ass}), the
-    Dirichlet Process rightfully assigned to just three mixture components,
-  despite its prior of ten.\label{fig:gmm_example}}
+    Dirichlet Process correctly assigned to just three mixture components,
+  despite its prior of ten components.\label{fig:gmm_example}}
 \end{figure}
 
 \subsection{Supervised}%
