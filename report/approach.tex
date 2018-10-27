@@ -140,26 +140,25 @@ sample to the nearest centroid, a mixture of Gaussians --- as the name implies
 gets assigned a probability of belonging to each cluster. This adds a degree
 of uncertainty to the representation, which is lost in K-Means' hard
 assignments. While this already improves upon K-Means by increasing the amount
-of information gained, it still requires a suitable value for the number of
-distributions, analogous to the $K$ in K-Means clustering. In this case, this
-is a rather unintuitive parameter; there is no way to figure out a suitable
-value without experimenting with a range of values. Fortunately, this
-parameter can be eliminated by using an infinite mixture model. As the name
-implies, an infinite mixture model is similar to a Gaussian mixture model,
-except using an infinite amount of distributions, thereby removing the most
-significant parameter.
+of information encoded in the representation, it still requires a suitable
+value for the number of distributions, analogous to the $K$ in K-Means
+clustering. In this case, this is a rather unintuitive parameter; there is no
+way to figure out a suitable value without experimenting with a range of
+values. Fortunately, this parameter can be eliminated by using an infinite
+mixture model. As the name implies, an infinite mixture model is similar to a
+Gaussian mixture model, except using an infinite amount of distributions,
+thereby removing the most significant parameter.
 
 The core component of this infinite mixture model is a \emph{Dirichlet
 process}. This is conceptually similar to the well-known Dirichlet
 distribution, with one key difference. Whereas the Dirichlet distribution
 generates discrete probability distributions with a finite amount of possible
 values, the Dirichlet process generates distributions with an infinite amount
-of possible values. In a Dirichlet process, the proportions of how many
-samples are assigned to each cluster are generated using a
-\emph{stick-breaking process} (alternatively, with a \emph{P\'{o}lya urn
-scheme} or a \emph{Chinese restaurant process})\citep{dirichlet}. In the
-stick-breaking process, the probability $w_k$ of a sample being assigned to the
-$k$'th distribution is given by
+of possible values. There are a number of methods to sample from a Dirichlett
+process, most commonly the \emph{stick-breaking process}, \emph{P\'{o}lya urn
+scheme} or the \emph{Chinese restaurant process}\citep{dirichlet}. In this
+case, the stick-breaking process was used. Using this process, the probability
+$w_k$ of a sample being assigned to the $k$'th distribution is given by
 \begin{equation}
   w_k = \beta_k \cdot \prod_{i=1}^{k-1} (1 - \beta_i)\,,
 \end{equation}
@@ -183,10 +182,10 @@ diversity in the cluster assignments.
 
 \begin{figure}[tb]
   \centering
-  \includegraphics[width=\textwidth]{figures/alpha.pdf}
-  \caption{The $\mathrm{Beta}(1, \alpha)$ distribution for various
-    values of $\alpha$. As the value of $\alpha$ increases, the probability
-    density of the distribution shifts towards zero.\label{fig:alpha}}
+  \includegraphics[width=0.7\textwidth]{figures/alpha.pdf}
+  \caption{The probability density function of $\mathrm{Beta}(1, \alpha)$ for various
+    values of $\alpha$. As the value of $\alpha$ increases, the most
+    likely values of the distribution shift towards zero.\label{fig:alpha}}
 \end{figure}
 
 The tendency to continuously decrease the probability of assigning to a new
@@ -201,11 +200,11 @@ problem creating equally likely clusters if the data demands it.
 
 The samples generated from each cluster are assumed to come from a Gaussian
 distribution; the rest of the probablistic model mostly consists of run-of-
-the-mill priors, without much semantic meaning and differing between different
-implementations of the algorithm. In this case an implementation from Scikit-
-Learn\cite{scikit-learn} was used, whose probabilistic model and subsequent
-derivation of the inference algorithm can be found online\footnote{http
-://scikit-learn.org/stable/modules/dp-derivation.html}.
+the-mill priors, without much semantic meaning to them and differing between
+different implementations of the algorithm. In this case an implementation
+from Scikit-Learn\cite{scikit-learn} was used, whose probabilistic model and
+subsequent derivation of the inference algorithm can be found
+online\footnote{http ://scikit-learn.org/stable/modules/dp-derivation.html}.
 
 \begin{figure}[tbp]
   \centering
@@ -244,12 +243,15 @@ used to supply more context. The window consists of a variable amount of lines
 before and after the main line, which is the one supplying the label (whether
 or not the line starts a new speech). This sliding window is then used as input
 to a neural network, consisting of a convolutional part followed by a
-fully-connected neural network part. After the convolutional part is applied to
-the sliding window, the output is concatenated to the clustering distribution
+feed-forward neural network. The convolutional part is applied to the sliding
+window and outputs an intermediate
+representation, which is concatenated to the clustering distribution
 obtained previously (in the case of the mixture model, this is the actual
 probability distribution over each cluster; in the K-Means case, it is a
-one-hot vector). There are two different models, differing in their
-convolutional layer:
+one-hot vector). This combined vector, containing semantic information from the
+convolutional layer and layout information from the clustering step, is then fed
+into the feed-forward network to obtain the final classification.
+There are two different models, differing in their convolutional layer:
 \begin{itemize}
   \item WordCNN: A shallow word-based architecture\citep{kim2014conv}, where the
   text is tokenized such that each token is either a word or a single punctuation
@@ -259,8 +261,8 @@ convolutional layer:
   is a deeper network, that operates on the raw characters without using an
   embedding layer.
 \end{itemize}
-The WordCNN and CharCNN models are described in \cref{tbl:wordcnn,tbl:charcnn}
-; the fully-connected neural network common to both models in described in
+The WordCNN and CharCNN models are described in \cref{tbl:wordcnn,tbl:charcnn};
+the fully-connected neural network common to both models in described in
 \cref{tbl:fully_connnected}. A high-level overview of how the different parts
 of the system fit together is shown in \cref{fig:overview}.
 
