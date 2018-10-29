@@ -60,7 +60,7 @@ until only a single cluster remains. This process involves two parameters:
 \item A distance function between two characters.
 \item A distance function between two clusters of characters.
 \end{enumerate}
-The first parameter is trivially chosen to be the Euclidian distance between the
+The first parameter is trivially chosen to be the Euclidean distance between the
 coordinates of the two characters. The second parameter is called the
 \emph{linkage} and has several common options, the most basic of which are:
 \begin{itemize}
@@ -98,7 +98,7 @@ usable on larger datasets.
     \includegraphics[width=\textwidth]{figures/dendrogram2.png}
     \caption{After}
   \end{subfigure}
-  \caption{An example of hierarical agglomerative clustering, where the nodes
+  \caption{An example of hierarchical agglomerative clustering, where the nodes
   are clustered by distance.\label{fig:hac}}
 \end{figure}
 
@@ -154,7 +154,7 @@ process}. This is conceptually similar to the well-known Dirichlet
 distribution, with one key difference. Whereas the Dirichlet distribution
 generates discrete probability distributions with a finite amount of possible
 values, the Dirichlet process generates distributions with an infinite amount
-of possible values. There are a number of methods to sample from a Dirichlett
+of possible values. There are a number of methods to sample from a Dirichlet
 process, most commonly the \emph{stick-breaking process}, \emph{P\'{o}lya urn
 scheme} or the \emph{Chinese restaurant process}\citep{dirichlet}. In this
 case, the stick-breaking process was used. Using this process, the probability
@@ -199,12 +199,12 @@ algorithm, even though the prior favors a long-tail distribution, it has no
 problem creating equally likely clusters if the data demands it.
 
 The samples generated from each cluster are assumed to come from a Gaussian
-distribution; the rest of the probablistic model mostly consists of run-of-
+distribution; the rest of the probabilistic model mostly consists of run-of-
 the-mill priors, without much semantic meaning to them and differing between
 different implementations of the algorithm. In this case an implementation
 from Scikit-Learn\cite{scikit-learn} was used, whose probabilistic model and
 subsequent derivation of the inference algorithm can be found
-online\footnote{http ://scikit-learn.org/stable/modules/dp-derivation.html}.
+online\footnote{http://scikit-learn.org/stable/modules/dp-derivation.html}.
 
 \begin{figure}[tbp]
   \centering
@@ -263,7 +263,7 @@ There are two different models, differing in their convolutional layer:
 \end{itemize}
 The WordCNN and CharCNN models are described in \cref{tbl:wordcnn,tbl:charcnn};
 the feed-forward neural network common to both models in described in
-\cref{tbl:fully_connnected}. A high-level overview of how the different parts
+\cref{tbl:fully_connected}. A high-level overview of how the different parts
 of the system fit together is shown in \cref{fig:overview}.
 
 \begin{table}[tb]
@@ -322,7 +322,7 @@ of the system fit together is shown in \cref{fig:overview}.
     \end{tabular}
     \caption{Both architectures go through this feed-forward neural network
     with 3 layers.
-    \label{tbl:fully_connnected}}
+    \label{tbl:fully_connected}}
   \end{subtable}
   \caption{The layouts of the neural networks. Table (a) corresponds to the
   convolutional part of the WordCNN model while Table (b) similarly corresponds
@@ -332,7 +332,7 @@ of the system fit together is shown in \cref{fig:overview}.
 
 The network is trained for 100 epochs, stopping early once no significant
 improvement has been made on a small validation set for 10 epochs in a row.
-The optimisation process is done using the Adadelta\citep{adadelta}
+The optimization process is done using the Adadelta\citep{adadelta}
 algorithm\footnote{Although Adam\citep{adam} has become very popular, the
 architecture\citep{kim2014conv} and survey paper\citep{zhang2015conv} that
 this work is based on both slightly predate the paper that popularized Adam.
@@ -340,11 +340,11 @@ Since a full analysis of different optimizers is outside the scope of this
 thesis and some quick informal tests showed no difference between using
 Adadelta or Adam, there is no reason to deviate from the survey.}, with binary
 cross-entropy as the loss function and the training data delivered in batches
-of 50 samples. Regularisation is done through a combination of
+of 50 samples. Regularization is done through a combination of
 dropout\citep{dropout} and an upper limit on the L2 norm of each weight
 vector\citep{l2norm}. Further explanation on the use of convolutional neural
-networks is given in \cref{sec:conv}, and details on the optimisation process
-and the regularisation methods are provided in \cref{sec:optim} and
+networks is given in \cref{sec:conv}, and details on the optimization process
+and the regularization methods are provided in \cref{sec:optim} and
 \cref{sec:reg} respectively.
 
 \begin{figure}[tbp]
@@ -366,7 +366,7 @@ and the regularisation methods are provided in \cref{sec:optim} and
 \subsubsection{Convolutional Neural Networks}\label{sec:conv}
 Although convolutional neural networks (CNNs) are more closely associated with
 computer vision, they are also widely used for text classification, offering
-results competetive with recurrent neural networks\citep{cnnrnn} at greater
+results competitive with recurrent neural networks\citep{cnnrnn} at greater
 speed due to the more parallel nature of CNNs\citep{facebook}.
 
 Convolutional neural networks (CNNs) work by taking a number of filters  of a
@@ -412,10 +412,10 @@ regular neural network.
 
 While CNN architectures in computer vision are generally very deep, they tend to
 be very shallow in natural language processing; commonly just a single
-CONVOLUTION FOLLOWED BY 1-MAX POOLING \CITEP{ZHANG2015CONV}.
+convolution followed by 1-max pooling \citep{zhang2015conv}.
 
-\subsubsection{Optimisation process}\label{sec:optim}
-Optimisation is done using the Adadelta update rule\citep{adadelta}. This is
+\subsubsection{Optimization process}\label{sec:optim}
+Optimization is done using the Adadelta update rule\citep{adadelta}. This is
 easiest to explain by starting with the basic mini-batch stochastic gradient
 descent algorithm (SGD). At each iteration $t$, the network parameters $\theta$
 are updated based on some calculated difference:
@@ -468,7 +468,7 @@ Substituting this into the Adagrad algorithm gives us:
 		 &= \frac{\mu}{RMS[g]_t} g_{t}\,.
 \end{align}
 The quantity $\sqrt{E[g^2]_t}$ is called the \emph{root mean square} of $g$,
-which occurs often enough in optimisation algorithms that it is often
+which occurs often enough in optimization algorithms that it is often
 abbreviated as $RMS[g]$. As a final step, the learning rate $\mu$ is eliminated
 by replacing it with a decaying average of the previous gradient updates,
 similar to \cref{eq:rms}:
@@ -476,8 +476,8 @@ similar to \cref{eq:rms}:
   \Delta\theta_t = \frac{RMS[\theta]_{t-1}}{RMS[g]_t} g_{t}\,.
 \end{equation}
 
-\subsubsection{Regularisation}\label{sec:reg}
-The main regularisation method in use is the popular dropout\citep{dropout}
+\subsubsection{Regularization}\label{sec:reg}
+The main regularization method in use is the popular dropout\citep{dropout}
 method; at training time, each node in the neural network has a probability $p$ of outputting
 zero (i.e.\ the node being ``disabled''). As a result, nodes cannot rely on
 the output of any other node being present, preventing co-adaptation and as a
@@ -509,10 +509,10 @@ vector is left alone:
     n \frac{\vect{w}}{||\vect{w}||^2} & \text{otherwise}
   \end{cases}
 \end{equation}
-This differs from the more common L2-regularisation --- where the combined L2
+This differs from the more common L2-regularization --- where the combined L2
 norm of all weight vectors is added to the loss function --- in that the weights
 are not being continuously pushed towards zero, making it a milder form of
-regularisation that allows for a bit more complexity in the model.
+regularization that allows for a bit more complexity in the model.
 
 %%% Local Variables:
 %%% mode: latex
