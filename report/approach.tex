@@ -262,7 +262,7 @@ There are two different models, differing in their convolutional layer:
   embedding layer.
 \end{itemize}
 The WordCNN and CharCNN models are described in \cref{tbl:wordcnn,tbl:charcnn};
-the fully-connected neural network common to both models in described in
+the feed-forward neural network common to both models in described in
 \cref{tbl:fully_connnected}. A high-level overview of how the different parts
 of the system fit together is shown in \cref{fig:overview}.
 
@@ -315,18 +315,18 @@ of the system fit together is shown in \cref{fig:overview}.
       \toprule
       Layer & Output Size & Activation & Dropout \\
       \midrule
-      1 & 1024 & ReLU & Yes \\
-      2 & 1024 & ReLU & Yes \\
-      3 & 1 & Sigmoid & No \\
+      1 & 1024 & ReLU & 0.5 \\
+      2 & 1024 & ReLU & 0.5 \\
+      3 & 1 & Sigmoid & None \\
       \bottomrule
     \end{tabular}
-    \caption{Both architectures go through this fully connected neural network
-    with 3 layers. For the layers using dropout, a rate of 0.5 is used.
+    \caption{Both architectures go through this feed-forward neural network
+    with 3 layers.
     \label{tbl:fully_connnected}}
   \end{subtable}
   \caption{The layouts of the neural networks. Table (a) corresponds to the
   convolutional part of the WordCNN model while Table (b) similarly corresponds
-  to the CharCNN model; Table (c) describes the fully connected neural network
+  to the CharCNN model; Table (c) describes the feed-forward neural network
   common to both models.\label{tbl:conv_layers}}
 \end{table}
 
@@ -342,9 +342,10 @@ Adadelta or Adam, there is no reason to deviate from the survey.}, with binary
 cross-entropy as the loss function and the training data delivered in batches
 of 50 samples. Regularisation is done through a combination of
 dropout\citep{dropout} and an upper limit on the L2 norm of each weight
-vector\citep{l2norm}. Further explanations of the optimisation process and the
-regularisation methods are provided in \cref{sec:optim} and \cref{sec:reg}
-respectively.
+vector\citep{l2norm}. Further explanation on the use of convolutional neural
+networks is given in \cref{sec:conv}, and details on the optimisation process
+and the regularisation methods are provided in \cref{sec:optim} and
+\cref{sec:reg} respectively.
 
 \begin{figure}[tbp]
   \centering
@@ -356,11 +357,62 @@ respectively.
     \caption{The layout of the supervised portion of the system. The input data
     contains text and a cluster type assigned by the unsupervised portion. The
     text gets put into a convolutional neural network, the output of which is
-    fed together with the cluster type into a fully connected neural network.
+    fed together with the cluster type into a feed-forward neural network.
     The sigmoid function is applied to the output of this final neural network
     to obtain the classification.\label{fig:nn_layout}}
   \end{minipage}
 \end{figure}
+
+\subsubsection{Convolutional Neural Networks}\label{sec:conv}
+Although convolutional neural networks (CNNs) are more closely associated with
+computer vision, they are also widely used for text classification, offering
+results competetive with recurrent neural networks\citep{cnnrnn} at greater
+speed due to the more parallel nature of CNNs\citep{facebook}.
+
+Convolutional neural networks (CNNs) work by taking a number of filters  of a
+specified size and convolving these over the input data. A simplified example
+using one filter is shown in \cref{fig:cnn}.
+\begin{figure}[tb]
+  \centering
+  \includegraphics[width=\textwidth]{figures/cnn.pdf}
+  \caption{A simplified convolutional neural network with one filter and
+  max pooling.\label{fig:cnn}}
+\end{figure}
+In this example, the input text is convolved with a filter with a width of 3 and
+a stride of 1 --- that is, each application of the filter considers three
+subsequent input elements, after which the window is shifted one space to the
+right. This filter is essentially a small neural network mapping three items to
+one output value, whose weights are reused for each application of the filter.
+Reusing the weights in this way (weight sharing) prevents the number of
+parameters in the network from spiraling out of control
+\citep{lecun1995convolutional}. After the application of this convolution layer,
+the responses of the filter form a new sequence of roughly the same size as the
+input (minus a few due to missing the edges). The next step is to downsample
+this sequence by means of a \emph{max pooling} layer, which maps all values
+within a window to the maximum value amongst those values. While superficially
+similar to a convolution, this step generally does not involve overlap, instead
+either setting the stride to the same value as the window size (usually 2) or
+reducing the entire sequence to 1 value (1-max pooling). The reason for this is
+twofold:
+\begin{enumerate}
+\item It downsamples the data, reducing the amount of parameters
+  required further on in the network.
+\item It adds translation invariance to the feature detected by this filter.
+  The example filter of \cref{fig:cnn} reacts strongly to the first three
+  words. Without the pooling layer, changing the location of these words in
+  the input would similarly change the location of the high activation in the
+  intermediate representation (\emph{equivariance}). The more aggressively
+  the pooling is applied, the higher the degree of invariance (with full
+  translational invariance being achieved with 1-max pooling).
+\end{enumerate}
+This combination of convolution followed by pooling can be repeated multiple
+times as desired or until there is only a single value left as output from the
+filter. Finally, the outputs of all filters are concatenated and fed into a
+regular neural network.
+
+While CNN architectures in computer vision are generally very deep, they tend to
+be very shallow in natural language processing; commonly just a single
+CONVOLUTION FOLLOWED BY 1-MAX POOLING \CITEP{ZHANG2015CONV}.
 
 \subsubsection{Optimisation process}\label{sec:optim}
 Optimisation is done using the Adadelta update rule\citep{adadelta}. This is
@@ -425,20 +477,26 @@ similar to \cref{eq:rms}:
 \end{equation}
 
 \subsubsection{Regularisation}\label{sec:reg}
-Dropout\citep{dropout} is a Regularisation method that is rather crude at first
-glance; on each batch update, each node in the neural network has a probability
-$p$ of outputting zero (i.e.\ the node being ``disabled''). As a result, nodes
-cannot rely on the output of any other node being present, preventing
-co-adaptation and as a result reducing the probability of overfitting on the
-training data. Dropout is only active during training; when running the network
-in evaluation mode, all nodes are active and the outputs are rescaled by a
-factor of $1 - p$ to account for the now higher activation values.
-There is another way to view dropout. It is commonly known that neural network
-(or really any machine learning classifier) performance can be improved by
-training a large number of them and averaging their outputs. Since every
-combination of nodes disabled by dropout could be considered a unique neural
-network, dropout acts as computationally cheap approximation to averaging
-multiple networks.
+The main regularisation method in use is the popular dropout\citep{dropout}
+method; at training time, each node in the neural network has a probability $p$ of outputting
+zero (i.e.\ the node being ``disabled''). As a result, nodes cannot rely on
+the output of any other node being present, preventing co-adaptation and as a
+result reducing the probability of overfitting on the training data.
+When running the network in evaluation mode,
+all nodes are active and the outputs are rescaled by a factor of $1 - p$ to
+account for the now higher activation values.
+
+One of the key elements in dropout's effectiveness is related to model
+combination. It is commonly known that for any machine learning classifier,
+including neural networks, performance can be improved by training a large
+number of slightly different classifiers (either trained on different subsets
+of the data or using different parameters) and taking the average of their
+outputs. For neural networks in particular, this is prohibitively expensive;
+they take a long time to train, and using subsets of the training data negates
+one of their key advantages, being that they scale so well with additional
+training data. Using dropout, every combination of nodes disabled by dropout
+could be considered a unique neural network architecture, making dropout act
+as a computationally cheap approximation to averaging multiple networks.
 
 In addition to dropout, a maximum L2 norm is imposed on each node's incoming
 weight vector. If the weight vector's L2 norm exceeds this limit, it is rescaled
@@ -455,57 +513,6 @@ This differs from the more common L2-regularisation --- where the combined L2
 norm of all weight vectors is added to the loss function --- in that the weights
 are not being continuously pushed towards zero, making it a milder form of
 regularisation that allows for a bit more complexity in the model.
-
-\subsubsection{Convolutional Neural Networks}\label{sec:conv}
-Although convolutional neural networks (CNNs) are more closely associated with
-computer vision, they are also widely used for text classification, offering
-results competetive with recurrent neural networks\citep{cnnrnn} at greater
-speed due to the more parallel nature of CNNs\citep{facebook}.
-
-Convolutional neural networks (CNNs) work by taking a number of filters  of a
-specified size and convolving these over the input data. A simplified example
-using one filter is shown in \cref{fig:cnn}.
-\begin{figure}[tb]
-  \centering
-  \includegraphics[width=\textwidth]{figures/cnn.pdf}
-  \caption{A simplified convolutional neural network with one filter and
-  max pooling.\label{fig:cnn}}
-\end{figure}
-In this example, the input text is convolved with a filter with a width of 3 and
-a stride of 1 --- that is, each application of the filter considers three
-subsequent input elements, after which the window is shifted one space to the
-right. This filter is essentially a small neural network mapping three items to
-one output value, whose weights are reused for each application of the filter.
-Reusing the weights in this way (weight sharing) prevents the number of
-parameters in the network from spiraling out of control
-\citep{lecun1995convolutional}. After the application of this convolution layer,
-the responses of the filter form a new sequence of roughly the same size as the
-input (minus a few due to missing the edges). The next step is to downsample
-this sequence by means of a \emph{max pooling} layer, which maps all values
-within a window to the maximum value amongst those values. While superficially
-similar to a convolution, this step generally does not involve overlap, instead
-either setting the stride to the same value as the window size (usually 2) or
-reducing the entire sequence to 1 value (1-max pooling). The reason for this is
-twofold:
-\begin{enumerate}
-\item It downsamples the data, reducing the amount of parameters
-  required further on in the network.
-\item It adds translation invariance to the feature detected by this filter.
-  The example filter of \cref{fig:cnn} reacts strongly to the first three
-  words. Without the pooling layer, changing the location of these words in
-  the input would similarly change the location of the high activation in the
-  intermediate representation (\emph{equivariance}). The more aggressively
-  the pooling is applied, the higher the degree of invariance (with full
-  translational invariance being achieved with 1-max pooling).
-\end{enumerate}
-This combination of convolution followed by pooling can be repeated multiple
-times as desired or until there is only a single value left as output from the
-filter. Finally, the outputs of all filters are concatenated and fed into a
-regular neural network.
-
-While CNN architectures in computer vision are generally very deep, they tend to
-be very shallow in natural language processing; commonly just a single
-convolution followed by 1-max pooling \citep{zhang2015conv}.
 
 %%% Local Variables:
 %%% mode: latex
