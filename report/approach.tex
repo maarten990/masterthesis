@@ -332,15 +332,9 @@ of the system fit together is shown in \cref{fig:overview}.
 
 The network is trained for 100 epochs, stopping early once no significant
 improvement has been made on a small validation set for 10 epochs in a row.
-The optimization process is done using the Adadelta\citep{adadelta}
-algorithm\footnote{Although Adam\citep{adam} has become very popular, the
-architecture\citep{kim2014conv} and survey paper\citep{zhang2015conv} that
-this work is based on both slightly predate the paper that popularized Adam.
-Since a full analysis of different optimizers is outside the scope of this
-thesis and some quick informal tests showed no difference between using
-Adadelta or Adam, there is no reason to deviate from the survey.}, with binary
-cross-entropy as the loss function and the training data delivered in batches
-of 50 samples. Regularization is done through a combination of
+The optimization process is done using the Adadelta\citep{adadelta} algorithm,
+with binary cross-entropy as the loss function and the training data delivered
+in batches of 50 samples. Regularization is done through a combination of
 dropout\citep{dropout} and an upper limit on the L2 norm of each weight
 vector\citep{l2norm}. Further explanation on the use of convolutional neural
 networks is given in \cref{sec:conv}, and details on the optimization process
