@@ -601,6 +601,8 @@ def run(
     window_sizes: List[Tuple[int, int]],
     k: int = 5,
     nocluster_dropout: float = 0.5,
+    kmeans_path: str = "../clustered",
+    gmm_path: str = "../clustered_gmm",
 ) -> Tuple[Results, Results]:
     if not (word_params or char_params):
         print("Need at least one of {word_params, char_params")
@@ -637,7 +639,7 @@ def run(
                 ]
 
             dataset, validset, testset = load_dataset(
-                "../clustered", "../clustered_gmm", 6, 9, window_size[0], window_size[1], old_test=True
+            	kmeans_path, gmm_path, 6, 9, window_size[0], window_size[1], old_test=True
             )
             splitter = StratifiedShuffleSplit(
                 n_splits=k,
@@ -692,6 +694,30 @@ def run(
         Results(baseline, dbscan, gmm),
         Results(char_baseline, char_dbscan, char_gmm),
     )
+
+
+def plot_sns(word_results: Results, char_results: Results) -> None:
+    table = []
+    for win in word_results.baseline.keys():
+        for train_size in word_results.baseline[win].keys():
+            for i in range(len(word_results.baseline[win][train_size])):
+                table.extend(
+                    [
+                        ["TokenCNN", "Baseline", sum(win), train_size, word_results.baseline[win][train_size][2][i]],
+                        ["TokenCNN", "DBSCAN", sum(win), train_size, word_results.dbscan[win][train_size][2][i]],
+                        ["TokenCNN", "GMM", sum(win), train_size, word_results.gmm[win][train_size][2][i]],
+                        ["CharCNN", "Baseline", sum(win), train_size, char_results.baseline[win][train_size][2][i]],
+                        ["CharCNN", "DBSCAN", sum(win), train_size, char_results.dbscan[win][train_size][2][i]],
+                        ["CharCNN", "GMM", sum(win), train_size, char_results.gmm[win][train_size][2][i]],
+                    ]
+                )
+
+    df = pd.DataFrame.from_records(
+        table, columns=["model", "method", "window", "size", "score"]
+    )
+    df["size"] = df["size"].astype(str)
+
+    sns.catplot(x="size", y="score", data=df, kind="box", hue="method", col="model")
 
 
 def plot_bokeh(

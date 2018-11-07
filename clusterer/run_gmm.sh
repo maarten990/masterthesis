@@ -13,7 +13,7 @@ function abort() {
 #     sed -i'' -E "s/(\s*)k:(\s*)[0-9]+/\1k:\2$LABELING_K/" params.yml
 # fi
 
-OUTFOLDER="../clustered_vgmm_pruned/"
+OUTFOLDER="../clustered_gmm"
 XMLFOLDER="../training_data"
 PDFFOLDER="../pdfs"
 mkdir -p "$OUTFOLDER"
