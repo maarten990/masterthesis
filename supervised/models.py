@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from typing import Optional
+
 
 def cnn_output_len(cnn: nn.Conv1d, seq_len: int) -> int:
     numerator = (
@@ -67,15 +69,22 @@ class TransposeEmbed(nn.Module):
 class CNNClassifier(nn.Module):
     """ CNN-based speech classifier. """
 
-    def __init__(self, input_size, seq_len, embed_size, filters):
+    def __init__(self, input_size, seq_len, embed_size: Optional[int], filters):
         super().__init__()
 
-        self.network = nn.Sequential(
-            TransposeEmbed(input_size, embed_size),
-            Conv1dMultipleFilters(embed_size, filters, seq_len),
-            Pool1Max(),
-            nn.ReLU(),
-        )
+        if embed_size is not None:
+            self.network = nn.Sequential(
+                TransposeEmbed(input_size, embed_size),
+                Conv1dMultipleFilters(embed_size, filters, seq_len),
+                Pool1Max(),
+                nn.ReLU(),
+            )
+        else:
+            self.network = nn.Sequential(
+                Conv1dMultipleFilters(input_size, filters, seq_len),
+                Pool1Max(),
+                nn.ReLU(),
+            )
         self.output_size = sum([num for num, _ in filters])
 
     def forward(self, inputs):
@@ -168,8 +177,9 @@ class CategoricalClusterLabels(ClfBase):
         self.recurrent_clf = recurrent_clf
 
     def forward(self, inputs, labels):
+        labels = labels.float()
         r_out = self.recurrent_clf(inputs)
-        combined = torch.cat([r_out, labels.float()], 1)
+        combined = torch.cat([r_out, labels], 1)
         return self.network(combined)
 
 
@@ -180,4 +190,24 @@ class OnlyClusterLabels(ClfBase):
         self.recurrent_clf = recurrent_clf
 
     def forward(self, inputs, labels):
-        return self.network(labels.float())
+        labels = labels.float()
+        return self.network(labels)
+
+
+class CNNClusterLabels(ClfBase):
+
+    def __init__(self, recurrent_clf, window_size, num_clusters, dropout, batch_norm=False):
+        label_cnn = CNNClassifier(num_clusters, sum(window_size) + 1, None, [(20, 2)])
+        super().__init__(dropout, recurrent_clf.output_size + label_cnn.output_size)
+        self.window_size = window_size
+        self.num_clusters = num_clusters
+        self.recurrent_clf = recurrent_clf
+        self.label_cnn = label_cnn
+
+    def forward(self, inputs, labels):
+        r_out = self.recurrent_clf(inputs)
+        batch_size = labels.size(0)
+        labels = labels.reshape(batch_size, self.num_clusters, sum(self.window_size) + 1)
+        labels_out = self.label_cnn(labels.float())
+        combined = torch.cat([r_out, labels_out], 1)
+        return self.network(combined)

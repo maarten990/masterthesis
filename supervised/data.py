@@ -17,31 +17,6 @@ from tqdm import tqdm
 charmap = string.ascii_letters + string.digits + string.punctuation
 
 
-def full_window_fn(
-        window,
-        num_clusterlabels,
-        center=None,
-        func=lambda x: np.mean(x, axis = 0),
-):
-    if center is not None:
-        return to_onehot(
-            int(
-                center.attrib["clusterLabel"]
-            ) if "clusterLabel" in center.attrib else 0,
-            num_clusterlabels,
-        )
-    else:
-        return func(
-            [
-                to_onehot(
-                    int(w.attrib["clusterLabel"]) if "clusterLabel" in w.attrib else 0,
-                    num_clusterlabels,
-                )
-                for w in window
-            ],
-        )
-
-
 def full_window_dist_fn(
         window,
         num_clusterlabels,
