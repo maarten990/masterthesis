@@ -2,10 +2,6 @@ from collections import defaultdict, namedtuple
 from typing import Any, Callable, Dict, List, Iterator, Optional, Tuple, Union
 import os
 
-from bokeh.layouts import row
-from bokeh.models import ColumnDataSource
-from bokeh.plotting import figure, output_notebook, show
-from bokeh.resources import INLINE
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,8 +17,8 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
-from data import ClusterHandling, GermanDataset, get_iterator, Vocab
-from models import CategoricalClusterLabels, NoClusterLabels
+from data import ClusterHandling, GermanDataset, get_iterator
+from models import CategoricalClusterLabels, CNNClusterLabels, NoClusterLabels
 import train
 
 sns.set()
@@ -603,6 +599,9 @@ def run(
     nocluster_dropout: float = 0.5,
     kmeans_path: str = "../clustered",
     gmm_path: str = "../clustered_gmm",
+    num_clusters: int = 10,
+    num_clusters_gmm: int = 10,
+    use_cluster_cnn: bool = False,
 ) -> Tuple[Results, Results]:
     if not (word_params or char_params):
         print("Need at least one of {word_params, char_params")
@@ -617,29 +616,36 @@ def run(
     char_dbscan = defaultdict(dict)
     char_gmm = defaultdict(dict)
 
+    if use_cluster_cnn:
+        def fn(w, n):
+            return lambda r: CNNClusterLabels(r, w, n, word_params.dropout)
+    else:
+        def fn(w, n):
+            return lambda r: CategoricalClusterLabels(r, n * (sum(w) + 1), word_params.dropout)
+
     for training_size in training_sizes:
         for window_size in window_sizes:
-            optim_fn = lambda p: torch.optim.Adadelta(p)
+            optim_fn = lambda p: torch.optim.Adam(p)
             model_fns = []
 
             if nocluster_dropout >= 0:
                 model_fns.append(lambda r: NoClusterLabels(r, nocluster_dropout))
             if word_params:
                 model_fns += [
-                    lambda r: CategoricalClusterLabels(r, 6 * (sum(window_size) + 1), word_params.dropout),
-                    lambda r: CategoricalClusterLabels(r, 9 * (sum(window_size) + 1), word_params.dropout),
+                    fn(window_size, num_clusters),
+                    fn(window_size, num_clusters_gmm),
                 ]
 
             if nocluster_dropout >= 0:
                 model_fns.append(lambda r: NoClusterLabels(r, nocluster_dropout))
             if char_params:
                 model_fns += [
-                    lambda r: CategoricalClusterLabels(r, 6 * (sum(window_size) + 1), char_params.dropout),
-                    lambda r: CategoricalClusterLabels(r, 9 * (sum(window_size) + 1), char_params.dropout),
+                    fn(window_size, num_clusters),
+                    fn(window_size, num_clusters_gmm),
                 ]
 
             dataset, validset, testset = load_dataset(
-            	kmeans_path, gmm_path, 6, 9, window_size[0], window_size[1], old_test=True
+                kmeans_path, gmm_path, num_clusters, num_clusters_gmm, window_size[0], window_size[1], old_test=True
             )
             splitter = StratifiedShuffleSplit(
                 n_splits=k,
@@ -668,7 +674,7 @@ def run(
                 optim_fn,
                 dataset,
                 params=params_list,
-                early_stopping=2,
+                early_stopping=3,
                 validation_set=validset,
                 batch_size=128,
                 testset=testset,
@@ -696,18 +702,20 @@ def run(
     )
 
 
-def plot_sns(word_results: Results, char_results: Results) -> None:
+def results_to_dataframe(
+        word_results: Results, char_results: Results
+) -> pd.DataFrame:
     table = []
     for win in word_results.baseline.keys():
         for train_size in word_results.baseline[win].keys():
-            for i in range(len(word_results.baseline[win][train_size])):
+            for i in range(len(word_results.baseline[win][train_size][2])):
                 table.extend(
                     [
                         ["TokenCNN", "Baseline", sum(win), train_size, word_results.baseline[win][train_size][2][i]],
-                        ["TokenCNN", "DBSCAN", sum(win), train_size, word_results.dbscan[win][train_size][2][i]],
+                        ["TokenCNN", "K-Means", sum(win), train_size, word_results.dbscan[win][train_size][2][i]],
                         ["TokenCNN", "GMM", sum(win), train_size, word_results.gmm[win][train_size][2][i]],
                         ["CharCNN", "Baseline", sum(win), train_size, char_results.baseline[win][train_size][2][i]],
-                        ["CharCNN", "DBSCAN", sum(win), train_size, char_results.dbscan[win][train_size][2][i]],
+                        ["CharCNN", "K-Means", sum(win), train_size, char_results.dbscan[win][train_size][2][i]],
                         ["CharCNN", "GMM", sum(win), train_size, char_results.gmm[win][train_size][2][i]],
                     ]
                 )
@@ -715,62 +723,11 @@ def plot_sns(word_results: Results, char_results: Results) -> None:
     df = pd.DataFrame.from_records(
         table, columns=["model", "method", "window", "size", "score"]
     )
-    df["size"] = df["size"].astype(str)
 
-    sns.catplot(x="size", y="score", data=df, kind="box", hue="method", col="model")
+    return df
 
 
-def plot_bokeh(
-    word_results: Results, char_results: Results, inline: bool = True
-) -> None:
-    table = []
-    for win in word_results.baseline.keys():
-        for train_size in word_results.baseline[win].keys():
-            for i in range(len(word_results.baseline[win][train_size])):
-                table.extend(
-                    [
-                        ["TokenCNN", "Baseline", sum(win), train_size, word_results.baseline[win][train_size][2][i]],
-                        ["TokenCNN", "DBSCAN", sum(win), train_size, word_results.dbscan[win][train_size][2][i]],
-                        ["TokenCNN", "GMM", sum(win), train_size, word_results.gmm[win][train_size][2][i]],
-                        ["CharCNN", "Baseline", sum(win), train_size, char_results.baseline[win][train_size][2][i]],
-                        ["CharCNN", "DBSCAN", sum(win), train_size, char_results.dbscan[win][train_size][2][i]],
-                        ["CharCNN", "GMM", sum(win), train_size, char_results.gmm[win][train_size][2][i]],
-                    ]
-                )
-
-    df = pd.DataFrame.from_records(
-        table, columns=["model", "method", "window", "size", "score"]
-    )
-    df["size"] = df["size"].astype(str)
-
-    if inline:
-        output_notebook(INLINE)
-
-    y_min = df.min().score
-    y_max = df.max().score
-    token_group = df[df.model == "TokenCNN"].groupby(["size", "method"])
-    char_group = df[df.model == "CharCNN"].groupby(["size", "method"])
-    p_token = figure(
-        title="TokenCNN",
-        x_axis_label="Number of training samples",
-        y_axis_label="F1 score",
-        x_range=token_group,
-        y_range=(y_min - 0.01, y_max + 0.01),
-    )
-
-    p_char = figure(
-        title="CharCNN",
-        x_axis_label="Number of training samples",
-        y_axis_label="F1 score",
-        x_range=char_group,
-        y_range=(y_min - 0.01, y_max + 0.01),
-    )
-
-    # p_token.vbar(x="size_method", top="score_mean", width=0.9, source=token_group)
-    # p_char.vbar(x="size_method", top="score_mean", width=0.9, source=char_group)
-    p_token.vbar(x="size_method", top="score_25%", bottom="score_mean", width=0.9, fill_color="#E08E79", source=token_group)
-    p_token.vbar(x="size_method", top="score_mean", bottom="score_75%", width=0.9, fill_color="#3B8686", source=token_group)
-    p_char.vbar(x="size_method", top="score_25%", bottom="score_mean", width=0.9, fill_color="#E08E79", source=char_group)
-    p_char.vbar(x="size_method", top="score_mean", bottom="score_75%", width=0.9, fill_color="#3B8686", source=char_group)
-
-    show(row(p_token, p_char))
+def plot_sns(df: pd.DataFrame) -> None:
+    g = sns.catplot(x="size", y="score", data=df, kind="box", hue="method", col="model")
+    g.set_axis_labels("Number of training samples", "F1 score")
+    g.set_titles("{col_name}")
