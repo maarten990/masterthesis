@@ -1,7 +1,6 @@
 import sys
 import numpy as np
 from sklearn.cluster import DBSCAN
-from sklearn.preprocessing import StandardScaler
 
 
 def main():
@@ -16,9 +15,7 @@ def main():
         data.shape[0], epsilon, min_samples))
 
     if data.size > 0:
-        scaler = StandardScaler()
         clusterer = DBSCAN(eps=epsilon, min_samples=min_samples)
-        data = scaler.fit_transform(data)
         labels = clusterer.fit_predict(data)
         print('Finished clustering')
     else:

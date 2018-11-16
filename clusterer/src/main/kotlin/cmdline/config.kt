@@ -8,7 +8,7 @@ import java.io.File
 
 class DbscanParams {
     @JsonProperty
-    var epsilon: Int? = null
+    var epsilon: Float? = null
 
     @JsonProperty
     var min_pts: Int? = null

@@ -1,6 +1,6 @@
 clustering:
   dbscan:
-    epsilon: 16
+    epsilon: 16.5
     min_pts: 1
 
 labeling:

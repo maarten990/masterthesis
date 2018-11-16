@@ -1,7 +1,6 @@
 import sys
 import fastcluster
 import numpy as np
-from sklearn.preprocessing import StandardScaler
 
 
 def main():
@@ -12,8 +11,6 @@ def main():
     print('Received {} points, clustering...'.format(data.shape[0]))
 
     if data.size > 0:
-        scaler = StandardScaler()
-        data = scaler.fit_transform(data)
         clusters = fastcluster.single(data)
         print('Finished clustering')
     else:
