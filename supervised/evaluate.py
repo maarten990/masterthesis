@@ -728,6 +728,8 @@ def results_to_dataframe(
 
 
 def plot_sns(df: pd.DataFrame) -> None:
-    g = sns.catplot(x="size", y="score", data=df, kind="box", hue="method", col="model")
+    g = sns.catplot(
+        x="size", y="score", data=df, kind="box", hue="method", col="model", row="window"
+    )
     g.set_axis_labels("Number of training samples", "F1 score")
-    g.set_titles("{col_name}")
+    g.set_titles("{col_name}, window size {row_name}")
