@@ -12,25 +12,25 @@ as well as three variations for each model:
 \begin{itemize}
   \item No clustering.
   \item The data is augmented with K-Means clustering.
-  \item The data is augmented with clustering through an infinite mixture model.
+  \item The data is augmented with clustering through an infinite Gaussian
+    mixture model.
 \end{itemize}
-These variations will be referred to as ``Baseline'', ``K-Means'' and ``Infinite
-Mixture model'' respectively. Although K-fold cross validation would seem to be
-a good way of comparing their relative performance, there are two properties of
-cross validation that make it less desirable in this case:
+These variations will be referred to as ``Baseline'', ``K-Means'' and ``GMM ''
+respectively. Although K-fold cross validation is a common way of comparing
+the performance of different, there are two reasons why it isn't used in these
+experiments:
 \begin{itemize}
   \item One of the more interesting variables in this context is the size of the
-  training set, but
-    with cross validation it is directly tied to the number of iterations (e.g.\
-    with a dataset of 1000 samples and 10 folds, each fold would have a
-    training set of 100 samples).
+    training set, but with cross validation it is directly tied to the number of
+    folds (e.g.\ with a dataset of 1000 samples and 10 folds, each fold
+    would have a training set of 100 samples).
   \item The training set and the test set are sampled from the same pool of
     data. In our case, we want the training set and the test set to be sampled
     from different electoral periods, because:
     \begin{itemize}
       \item A change of electoral period means at least a partial change in
         parliamentary members, which reduces the ability of the model to 
-        overfit on the names of members.
+        overfit on their names.
       \item Although older documents use the same layout as newer ones, the PDF
         files were generated using different software (electoral period 13 started
         in 1994 and was the first period to use truly  digital documents --- older
@@ -45,96 +45,143 @@ Therefore, a variation of cross validation is used instead. There is a pool of
 training data consisting of documents from the 18th electoral period of the
 \emph{Bundestag}, and a test set containing documents from the
 electoral periods \numrange{13}{17}.
-For 5 iterations, $k$ samples are pulled from the pool of training data. Each
+For 10 iterations, $k$ samples are pulled from the pool of training data. Each
 of the three models is trained on these samples and then tested on the full test
 set.
 
-\subsection{Parameter Exploration\label{sec:param}}
-Before directly comparing the two models, a good baseline value has to be
-determined for the two parameters in the model that are the most difficult to
-determine:
-\begin{enumerate}
-  \item the size of the sliding window applied to the lines of text in the input data
-  \item the number of clusters to detect in the blocks of text (i.e.\ the ``k''
-    in k-means)
-\end{enumerate}
-Although there are more parameters, they are related to the 
-neural network, meaning there is a large amount of prior knowledge available to
-set the parameters.
+\subsection{Results}
+The results of the main experiments are shown in \cref{fig:results}.
+A number of things are immediately noticeable:
+\begin{itemize}
+  \item With a context window of size 1 (i.e.\ only a single line of text),
+    results are particularly bad. Adding the subsequent line of text (a window
+    size of 2) increases performance significantly, but additional increases
+    lead to diminishing returns and eventual regression in performance.
+  \item The CharCNN model scales better with the size of the dataset than the
+    TokenCNN model; in each case except for the smallest window size, TokenCNN
+    has a much flatter curve. It outperforms CharCNN at low dataset sizes, but
+    in most cases CharCNN manages to edge out a bit of extra performance at 2400
+    and 3000 samples.
+  \item GMM clustering performs equal to or better than the baseline in almost
+    every case; in some cases the GMM curve is clearly above the baseline curve,
+    in others they are close enough that their confidence interval overlaps.
+    K-Means clustering is a little bit harder to pin down, but in many cases
+    seems to fall in between the baseline and GMM clustering.
+\end{itemize}
 
-\todo[inline]{Plot opnieuw genereren met een logischere unit op de x-as, en
-testen met window sizes die alleen naar voren kijken}
-The effect of the sliding window size is shown in \cref{fig:window}. In this
-figure, the window size refers to how many neighbouring lines of text are
-considered: 0 means just the line of text by itself, 1 means the next line is
-included, 2 means both the next and previous lines are included, et cetera.
-For each model, there is a very sharp increase in performance when going from
-zero to one neighbouring element, followed by a gradual decline as more elements
-are added.
-\begin{figure}[p]
+\begin{figure}[tb]
   \centering
-  \begin{subfigure}[b]{\textwidth}
-    \includegraphics[width=\textwidth]{figures/results/2000-windowsize_forward-old/tseries_f1.pdf}
-    \caption{The F1 score with regards to the sliding window size for each
-    model.\label{fig:window}}
-    \vspace*{\fill}
-  \end{subfigure}
-  \begin{subfigure}[b]{\textwidth}
-    \includegraphics[width=\textwidth]{figures/results/2000-numclusters-old/tseries_f1.pdf}
-    \caption{The F1 score with regards to the number of clusters for the K-Means
-      model.\label{fig:numcluster}}
-  \end{subfigure}
-  \caption{These figures show the performance with regards to the sliding window
-    size and the number of clusters, using a training set of 2000 samples. In
-    \cref{fig:window}, the K-Means model was trained using 9 clusters.
-    Each figure's F1 score is averaged over 5 trials; the translucent bands
-    around the lines indicates the confidence intervals, meaning that based on
-    the observed F1 scores and assuming normality, the true mean is 95\% likely
-    to fall within that interval. The dots on the lines indicate
-    measurements.\label{fig:params}
+  \makebox[\textwidth]{
+	\includegraphics[width=\paperwidth]{figures/results/all_results.pdf}
   }
+  \caption{A number of point plots showing the F1 scores of the experiments,
+    averaged over 10 cross validation runs. The error bars indicate the 95\%
+    confidence interval, meaning that the true mean has a 95\% chance of lying
+    within the shown interval.  The number of training samples is varied on the
+    x-axis; the left column shows the TokenCNN model, the right column the
+    CharCNN model. The rows correspond to the size of the context window. The
+    three clustering methods are displayed within the same
+  graph.\label{fig:results}}
 \end{figure}
 
-Results for the number of clusters are given in \cref{fig:numcluster}. In
-this case, the window size was fixed to the previously determined optimum of 2.
-The baseline model is not tested here due to not using clustering, and the
-model using infinite mixture clustering is not tested due to its fixed amount of
-clusters. The result varies little, and given the large variances no value can
-really be said to outperform the rest.
+It is risky to readily draw conclusions from this data, as the variance between
+cross validation runs is high relative to the difference in F1 score between the
+models. Although significance testing (by means of of P scores) can be a useful
+tool in scenarios like this, their power with is relatively low with the low
+sample size of 10 combined with the small difference in scores.  Increasing the
+number of cross validation folds would have been a solution, although at
+significant cost in both time and electricity; instead, the discriminative power
+can be increased by coalescing the results at different parameter
+configurations. This is shown in \cref{tbl:p_all} for all parameters, and in
+\cref{tbl:p_best} for a well-performing subset of parameters. This paints a much
+clearer picture. In \cref{tbl:p_all}, the TokenCNN model is significantly
+improved by both forms of clustering, while the CharCNN does not appear to
+benefit from adding K-Means clustering. In this overall case, the TokenCNN also
+outperforms the CharCNN, mostly because of the inclusion of the low amounts of
+training data which the CharCNN model struggles with.
+
+Restricting our view to the better performing parameter settings in
+\cref{tbl:p_best}, a couple of things change. First of all, K-Means clustering
+does not appear to improve the scores for either model. GMM clustering is still
+a significant improvement when applied to the TokenCNN. When applied to
+the CharCNN, the score is still quite a bit higher, although it loses its
+significance in a statistical sense. Additionally, CharCNN now wins out over
+TokenCNN with a slight margin.
+
+\subsection*{Discriminative power of clustering}
+Now that it is somewhat established that GMM clustering outperforms K-Means
+clustering, it might be interesting to look at their differences in greater
+detail. We have already compared the baseline (only text) with the augmented
+models (text and clustering); why not add something of an inverse baseline that
+is trained using only the clustering data? The results of this experiment are
+shown in \cref{fig:only_clusters}, and they contain some surprises. While the
+previous experiments seemed to imply that adding GMM clustering improved the F1
+scores more than adding K-Means clustering did, here we actually see K-Means on
+its own significantly out-perform GMM at larger window sizes. In fact, K-Means
+seems to scale very well with increased window sizes, while the GMM performance
+is rather constant. In addition, K-Means suffers far less when lowering the
+number of training samples to 200. Lastly, their performance is surprisingly
+good. The peak F1 score of around 0.85 is not all that far removed from the
+baseline scores of roughly 0.94, considering the amount of information discarded
+in the text.
+
 \begin{figure}[tb]
   \centering
-  \caption{This figure shows the performance with regards to the number of
-    cluster types for each model trained on 1200 training samples with a window
-    size of 5.  The vertical axis shows the F1 score, averaged over 10 trials;
-    the horizontal axis shows the number of cluster types considered in the
-    final clustering step.  The translucent bands around the lines indicates the
-    confidence intervals, meaning that based on the observed F1 scores and
-    assuming normality, the true mean is 95\% likely to fall within that interval.
-    The dots on the lines indicate measurements.\label{fig:numcluster}}
+  \makebox[\textwidth]{
+	\includegraphics[width=\paperwidth]{figures/results/all_results_only_clusters.pdf}
+  }
+  \caption{This figure is similar to \cref{fig:results}, except when trained on
+	\emph{only} the clustering data, with the textual data being
+	discarded.\label{fig:only_clusters}}
 \end{figure}
 
-\subsection{Training Set Size}
-Using the ideal parameters obtained in \cref{sec:param}, the influence of the
-training set size is shown in \cref{fig:size}. This shows a number of
-interesting differences. First of all, the Baseline and K-Means models perform
-similarly for both CNN models at every input size, while the infinite mixture
-version outperforms them only when using the CharCNN model. Additionally, the
-WordCNN and CharCNN models respond much differently to variations of the
-training set's size; WordCNN maxes out its performance at roughly 800 samples,
-while CharCNN requires around 2000 samples to reach the same performance.
-However, when augmented using the infinite mixture model, CharCNN peaks at a
-slightly higher score than WordCNN.
-\begin{figure}[tb]
-  \centering
-  \includegraphics[width=\textwidth]{figures/results/training-size-old/tseries_f1.pdf}
-  \caption{This figure shows the performance with regards to the size of the
-    training set, using a window size of 2 of 9 clusters for the K-Means models.
-    The F1 scores are averaged over 5 trials; the translucent bands
-    around the lines indicates the confidence intervals, meaning that based on
-    the observed F1 scores and assuming normality, the true mean is 95\% likely
-    to fall within that interval. The dots on the lines indicate
-    measurements.\label{fig:size}}
-\end{figure}
+
+\begin{table}[tb]
+  \begin{subfigure}[b]{\textwidth}
+    \centering
+    \begin{tabular}{lrrrr}
+      \toprule
+      & \multicolumn{2}{c}{TokenCNN} & \multicolumn{2}{c}{CharCNN}\\
+      \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+      Method   & Mean  & P              & Mean  & P\\
+      \midrule
+      Baseline & 0.895 & -              & 0.880 & - \\
+      K-Means  & 0.901 & \num{2.55e-05} & 0.880 & 0.81 \\
+      GMM      & 0.905 & \num{6.12e-13} & 0.888 & \num{1.16e-04} \\
+      \bottomrule
+    \end{tabular}
+    \caption{The values in this table are taken from all window sizes and all
+    dataset sizes.\label{tbl:p_all}}
+    \vspace*{1em}
+  \end{subfigure}
+  \begin{subfigure}[b]{\textwidth}
+    \centering
+    \begin{tabular}{lrrrr}
+      \toprule
+      & \multicolumn{2}{c}{TokenCNN} & \multicolumn{2}{c}{CharCNN}\\
+      \cmidrule(lr){2-3} \cmidrule(lr){4-5}
+      Method   & Mean  & P    & Mean  & P\\
+      \midrule
+      Baseline & 0.935 & -    & 0.937 & - \\
+      K-Means  & 0.935 & 0.96 & 0.938 & 0.72 \\
+      GMM      & 0.941 & 0.03 & 0.945 & 0.12 \\
+      \bottomrule
+    \end{tabular}
+    \caption{The values in this table are taken from the best performing
+    subset of the parameters, with the number of training samples being 2400 and
+    3000 and the size of the context window set to 1 or 2.\label{tbl:p_best}}
+  \end{subfigure}
+  \caption{The results averaged over all tested parameters. The P column shows
+    the P value comparing each model to the baseline, using a paired
+    Student's t-test over the full cross validation output. The P value is based
+    on the null hypothesis that neither model improves on the baseline. Using
+    the common $P \leq 0.05$ cutoff for rejecting the null hypothesis, any P
+    value below 0.05 would be grounds to consider the model to perform
+    differently from the baseline. Since each model's mean score is equal to or
+    higher than the baseline score, in this case we can fortunately take
+    ``differently'' to mean ``better''.
+  \label{tbl:results}}
+\end{table}
 
 \FloatBarrier%
 
