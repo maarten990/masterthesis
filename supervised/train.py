@@ -185,7 +185,12 @@ def train_BoW(
     )
     model = SVC(probability=True)
 
-    samples = [entry.X_words for entry in dataset]
+    samples = [
+        " ".join(
+            [vocab.idx_to_token.get(idx, "NULL") for row in entry.X_words for idx in row]
+        )
+        for entry in dataset
+    ]
     labels = [entry.label for entry in dataset]
     X = vectorizer.fit_transform(samples)
 

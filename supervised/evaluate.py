@@ -18,7 +18,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 
 from data import ClusterHandling, GermanDataset, get_iterator
-from models import CategoricalClusterLabels, CNNClusterLabels, NoClusterLabels
+from models import CategoricalClusterLabels, CNNClusterLabels, NoClusterLabels, OnlyClusterLabels
 import train
 
 sns.set()
@@ -63,10 +63,16 @@ def get_values(
 
 
 def evaluate_bow(
-        model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset
+        model: SVC, vectorizer: TfidfVectorizer, dataset: Dataset, vocab
 ) -> Tuple[float, float]:
-    samples = [entry.X_words for entry in dataset]
-    true = [entry.label for entry in dataset]
+    true = np.ravel([entry.label for entry in dataset])
+
+    samples = [
+        " ".join(
+            [vocab.idx_to_token.get(idx, "NULL") for row in entry.X_words for idx in row]
+        )
+        for entry in dataset
+    ]
 
     y = model.predict(vectorizer.transform(samples))
     return f1_score(true, y)
@@ -293,7 +299,9 @@ def cross_val_bow(
         model, vectorizer = train.train_BoW(
             trainset, dataset.word_vocab, ngram_range=(1, 2)
         )
-        F1s[0].append(evaluate_bow(model, vectorizer, testset))
+        F1s[0].append(
+            evaluate_bow(model, vectorizer, testset, dataset.word_vocab)
+        )
 
     return F1s, F1s, F1s, F1s
 
@@ -602,6 +610,8 @@ def run(
     num_clusters: int = 10,
     num_clusters_gmm: int = 10,
     use_cluster_cnn: bool = False,
+    use_only_clusters: bool = False,
+    use_bow: bool = False,
 ) -> Tuple[Results, Results]:
     if not (word_params or char_params):
         print("Need at least one of {word_params, char_params")
@@ -619,6 +629,9 @@ def run(
     if use_cluster_cnn:
         def fn(w, n):
             return lambda r: CNNClusterLabels(r, w, n, word_params.dropout)
+    elif use_only_clusters:
+        def fn(w, n):
+            return lambda r: OnlyClusterLabels(r, n * (sum(w) + 1), word_params.dropout)
     else:
         def fn(w, n):
             return lambda r: CategoricalClusterLabels(r, n * (sum(w) + 1), word_params.dropout)
@@ -666,19 +679,22 @@ def run(
                 use_dist_list = [False, True] * (2 if both_models else 1)
 
             splitter.random_state = 100
-            values = cross_val(
-                k,
-                splitter,
-                model_fns,
-                use_dist_list,
-                optim_fn,
-                dataset,
-                params=params_list,
-                early_stopping=3,
-                validation_set=validset,
-                batch_size=128,
-                testset=testset,
-            )
+            if use_bow:
+                values = cross_val_bow(k, splitter, dataset, testset=testset)
+            else:
+                values = cross_val(
+                    k,
+                    splitter,
+                    model_fns,
+                    use_dist_list,
+                    optim_fn,
+                    dataset,
+                    params=params_list,
+                    early_stopping=3,
+                    validation_set=validset,
+                    batch_size=128,
+                    testset=testset,
+                )
 
             result_order = []
             if word_params:
@@ -689,6 +705,10 @@ def run(
                 if nocluster_dropout >= 0:
                     result_order.append(char_baseline)
                 result_order += [char_dbscan, char_gmm]
+
+            if use_bow:
+                # special case, override the order
+                result_order = [baseline]
 
             num_iter = len(values[0])
             assert(num_iter == len(result_order))
