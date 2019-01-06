@@ -1,12 +1,60 @@
 \section{Conclusion}
-Segmenting political proceedings through the use of machine learning is a viable
-approach, reaching peak F1 scores of 0.96. When training data is very sparse,
-word-level convolutional neural networks are the best option; augmenting them
-with information regarding the document layout, whether through K-Means
-clustering or an infinite mixture model, offers no notable increase in
-performance. When more training data (roughly 1000 positive samples) is
-available, character-based convolutional neural networks outperform their
-word-based brethren only when augmented using infinite mixture model clustering.
+As stated earlier in \cref{sec:research_question}, the addition of clustering
+information was intended to either improve the peak scores or reduce the
+required amount of training data for similar scores. In addition to this main
+research question, two different neural network models were compared: TokenCNN,
+a model that operates at the word level, and CharCNN, a model that operates at
+the character level.  Finally, clustering was implemented using a basic K-Means
+algorithm as well as a more involved Gaussian mixture model.
+
+With regards to the two neural network models, it all boils down to the amount
+of available training data. At lower amounts, TokenCNN greatly outperforms its
+character-based counterpart; starting from around 2400 training samples, CharCNN
+catches up and achieves slightly better scores. Between the two clustering
+models, the mixture model simply outperforms K-Means clustering in every
+scenario.
+
+Coming back to the main research question, the conclusion is cautiously
+positive, if underwhelming. Comparing the baseline to Gaussian mixture model
+clustering, \cref{tbl:p_best} shows an increase in F1 score of 0.06 (P = 0.03)
+for the TokenCNN model and an increase of 0.07 (P = 0.12) for the CharCNN. While
+these are not massive improvements, the addition of GMM does appear to improve
+the F1 score. On the other hand, K-Means clustering adds nothing to the score.
+
+Regarding the second research question about data efficiency, there is no
+difference beyond what is implied by the previous paragraph. Since the
+GMM-augmented model generally outperforms the baseline, it is trivial that there
+are cases where the augmented F1 score with little data is equal to the baseline
+F1 score when using more data. In \cref{fig:results} however, both models tend
+to follow the same curve with respect to the number of training samples,
+flattening out somewhere around 2400-3000 training samples. Since the models
+scale similarly with increased samples and reach their peak performance around
+the same amount, in practice one would aim for a similarly sized dataset
+regardless of whether or not GMM augmentation is being used. In that sense, it
+seems fair to conclude that there are no benefits regarding data efficiency.
+
+\subsection{Discussion}
+In this thesis I proposed a method for adding layout information to a standard text
+classifier and showed that it slightly increases the classifier's performance.
+This could be considered somewhat of a proof of concept, as there are a number
+of other potential benefits that were unexplored. For instance, document layouts
+are largely invariant to the document's language or subject; I have little
+experience with both German and with politics, but I had no problem
+understanding how the Bundestag documents from the dataset were laid out. This
+suggests that the clustered layouts might respond very well to transfer
+learning, i.e.\ training on one dataset, then reusing the trained network for
+another dataset after training on a very small amount of documents from that new
+dataset.
+
+Taking a step back, the reason that the document layout was described using
+clustering algorithms was purely convenience; it was easy to implement and
+integrates well with a neural network classifier. There might be more
+specialized algorithms that represent the layout in an even more informative
+way, which would hopefully amplify the increased performance seen here. In fact,
+before properly starting on this thesis my ambition was to segment the documents
+using only the layout, outperforming any classifier relying on the document's
+text. Although I did not succeed in that regard, I still feel like it is
+possible, and I hope to see it done some day.
 
 %%% Local Variables:
 %%% mode: latex

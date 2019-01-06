@@ -108,7 +108,7 @@ the CharCNN, the score is still quite a bit higher, although it loses its
 significance in a statistical sense. Additionally, CharCNN now wins out over
 TokenCNN with a slight margin.
 
-\subsection*{Discriminative power of clustering}
+\subsection{Discriminative power of clustering}
 Now that it is somewhat established that GMM clustering outperforms K-Means
 clustering, it might be interesting to look at their differences in greater
 detail. We have already compared the baseline (only text) with the augmented
@@ -122,8 +122,8 @@ seems to scale very well with increased window sizes, while the GMM performance
 is rather constant. In addition, K-Means suffers far less when lowering the
 number of training samples to 200. Lastly, their performance is surprisingly
 good. The peak F1 score of around 0.85 is not all that far removed from the
-baseline scores of roughly 0.94, considering the amount of information discarded
-in the text.
+baseline scores of roughly 0.94, considering the amount of information lost when
+discarding the text.
 
 \begin{figure}[tb]
   \centering

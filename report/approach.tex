@@ -395,9 +395,9 @@ twofold:
   The example filter of \cref{fig:cnn} reacts strongly to the first three
   words. Without the pooling layer, changing the location of these words in
   the input would similarly change the location of the high activation in the
-  intermediate representation (\emph{equivariance}). The more aggressively
-  the pooling is applied, the higher the degree of invariance (with full
-  translational invariance being achieved with 1-max pooling).
+  intermediate representation. The more aggressively
+  the pooling is applied, the higher the degree of invariance; using 1-max
+  pooling, the representation is fully translation invariant.
 \end{enumerate}
 This combination of convolution followed by pooling can be repeated multiple
 times as desired or until there is only a single value left as output from the
